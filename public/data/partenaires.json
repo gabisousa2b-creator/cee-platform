@@ -1,0 +1,24 @@
+[
+  {
+    "id": "releve_energie",
+    "nom": "Relève Energie",
+    "logo": "fa-bolt",
+    "couleur": "#1D4ED8",
+    "contact": "Service client Relève Energie",
+    "email": "contact@releve-energie.fr",
+    "telephone": "01 00 00 00 00",
+    "site": "https://www.releve-energie.fr",
+    "adresse": "À compléter"
+  },
+  {
+    "id": "france_eco_habitat",
+    "nom": "France Eco Habitat",
+    "logo": "fa-house-chimney",
+    "couleur": "#059669",
+    "contact": "Service client France Eco Habitat",
+    "email": "contact@france-eco-habitat.fr",
+    "telephone": "01 00 00 00 00",
+    "site": "https://www.france-eco-habitat.fr",
+    "adresse": "À compléter"
+  }
+]

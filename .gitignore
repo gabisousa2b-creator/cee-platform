@@ -1,0 +1,32 @@
+# Dépendances
+node_modules/
+
+# Base de données (données locales - le serveur a la sienne)
+data/cee.db
+data/*.db
+
+# Fichiers uploadés par les utilisateurs
+uploads/
+
+# Variables d'environnement
+.env
+.env.local
+.env.production
+.env.staging
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Build
+dist/
+build/
