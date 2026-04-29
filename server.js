@@ -85,6 +85,38 @@ db.serialize(() => {
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
+  // ── Opérations CEE ────────────────────────────────────────────────────────────
+  db.run(`CREATE TABLE IF NOT EXISTS cee_operations (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    beneficiaire_id  INTEGER NOT NULL,
+    code_fiche       TEXT NOT NULL,
+    nom_operation    TEXT NOT NULL,
+    secteur          TEXT DEFAULT '',
+    date_engagement  DATE,
+    date_achevement  DATE,
+    volume_kwh       REAL DEFAULT 0,
+    prime_estimee    REAL DEFAULT 0,
+    prime_validee    REAL DEFAULT 0,
+    statut           TEXT DEFAULT 'en_cours',
+    notes            TEXT DEFAULT '',
+    created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (beneficiaire_id) REFERENCES beneficiaires(id) ON DELETE CASCADE
+  )`);
+
+  // ── Journal d'activité ────────────────────────────────────────────────────────
+  db.run(`CREATE TABLE IF NOT EXISTS activity_logs (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    beneficiaire_id  INTEGER,
+    action           TEXT NOT NULL,
+    details          TEXT DEFAULT '',
+    auteur           TEXT DEFAULT 'admin',
+    created_at       DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  // ── Statut par document ───────────────────────────────────────────────────────
+  db.run(`ALTER TABLE documents ADD COLUMN doc_statut TEXT DEFAULT 'recu'`, () => {});
+
   // Précharge les modèles par défaut si la table est vide
   db.get('SELECT COUNT(*) as cnt FROM email_templates', (err, row) => {
     if (err || row.cnt > 0) return;
@@ -196,6 +228,22 @@ const uploadBenef = multer({
 });
 
 const csvXlsxUpload = multer({ storage: multer.memoryStorage() });
+
+// ── Rate limiting (login) ─────────────────────────────────────────────────────
+const loginAttempts = new Map(); // ip → { count, resetAt }
+function checkRateLimit(ip) {
+  const now = Date.now();
+  let entry = loginAttempts.get(ip);
+  if (!entry || now > entry.resetAt) { entry = { count: 0, resetAt: now + 15 * 60 * 1000 }; loginAttempts.set(ip, entry); }
+  entry.count++;
+  return entry.count <= 10; // 10 tentatives / 15 min
+}
+function getRemainingAttempts(ip) {
+  const entry = loginAttempts.get(ip);
+  if (!entry || Date.now() > entry.resetAt) return 10;
+  return Math.max(0, 10 - entry.count);
+}
+function resetLoginAttempts(ip) { loginAttempts.delete(ip); }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function generateCode() {
@@ -393,7 +441,22 @@ function sendRecapEmail(beneficiaireId, commentIds) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // ── ADMIN ROUTES ──────────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
-app.post('/api/admin/login',      (req, res) => { if (req.body.password === ADMIN_PASSWORD) { req.session.isAdmin = true; res.json({ success:true }); } else res.status(401).json({ error:'Mot de passe incorrect' }); });
+app.post('/api/admin/login', (req, res) => {
+  const ip = req.ip || req.connection.remoteAddress || 'unknown';
+  if (!checkRateLimit(ip)) {
+    return res.status(429).json({ error: 'Trop de tentatives. Réessayez dans 15 minutes.' });
+  }
+  if (req.body.password === ADMIN_PASSWORD) {
+    req.session.isAdmin = true;
+    resetLoginAttempts(ip);
+    // Log de connexion
+    db.run(`INSERT INTO activity_logs (beneficiaire_id, action, details, auteur) VALUES (NULL, 'connexion_admin', 'Connexion admin réussie', 'admin')`);
+    res.json({ success: true });
+  } else {
+    const remaining = getRemainingAttempts(ip);
+    res.status(401).json({ error: `Mot de passe incorrect. ${remaining} tentative(s) restante(s).` });
+  }
+});
 app.post('/api/admin/logout',     (req, res) => { req.session.destroy(); res.json({ success:true }); });
 app.get('/api/admin/check-auth',  (req, res) => res.json({ authenticated: !!req.session.isAdmin }));
 
@@ -402,7 +465,30 @@ app.get('/api/admin/stats', requireAdmin, (req, res) => {
     db.all('SELECT statut, COUNT(*) as count FROM beneficiaires WHERE archived=0 GROUP BY statut', [], (err, byStatut) => {
       db.get('SELECT COUNT(*) as total FROM documents WHERE uploaded_by="beneficiaire"', [], (err, docs) => {
         db.get('SELECT COUNT(*) as total FROM beneficiaires WHERE archived=1', [], (err, arch) => {
-          res.json({ total:total?.total||0, byStatut:byStatut||[], totalDocuments:docs?.total||0, archived:arch?.total||0 });
+          // Stats CEE opérations
+          db.get(`SELECT
+            COALESCE(SUM(volume_kwh), 0)    AS total_kwh,
+            COALESCE(SUM(prime_estimee), 0) AS total_prime_estimee,
+            COALESCE(SUM(prime_validee), 0) AS total_prime_validee,
+            COUNT(*)                         AS total_operations
+            FROM cee_operations`, [], (err, ops) => {
+            // Alertes : dossiers en_cours depuis > 30 jours sans nouvelles docs
+            db.get(`SELECT COUNT(*) as cnt FROM beneficiaires
+              WHERE archived=0 AND statut IN ('en_cours','en_attente')
+              AND julianday('now') - julianday(updated_at) > 30`, [], (err, alerts) => {
+              res.json({
+                total:             total?.total || 0,
+                byStatut:          byStatut || [],
+                totalDocuments:    docs?.total || 0,
+                archived:          arch?.total || 0,
+                totalKwh:          ops?.total_kwh || 0,
+                totalPrimeEstimee: ops?.total_prime_estimee || 0,
+                totalPrimeValidee: ops?.total_prime_validee || 0,
+                totalOperations:   ops?.total_operations || 0,
+                alertes:           alerts?.cnt || 0
+              });
+            });
+          });
         });
       });
     });
@@ -827,6 +913,487 @@ app.delete('/api/admin/email-templates/:id', requireAdmin, (req, res) => {
   db.run('DELETE FROM email_templates WHERE id=?', [req.params.id],
     err => err ? res.status(500).json({error:err.message}) : res.json({success:true})
   );
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── OPÉRATIONS CEE ────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Liste de toutes les opérations (avec nom du bénéficiaire)
+app.get('/api/admin/operations', requireAdmin, (req, res) => {
+  const { beneficiaire_id, statut } = req.query;
+  let where = '1=1';
+  const params = [];
+  if (beneficiaire_id) { where += ' AND o.beneficiaire_id = ?'; params.push(beneficiaire_id); }
+  if (statut)          { where += ' AND o.statut = ?'; params.push(statut); }
+  db.all(`
+    SELECT o.*, b.nom, b.prenom, b.raison_sociale, b.code AS benef_code
+    FROM cee_operations o
+    LEFT JOIN beneficiaires b ON b.id = o.beneficiaire_id
+    WHERE ${where}
+    ORDER BY o.created_at DESC`, params,
+    (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows)
+  );
+});
+
+// Créer une opération
+app.post('/api/admin/operations', requireAdmin, (req, res) => {
+  const { beneficiaire_id, code_fiche, nom_operation, secteur, date_engagement, date_achevement, volume_kwh, prime_estimee, prime_validee, statut, notes } = req.body;
+  if (!beneficiaire_id || !code_fiche || !nom_operation) return res.status(400).json({ error: 'Champs requis manquants' });
+  db.run(
+    `INSERT INTO cee_operations (beneficiaire_id, code_fiche, nom_operation, secteur, date_engagement, date_achevement, volume_kwh, prime_estimee, prime_validee, statut, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [beneficiaire_id, code_fiche.trim(), nom_operation.trim(), secteur||'', date_engagement||null, date_achevement||null, parseFloat(volume_kwh)||0, parseFloat(prime_estimee)||0, parseFloat(prime_validee)||0, statut||'en_cours', notes||''],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      // Log d'activité
+      db.run(`INSERT INTO activity_logs (beneficiaire_id, action, details, auteur) VALUES (?, 'operation_created', ?, 'admin')`,
+        [beneficiaire_id, `Opération CEE créée : ${code_fiche} — ${nom_operation}`]);
+      db.get('SELECT o.*, b.nom, b.prenom, b.raison_sociale, b.code AS benef_code FROM cee_operations o LEFT JOIN beneficiaires b ON b.id=o.beneficiaire_id WHERE o.id=?', [this.lastID], (err, row) => res.json(row));
+    }
+  );
+});
+
+// Modifier une opération
+app.put('/api/admin/operations/:id', requireAdmin, (req, res) => {
+  const { code_fiche, nom_operation, secteur, date_engagement, date_achevement, volume_kwh, prime_estimee, prime_validee, statut, notes } = req.body;
+  db.run(
+    `UPDATE cee_operations SET code_fiche=?, nom_operation=?, secteur=?, date_engagement=?, date_achevement=?, volume_kwh=?, prime_estimee=?, prime_validee=?, statut=?, notes=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+    [code_fiche, nom_operation, secteur||'', date_engagement||null, date_achevement||null, parseFloat(volume_kwh)||0, parseFloat(prime_estimee)||0, parseFloat(prime_validee)||0, statut||'en_cours', notes||'', req.params.id],
+    err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true })
+  );
+});
+
+// Supprimer une opération
+app.delete('/api/admin/operations/:id', requireAdmin, (req, res) => {
+  db.run('DELETE FROM cee_operations WHERE id=?', [req.params.id],
+    err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true })
+  );
+});
+
+// ── Journal d'activité ────────────────────────────────────────────────────────
+app.get('/api/admin/activity-logs', requireAdmin, (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  const beneficiaire_id = req.query.beneficiaire_id;
+  let where = '1=1';
+  const params = [];
+  if (beneficiaire_id) { where += ' AND l.beneficiaire_id = ?'; params.push(beneficiaire_id); }
+  params.push(limit);
+  db.all(`
+    SELECT l.*, b.nom, b.prenom, b.code AS benef_code
+    FROM activity_logs l
+    LEFT JOIN beneficiaires b ON b.id = l.beneficiaire_id
+    WHERE ${where}
+    ORDER BY l.created_at DESC LIMIT ?`, params,
+    (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows)
+  );
+});
+
+// ── Document statut update ────────────────────────────────────────────────────
+app.put('/api/documents/:docId/statut', requireAdmin, (req, res) => {
+  const valid = ['recu', 'valide', 'refuse', 'manquant'];
+  if (!valid.includes(req.body.doc_statut)) return res.status(400).json({ error: 'Statut invalide' });
+  db.run('UPDATE documents SET doc_statut=? WHERE id=?', [req.body.doc_statut, req.params.docId],
+    err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true })
+  );
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── EXPORT LOT EMMY ──────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/api/admin/export-lot', requireAdmin, (req, res) => {
+  db.all(`
+    SELECT
+      b.code, b.nom, b.prenom, b.raison_sociale, b.siret,
+      b.adresse, b.code_postal, b.ville, b.activite,
+      b.statut AS statut_dossier, b.created_at AS date_creation,
+      o.code_fiche, o.nom_operation, o.secteur,
+      o.date_engagement, o.date_achevement,
+      o.volume_kwh, o.prime_estimee, o.prime_validee,
+      o.statut AS statut_operation
+    FROM beneficiaires b
+    LEFT JOIN cee_operations o ON o.beneficiaire_id = b.id
+    WHERE b.archived = 0
+    ORDER BY b.code, o.code_fiche`, [],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+
+      // Entêtes CSV compatibles format lot EMMY
+      const headers = [
+        'CODE_DOSSIER','NOM','PRENOM','RAISON_SOCIALE','SIRET',
+        'ADRESSE','CODE_POSTAL','VILLE','ACTIVITE','STATUT_DOSSIER',
+        'DATE_CREATION','CODE_FICHE','NOM_OPERATION','SECTEUR',
+        'DATE_ENGAGEMENT','DATE_ACHEVEMENT','VOLUME_KWHC',
+        'PRIME_ESTIMEE_EUR','PRIME_VALIDEE_EUR','STATUT_OPERATION'
+      ];
+
+      const escCsv = v => {
+        const s = String(v == null ? '' : v);
+        return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g,'""')}"` : s;
+      };
+
+      const lines = [headers.join(',')];
+      rows.forEach(r => {
+        lines.push([
+          r.code, r.nom, r.prenom, r.raison_sociale||'', r.siret||'',
+          r.adresse||'', r.code_postal||'', r.ville||'', r.activite||'',
+          r.statut_dossier||'', r.date_creation||'',
+          r.code_fiche||'', r.nom_operation||'', r.secteur||'',
+          r.date_engagement||'', r.date_achevement||'',
+          r.volume_kwh||'', r.prime_estimee||'', r.prime_validee||'',
+          r.statut_operation||''
+        ].map(escCsv).join(','));
+      });
+
+      const csv = lines.join('\r\n');
+      const date = new Date().toISOString().slice(0,10).replace(/-/g,'');
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="lot_emmy_${date}.csv"`);
+      res.send('﻿' + csv); // BOM UTF-8 pour Excel
+    }
+  );
+});
+
+// ── Tâches / Alertes ──────────────────────────────────────────────────────────
+db.serialize(() => {
+  db.run(`CREATE TABLE IF NOT EXISTS taches (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    beneficiaire_id  INTEGER,
+    titre            TEXT NOT NULL,
+    description      TEXT DEFAULT '',
+    echeance         DATE,
+    priorite         TEXT DEFAULT 'normale',
+    statut           TEXT DEFAULT 'ouverte',
+    auteur           TEXT DEFAULT 'admin',
+    created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (beneficiaire_id) REFERENCES beneficiaires(id) ON DELETE CASCADE
+  )`);
+});
+
+app.get('/api/admin/taches', requireAdmin, (req, res) => {
+  const { statut, beneficiaire_id } = req.query;
+  let where = '1=1';
+  const params = [];
+  if (statut) { where += ' AND t.statut=?'; params.push(statut); }
+  if (beneficiaire_id) { where += ' AND t.beneficiaire_id=?'; params.push(beneficiaire_id); }
+  db.all(`SELECT t.*, b.nom, b.prenom, b.code AS benef_code
+    FROM taches t LEFT JOIN beneficiaires b ON b.id=t.beneficiaire_id
+    WHERE ${where} ORDER BY CASE t.priorite WHEN 'urgente' THEN 1 WHEN 'haute' THEN 2 WHEN 'normale' THEN 3 ELSE 4 END, t.echeance ASC`, params,
+    (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows));
+});
+
+app.post('/api/admin/taches', requireAdmin, (req, res) => {
+  const { beneficiaire_id, titre, description, echeance, priorite } = req.body;
+  if (!titre?.trim()) return res.status(400).json({ error: 'Titre requis' });
+  db.run(`INSERT INTO taches (beneficiaire_id,titre,description,echeance,priorite) VALUES (?,?,?,?,?)`,
+    [beneficiaire_id||null, titre.trim(), description||'', echeance||null, priorite||'normale'],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      db.get('SELECT t.*, b.nom, b.prenom, b.code AS benef_code FROM taches t LEFT JOIN beneficiaires b ON b.id=t.beneficiaire_id WHERE t.id=?', [this.lastID], (e,r) => res.json(r));
+    });
+});
+
+app.put('/api/admin/taches/:id', requireAdmin, (req, res) => {
+  const { titre, description, echeance, priorite, statut } = req.body;
+  db.run(`UPDATE taches SET titre=?,description=?,echeance=?,priorite=?,statut=? WHERE id=?`,
+    [titre, description||'', echeance||null, priorite||'normale', statut||'ouverte', req.params.id],
+    err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+});
+
+app.delete('/api/admin/taches/:id', requireAdmin, (req, res) => {
+  db.run('DELETE FROM taches WHERE id=?', [req.params.id],
+    err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+});
+
+// ── Bibliothèque fiches CEE ────────────────────────────────────────────────────
+db.serialize(() => {
+  db.run(`CREATE TABLE IF NOT EXISTS cee_fiches (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    code              TEXT UNIQUE NOT NULL,
+    nom               TEXT NOT NULL,
+    secteur           TEXT NOT NULL,
+    sous_secteur      TEXT DEFAULT '',
+    version           TEXT DEFAULT '',
+    type_travaux      TEXT DEFAULT '',
+    description       TEXT DEFAULT '',
+    conditions_eligibilite TEXT DEFAULT '',
+    formule_kwh       TEXT DEFAULT '',
+    unite_facteur     TEXT DEFAULT '',
+    valeur_min        REAL,
+    valeur_max        REAL,
+    duree_vie         INTEGER DEFAULT 0,
+    periode_validite  TEXT DEFAULT '',
+    documents_requis  TEXT DEFAULT '[]',
+    zni_eligible      INTEGER DEFAULT 0,
+    zni_multiplier    REAL DEFAULT 1.0,
+    precarite_eligible INTEGER DEFAULT 0,
+    precarite_bonus   REAL DEFAULT 1.0,
+    actif             INTEGER DEFAULT 1,
+    notes             TEXT DEFAULT '',
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  // Seed avec les fiches les plus courantes si la table est vide
+  db.get('SELECT COUNT(*) AS cnt FROM cee_fiches', (err, row) => {
+    if (err || row.cnt > 0) return;
+    const FICHES = [
+      // ── BAR — Bâtiment Résidentiel ────────────────────────────────────────────
+      { code:'BAR-TH-101', nom:'Chaudière individuelle haute performance', secteur:'BAR', sous_secteur:'Thermique', type_travaux:'Équipement',
+        description:'Installation d\'une chaudière individuelle à condensation ou à très haute performance énergétique en remplacement d\'une chaudière existante.',
+        conditions_eligibilite:'Logement existant de plus de 2 ans. Remplacement d\'une chaudière existante. Puissance nominale ≤ 70 kW.',
+        formule_kwh:'B × 1700', unite_facteur:'kWhc/logement', valeur_min:1700, valeur_max:1700, duree_vie:17,
+        documents_requis:JSON.stringify(['Facture travaux','CERFA','AH avant travaux','Note de dimensionnement']),
+        zni_eligible:1, zni_multiplier:4.0, precarite_eligible:1, precarite_bonus:2.0 },
+      { code:'BAR-TH-104', nom:'Pompe à chaleur individuelle air/eau', secteur:'BAR', sous_secteur:'Thermique', type_travaux:'Équipement',
+        description:'Installation d\'une pompe à chaleur de type air/eau pour le chauffage d\'un logement individuel.',
+        conditions_eligibilite:'COP ≥ 3.4. Logement de plus de 2 ans. Puissance nominale ≤ 70 kW.',
+        formule_kwh:'B × 2400', unite_facteur:'kWhc/logement', valeur_min:2400, valeur_max:2400, duree_vie:17,
+        documents_requis:JSON.stringify(['Facture travaux','CERFA','Caractéristiques techniques PAC','Note de dimensionnement']),
+        zni_eligible:0, zni_multiplier:1.0, precarite_eligible:1, precarite_bonus:2.0 },
+      { code:'BAR-TH-106', nom:'Chaudière individuelle à micro-cogénération gaz', secteur:'BAR', sous_secteur:'Thermique', type_travaux:'Équipement',
+        description:'Installation d\'une chaudière individuelle à micro-cogénération au gaz naturel.',
+        conditions_eligibilite:'Puissance électrique ≤ 3 kWe. Logement individuel existant.',
+        formule_kwh:'B × 8200', unite_facteur:'kWhc/logement', valeur_min:8200, valeur_max:8200, duree_vie:17,
+        documents_requis:JSON.stringify(['Facture travaux','CERFA','Caractéristiques techniques']),
+        zni_eligible:0, zni_multiplier:1.0, precarite_eligible:0, precarite_bonus:1.0 },
+      { code:'BAR-TH-107', nom:'Chaudière collective haute performance', secteur:'BAR', sous_secteur:'Thermique', type_travaux:'Équipement',
+        description:'Installation d\'une chaudière collective à condensation ou à très haute performance énergétique.',
+        conditions_eligibilite:'Bâtiment collectif existant de plus de 2 ans. Remplacement d\'une chaudière collective.',
+        formule_kwh:'Nlog × 1700', unite_facteur:'kWhc/logement', valeur_min:1700, valeur_max:1700, duree_vie:17,
+        documents_requis:JSON.stringify(['Facture travaux','CERFA','AH avant travaux','Note dimensionnement']),
+        zni_eligible:1, zni_multiplier:4.0, precarite_eligible:1, precarite_bonus:2.0 },
+      { code:'BAR-TH-110', nom:'Chauffe-eau solaire individuel (CESI)', secteur:'BAR', sous_secteur:'Renouvelable', type_travaux:'Équipement',
+        description:'Installation d\'un chauffe-eau solaire individuel avec capteurs solaires thermiques.',
+        conditions_eligibilite:'Surface de capteurs ≥ 1 m². CESi certifié NF-Solar. Logement individuel.',
+        formule_kwh:'B × Sc × 800', unite_facteur:'kWhc/m² de capteurs', valeur_min:800, valeur_max:800, duree_vie:20,
+        documents_requis:JSON.stringify(['Facture travaux','Certification NF-Solar','CERFA']),
+        zni_eligible:1, zni_multiplier:1.6, precarite_eligible:1, precarite_bonus:2.0 },
+      { code:'BAR-TH-112', nom:'Appareil indépendant de chauffage au bois', secteur:'BAR', sous_secteur:'Biomasse', type_travaux:'Équipement',
+        description:'Installation d\'un insert ou poêle à bois labellisé Flamme Verte 7 étoiles ou équivalent.',
+        conditions_eligibilite:'Label Flamme Verte 7 étoiles ou Ω ≥ 0.75. Rendement ≥ 75%. Logement existant.',
+        formule_kwh:'B × 2500', unite_facteur:'kWhc/logement', valeur_min:2500, valeur_max:2500, duree_vie:15,
+        documents_requis:JSON.stringify(['Facture travaux','Label Flamme Verte','CERFA']),
+        zni_eligible:0, zni_multiplier:1.0, precarite_eligible:1, precarite_bonus:2.0 },
+      { code:'BAR-TH-113', nom:'Chaudière biomasse individuelle', secteur:'BAR', sous_secteur:'Biomasse', type_travaux:'Équipement',
+        description:'Installation d\'une chaudière à biomasse pour le chauffage central d\'un logement individuel.',
+        conditions_eligibilite:'Label Flamme Verte 7 étoiles ou équivalent. Rendement ≥ 77%. Logement existant.',
+        formule_kwh:'B × 12800', unite_facteur:'kWhc/logement', valeur_min:12800, valeur_max:12800, duree_vie:17,
+        documents_requis:JSON.stringify(['Facture travaux','Label Flamme Verte','CERFA','Note dimensionnement']),
+        zni_eligible:0, zni_multiplier:1.0, precarite_eligible:1, precarite_bonus:2.0 },
+      { code:'BAR-TH-127', nom:'Ventilation mécanique simple flux', secteur:'BAR', sous_secteur:'Ventilation', type_travaux:'Équipement',
+        description:'Mise en place d\'une ventilation mécanique contrôlée simple flux hygroréglable.',
+        conditions_eligibilite:'Bâtiment résidentiel existant de plus de 2 ans. VMC SF à autoréglage ou hygroréglable type A ou B.',
+        formule_kwh:'B × 640', unite_facteur:'kWhc/logement', valeur_min:640, valeur_max:640, duree_vie:15,
+        documents_requis:JSON.stringify(['Facture travaux','Caractéristiques VMC','CERFA']),
+        zni_eligible:0, zni_multiplier:1.0, precarite_eligible:1, precarite_bonus:2.0 },
+      { code:'BAR-EN-101', nom:'Isolation des combles ou toiture', secteur:'BAR', sous_secteur:'Isolation', type_travaux:'Travaux d\'isolation',
+        description:'Isolation thermique des combles perdus ou de la toiture d\'un bâtiment résidentiel.',
+        conditions_eligibilite:'Résistance thermique R ≥ 7 m².K/W. Bâtiment de plus de 2 ans.',
+        formule_kwh:'Sh × R × E', unite_facteur:'kWhc/m²', valeur_min:100, valeur_max:500, duree_vie:30,
+        documents_requis:JSON.stringify(['Facture travaux','Caractéristiques isolant','CERFA']),
+        zni_eligible:1, zni_multiplier:2.0, precarite_eligible:1, precarite_bonus:2.0 },
+      { code:'BAR-EN-102', nom:'Isolation des murs par l\'extérieur ou par l\'intérieur', secteur:'BAR', sous_secteur:'Isolation', type_travaux:'Travaux d\'isolation',
+        description:'Isolation thermique des parois verticales (murs) d\'un bâtiment résidentiel.',
+        conditions_eligibilite:'Résistance thermique R ≥ 3.7 m².K/W. Logement existant de plus de 2 ans.',
+        formule_kwh:'Sh × R × E', unite_facteur:'kWhc/m²', valeur_min:80, valeur_max:400, duree_vie:30,
+        documents_requis:JSON.stringify(['Facture travaux','Caractéristiques isolant','CERFA']),
+        zni_eligible:1, zni_multiplier:2.0, precarite_eligible:1, precarite_bonus:2.0 },
+      { code:'BAR-EN-103', nom:'Isolation d\'un plancher bas', secteur:'BAR', sous_secteur:'Isolation', type_travaux:'Travaux d\'isolation',
+        description:'Isolation thermique du plancher bas d\'un bâtiment résidentiel.',
+        conditions_eligibilite:'Résistance thermique R ≥ 3 m².K/W. Logement existant.',
+        formule_kwh:'Sh × R × E', unite_facteur:'kWhc/m²', valeur_min:60, valeur_max:350, duree_vie:30,
+        documents_requis:JSON.stringify(['Facture travaux','Caractéristiques isolant','CERFA']),
+        zni_eligible:0, zni_multiplier:1.0, precarite_eligible:1, precarite_bonus:2.0 },
+      { code:'BAR-EN-104', nom:'Fenêtres ou portes-fenêtres à double vitrage', secteur:'BAR', sous_secteur:'Isolation', type_travaux:'Remplacement menuiseries',
+        description:'Remplacement de fenêtres ou portes-fenêtres par des équipements avec double ou triple vitrage.',
+        conditions_eligibilite:'Uw ≤ 1.3 W/m².K et Sw ≥ 0.3. Ou Uw ≤ 1.7 et Sw ≥ 0.36. Logement existant.',
+        formule_kwh:'N × E', unite_facteur:'kWhc/fenêtre', valeur_min:700, valeur_max:2000, duree_vie:24,
+        documents_requis:JSON.stringify(['Facture travaux','Caractéristiques produit','CERFA']),
+        zni_eligible:0, zni_multiplier:1.0, precarite_eligible:1, precarite_bonus:2.0 },
+      // ── BAT — Bâtiment Tertiaire ──────────────────────────────────────────────
+      { code:'BAT-TH-102', nom:'Chaudière collective haute performance — tertiaire', secteur:'BAT', sous_secteur:'Thermique', type_travaux:'Équipement',
+        description:'Remplacement d\'une chaudière collective dans un bâtiment tertiaire par une chaudière à condensation.',
+        conditions_eligibilite:'Rendement PCI à pleine charge ≥ 105 %. Bâtiment tertiaire existant.',
+        formule_kwh:'P × DJU × Cf', unite_facteur:'kWhc/kW', valeur_min:1000, valeur_max:5000, duree_vie:17,
+        documents_requis:JSON.stringify(['Facture travaux','Caractéristiques chaudière','Note dimensionnement','CERFA']),
+        zni_eligible:1, zni_multiplier:2.5, precarite_eligible:0, precarite_bonus:1.0 },
+      { code:'BAT-TH-113', nom:'Pompe à chaleur de type air/eau ou eau/eau — tertiaire', secteur:'BAT', sous_secteur:'Thermique', type_travaux:'Équipement',
+        description:'Installation d\'une PAC pour le chauffage ou la production d\'eau chaude sanitaire d\'un bâtiment tertiaire.',
+        conditions_eligibilite:'COP ≥ 3.4 (air/eau) ou COP ≥ 4.2 (eau/eau). Bâtiment tertiaire existant.',
+        formule_kwh:'P × DJU × Cf', unite_facteur:'kWhc/kW', valeur_min:1500, valeur_max:8000, duree_vie:17,
+        documents_requis:JSON.stringify(['Facture travaux','Caractéristiques PAC','Note dimensionnement','CERFA']),
+        zni_eligible:0, zni_multiplier:1.0, precarite_eligible:0, precarite_bonus:1.0 },
+      { code:'BAT-EN-101', nom:'Isolation de la toiture d\'un bâtiment tertiaire', secteur:'BAT', sous_secteur:'Isolation', type_travaux:'Travaux d\'isolation',
+        description:'Isolation thermique de la toiture ou des combles d\'un bâtiment tertiaire.',
+        conditions_eligibilite:'R ≥ 6 m².K/W (toiture terrasse) ou R ≥ 7 m².K/W (rampants). Surface ≥ 50 m².',
+        formule_kwh:'Sh × R × E', unite_facteur:'kWhc/m²', valeur_min:200, valeur_max:1000, duree_vie:30,
+        documents_requis:JSON.stringify(['Facture travaux','Caractéristiques isolant','Plan des surfaces','CERFA']),
+        zni_eligible:1, zni_multiplier:2.0, precarite_eligible:0, precarite_bonus:1.0 },
+      { code:'BAT-EN-102', nom:'Isolation des murs d\'un bâtiment tertiaire', secteur:'BAT', sous_secteur:'Isolation', type_travaux:'Travaux d\'isolation',
+        description:'Isolation thermique des parois opaques verticales (murs) d\'un bâtiment tertiaire.',
+        conditions_eligibilite:'R ≥ 3.7 m².K/W. Surface ≥ 20 m². Bâtiment tertiaire existant.',
+        formule_kwh:'Sh × R × E', unite_facteur:'kWhc/m²', valeur_min:150, valeur_max:800, duree_vie:30,
+        documents_requis:JSON.stringify(['Facture travaux','Caractéristiques isolant','Plan','CERFA']),
+        zni_eligible:1, zni_multiplier:2.0, precarite_eligible:0, precarite_bonus:1.0 },
+      { code:'BAT-EQ-127', nom:'Motorisation de fermetures', secteur:'BAT', sous_secteur:'Équipements', type_travaux:'Équipement',
+        description:'Motorisation de stores ou volets dans un bâtiment tertiaire pour optimiser les apports solaires.',
+        conditions_eligibilite:'Bâtiment tertiaire existant de plus de 2 ans. Surface de baies vitrées motorisées ≥ 10 m².',
+        formule_kwh:'Sb × E', unite_facteur:'kWhc/m² de baies', valeur_min:100, valeur_max:600, duree_vie:15,
+        documents_requis:JSON.stringify(['Facture travaux','CERFA']),
+        zni_eligible:0, zni_multiplier:1.0, precarite_eligible:0, precarite_bonus:1.0 },
+      // ── IND — Industrie ───────────────────────────────────────────────────────
+      { code:'IND-UT-116', nom:'Système de récupération de chaleur sur air comprimé', secteur:'IND', sous_secteur:'Air comprimé', type_travaux:'Équipement',
+        description:'Installation d\'un système de récupération de chaleur sur un compresseur d\'air industriel.',
+        conditions_eligibilite:'Compresseur de puissance ≥ 22 kW. Récupération ≥ 70 % de la chaleur compresseur.',
+        formule_kwh:'Qrécup × 8760 × taux', unite_facteur:'kWhc/kW compresseur', valeur_min:5000, valeur_max:50000, duree_vie:12,
+        documents_requis:JSON.stringify(['Facture travaux','Schéma installation','Bilan thermique','CERFA']),
+        zni_eligible:0, zni_multiplier:1.0, precarite_eligible:0, precarite_bonus:1.0 },
+      { code:'IND-UT-117', nom:'Système de management de l\'énergie', secteur:'IND', sous_secteur:'Management', type_travaux:'Service',
+        description:'Mise en place et certification d\'un système de management de l\'énergie selon ISO 50001.',
+        conditions_eligibilite:'Certification ISO 50001 obtenue. Établissement industriel de plus de 2 ans.',
+        formule_kwh:'Conso × 3%', unite_facteur:'% des consommations', valeur_min:10000, valeur_max:500000, duree_vie:5,
+        documents_requis:JSON.stringify(['Certificat ISO 50001','Rapport audit','Bilan conso','CERFA']),
+        zni_eligible:0, zni_multiplier:1.0, precarite_eligible:0, precarite_bonus:1.0 },
+      { code:'IND-EN-101', nom:'Isolation des parois d\'un bâtiment industriel', secteur:'IND', sous_secteur:'Isolation', type_travaux:'Travaux d\'isolation',
+        description:'Isolation thermique des parois opaques d\'un bâtiment industriel (murs, toiture).',
+        conditions_eligibilite:'R ≥ 3.7 m².K/W (murs) ou R ≥ 6 m².K/W (toiture). Bâtiment industriel existant.',
+        formule_kwh:'Sh × R × E', unite_facteur:'kWhc/m²', valeur_min:100, valeur_max:2000, duree_vie:30,
+        documents_requis:JSON.stringify(['Facture travaux','Caractéristiques isolant','Plan','CERFA']),
+        zni_eligible:1, zni_multiplier:1.5, precarite_eligible:0, precarite_bonus:1.0 },
+      // ── TRA — Transport ───────────────────────────────────────────────────────
+      { code:'TRA-EQ-101', nom:'Covoiturage de longue distance', secteur:'TRA', sous_secteur:'Covoiturage', type_travaux:'Service',
+        description:'Mise en place d\'une plateforme de covoiturage pour les trajets domicile-travail longue distance.',
+        conditions_eligibilite:'Distance ≥ 80 km. Minimum 10 covoitureurs par mois. Attestations requises.',
+        formule_kwh:'N_trajets × D × Ef', unite_facteur:'kWhc/trajet', valeur_min:100, valeur_max:10000, duree_vie:3,
+        documents_requis:JSON.stringify(['Convention covoiturage','Attestations','Relevés kilométriques','CERFA']),
+        zni_eligible:0, zni_multiplier:1.0, precarite_eligible:0, precarite_bonus:1.0 },
+      // ── AGRI — Agriculture ────────────────────────────────────────────────────
+      { code:'AGRI-EQ-101', nom:'Pompe à chaleur pour bâtiment agricole', secteur:'AGRI', sous_secteur:'Thermique', type_travaux:'Équipement',
+        description:'Installation d\'une pompe à chaleur pour le chauffage d\'un bâtiment agricole (serre, étable, etc.).',
+        conditions_eligibilite:'COP ≥ 3.4. Bâtiment agricole existant de plus de 2 ans.',
+        formule_kwh:'P × DJU × Cf', unite_facteur:'kWhc/kW', valeur_min:1000, valeur_max:10000, duree_vie:17,
+        documents_requis:JSON.stringify(['Facture travaux','Caractéristiques PAC','Note dimensionnement','CERFA']),
+        zni_eligible:1, zni_multiplier:2.0, precarite_eligible:0, precarite_bonus:1.0 },
+      // ── RES — Réseaux ─────────────────────────────────────────────────────────
+      { code:'RES-CH-102', nom:'Réseau de chaleur alimenté majoritairement par des ENR', secteur:'RES', sous_secteur:'Réseau chaleur', type_travaux:'Infrastructure',
+        description:'Création ou extension d\'un réseau de chaleur alimenté à plus de 50 % par des énergies renouvelables.',
+        conditions_eligibilite:'Part ENR > 50 %. Réseau nouveau ou extension significative.',
+        formule_kwh:'Q_ENR × Cf', unite_facteur:'kWhc/MWh d\'ENR', valeur_min:50000, valeur_max:5000000, duree_vie:30,
+        documents_requis:JSON.stringify(['Étude faisabilité','Bilan ENR','Contrat réseau','CERFA']),
+        zni_eligible:1, zni_multiplier:1.5, precarite_eligible:0, precarite_bonus:1.0 }
+    ];
+    const stmt = db.prepare('INSERT OR IGNORE INTO cee_fiches (code,nom,secteur,sous_secteur,type_travaux,description,conditions_eligibilite,formule_kwh,unite_facteur,valeur_min,valeur_max,duree_vie,documents_requis,zni_eligible,zni_multiplier,precarite_eligible,precarite_bonus) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+    FICHES.forEach(f => {
+      stmt.run(f.code,f.nom,f.secteur,f.sous_secteur,f.type_travaux,f.description,f.conditions_eligibilite,f.formule_kwh,f.unite_facteur,f.valeur_min,f.valeur_max,f.duree_vie,f.documents_requis,f.zni_eligible,f.zni_multiplier,f.precarite_eligible,f.precarite_bonus);
+    });
+    stmt.finalize();
+    console.log(`✅ ${FICHES.length} fiches CEE préchargées`);
+  });
+});
+
+// ── Routes Fiches CEE ─────────────────────────────────────────────────────────
+// GET — liste avec filtres
+app.get('/api/fiches', (req, res) => {
+  const { secteur, search, actif, zni } = req.query;
+  let where = '1=1';
+  const params = [];
+  if (actif !== undefined) { where += ' AND actif=?'; params.push(parseInt(actif)); }
+  else { where += ' AND actif=1'; }
+  if (secteur) { where += ' AND secteur=?'; params.push(secteur); }
+  if (zni === '1') { where += ' AND zni_eligible=1'; }
+  if (search) {
+    where += ' AND (code LIKE ? OR nom LIKE ? OR description LIKE ? OR secteur LIKE ?)';
+    const s = `%${search}%`;
+    params.push(s, s, s, s);
+  }
+  db.all(`SELECT * FROM cee_fiches WHERE ${where} ORDER BY secteur, code`, params,
+    (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows));
+});
+
+// GET — fiche individuelle
+app.get('/api/fiches/:code', (req, res) => {
+  db.get('SELECT * FROM cee_fiches WHERE code=? AND actif=1', [req.params.code.toUpperCase()],
+    (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!row) return res.status(404).json({ error: 'Fiche non trouvée' });
+      res.json(row);
+    });
+});
+
+// POST — créer une fiche (admin)
+app.post('/api/admin/fiches', requireAdmin, (req, res) => {
+  const { code, nom, secteur, sous_secteur, type_travaux, description, conditions_eligibilite,
+    formule_kwh, unite_facteur, valeur_min, valeur_max, duree_vie, documents_requis,
+    zni_eligible, zni_multiplier, precarite_eligible, precarite_bonus, notes } = req.body;
+  if (!code || !nom || !secteur) return res.status(400).json({ error: 'Code, nom et secteur requis' });
+  db.run(`INSERT INTO cee_fiches (code,nom,secteur,sous_secteur,type_travaux,description,conditions_eligibilite,formule_kwh,unite_facteur,valeur_min,valeur_max,duree_vie,documents_requis,zni_eligible,zni_multiplier,precarite_eligible,precarite_bonus,notes)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [code.toUpperCase(),nom,secteur,sous_secteur||'',type_travaux||'',description||'',conditions_eligibilite||'',
+     formule_kwh||'',unite_facteur||'',valeur_min||null,valeur_max||null,duree_vie||0,
+     JSON.stringify(documents_requis||[]),zni_eligible?1:0,zni_multiplier||1.0,
+     precarite_eligible?1:0,precarite_bonus||1.0,notes||''],
+    function(err) {
+      if (err) return res.status(err.message.includes('UNIQUE') ? 409 : 500).json({ error: err.message });
+      db.get('SELECT * FROM cee_fiches WHERE id=?', [this.lastID], (e,r) => res.json(r));
+    });
+});
+
+// PUT — modifier une fiche (admin)
+app.put('/api/admin/fiches/:code', requireAdmin, (req, res) => {
+  const { nom, secteur, sous_secteur, type_travaux, description, conditions_eligibilite,
+    formule_kwh, unite_facteur, valeur_min, valeur_max, duree_vie, documents_requis,
+    zni_eligible, zni_multiplier, precarite_eligible, precarite_bonus, actif, notes } = req.body;
+  db.run(`UPDATE cee_fiches SET nom=?,secteur=?,sous_secteur=?,type_travaux=?,description=?,
+    conditions_eligibilite=?,formule_kwh=?,unite_facteur=?,valeur_min=?,valeur_max=?,duree_vie=?,
+    documents_requis=?,zni_eligible=?,zni_multiplier=?,precarite_eligible=?,precarite_bonus=?,
+    actif=?,notes=?,updated_at=CURRENT_TIMESTAMP WHERE code=?`,
+    [nom,secteur,sous_secteur||'',type_travaux||'',description||'',conditions_eligibilite||'',
+     formule_kwh||'',unite_facteur||'',valeur_min||null,valeur_max||null,duree_vie||0,
+     JSON.stringify(documents_requis||[]),zni_eligible?1:0,zni_multiplier||1.0,
+     precarite_eligible?1:0,precarite_bonus||1.0,actif!==undefined?actif:1,notes||'',
+     req.params.code.toUpperCase()],
+    err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+});
+
+// DELETE — désactiver une fiche (soft delete)
+app.delete('/api/admin/fiches/:code', requireAdmin, (req, res) => {
+  db.run('UPDATE cee_fiches SET actif=0,updated_at=CURRENT_TIMESTAMP WHERE code=?',
+    [req.params.code.toUpperCase()],
+    err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+});
+
+// POST — simuler prime pour une fiche
+app.post('/api/fiches/:code/simuler', (req, res) => {
+  const { facteur, is_zni, is_precarite } = req.body;
+  db.get('SELECT * FROM cee_fiches WHERE code=? AND actif=1', [req.params.code.toUpperCase()], (err, fiche) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!fiche) return res.status(404).json({ error: 'Fiche non trouvée' });
+
+    // Calcul de base (simplifié — la formule réelle dépend de nombreux paramètres)
+    let kwh_base = facteur ? fiche.valeur_min * parseFloat(facteur) : (fiche.valeur_min || 0);
+
+    // Multiplicateurs
+    let multiplicateur = 1;
+    if (is_zni && fiche.zni_eligible) multiplicateur *= fiche.zni_multiplier;
+    if (is_precarite && fiche.precarite_eligible) multiplicateur *= fiche.precarite_bonus;
+
+    const kwh_total = Math.round(kwh_base * multiplicateur);
+    // Prix moyen kWhc ≈ 0.002 € à 0.008 € selon période
+    const prime_estimee = parseFloat((kwh_total * 0.004).toFixed(2));
+
+    res.json({
+      code: fiche.code,
+      nom: fiche.nom,
+      kwh_base: Math.round(kwh_base),
+      multiplicateur,
+      kwh_total,
+      prime_estimee,
+      is_zni: !!is_zni && !!fiche.zni_eligible,
+      is_precarite: !!is_precarite && !!fiche.precarite_eligible,
+      documents_requis: (() => { try { return JSON.parse(fiche.documents_requis || '[]'); } catch(e) { return []; } })()
+    });
+  });
 });
 
 // ── ChatBot CEE ───────────────────────────────────────────────────────────────

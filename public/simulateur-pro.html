@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simulateur Pro CEE — EchoWAI</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <style>
+    /* ═══════════════════════════════════════════════════════════════
+       SIMULATEUR PRO CEE — EchoWAI Design System v2.0 Dark Mode
+    ═══════════════════════════════════════════════════════════════ */
+    :root {
+      --bg-0: #060A12; --bg-1: #0B0F1A; --bg-2: #111827; --bg-3: #1A2235; --bg-4: #1E2A3B;
+      --bg-hover: #232F42;
+      --border: rgba(255,255,255,.07); --border-light: rgba(255,255,255,.12);
+      --border-focus: rgba(0,212,170,.5);
+      --t1: #E8EEFF; --t2: #8B95A8; --t3: #4A5568;
+      --accent: #00D4AA; --accent-dim: rgba(0,212,170,.12); --accent-glow: rgba(0,212,170,.25);
+      --success: #22C55E; --success-dim: rgba(34,197,94,.12);
+      --warning: #F59E0B; --warning-dim: rgba(245,158,11,.12);
+      --danger: #F87171;  --danger-dim: rgba(248,113,113,.12);
+      --info: #60A5FA;    --info-dim: rgba(96,165,250,.12);
+      --purple: #A78BFA;  --purple-dim: rgba(167,139,250,.12);
+      --shadow-lg: 0 12px 48px rgba(0,0,0,.6);
+      --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 20px;
+      --bs-body-bg: var(--bg-1); --bs-body-color: var(--t1);
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg-1); color: var(--t1); margin: 0; -webkit-font-smoothing: antialiased; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 10px; }
+
+    /* ── Layout ── */
+    .sim-header {
+      background: var(--bg-0);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 32px;
+      display: flex; align-items: center; gap: 16px;
+    }
+    .sim-logo { width: 32px; height: 32px; background: linear-gradient(135deg, var(--accent), #059669); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #000; font-size: .9rem; box-shadow: 0 0 16px rgba(0,212,170,.3); flex-shrink: 0; }
+
+    .sim-main { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+    /* ── Stepper ── */
+    .stepper { display: flex; align-items: center; gap: 0; margin-bottom: 32px; }
+    .step-item { display: flex; align-items: center; gap: 8px; flex: 1; }
+    .step-num { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .78rem; font-weight: 800; flex-shrink: 0; border: 2px solid var(--border-light); color: var(--t3); background: var(--bg-3); transition: all .25s; }
+    .step-item.active .step-num { background: var(--accent); border-color: var(--accent); color: #000; box-shadow: 0 0 12px var(--accent-glow); }
+    .step-item.done .step-num { background: var(--success-dim); border-color: var(--success); color: var(--success); }
+    .step-label { font-size: .75rem; font-weight: 600; color: var(--t3); }
+    .step-item.active .step-label { color: var(--t1); }
+    .step-item.done .step-label { color: var(--success); }
+    .step-line { flex: 1; height: 2px; background: var(--border); margin: 0 8px; }
+    .step-item.done + .step-line, .step-item.done + * .step-line { background: var(--success); }
+
+    /* ── Step panels ── */
+    .sim-step { display: none; animation: fadeInUp .2s ease; }
+    .sim-step.active { display: block; }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ── Cards ── */
+    .sim-card { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 24px; }
+    .sim-section-title { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--t3); margin-bottom: 12px; }
+
+    /* ── Search ── */
+    .fiche-search-wrap { position: relative; }
+    .fiche-search { background: var(--bg-3) !important; border: 1px solid var(--border-light) !important; color: var(--t1) !important; border-radius: var(--r-md) !important; padding: 12px 16px 12px 44px !important; font-size: 1rem; width: 100%; }
+    .fiche-search:focus { border-color: var(--accent) !important; box-shadow: 0 0 0 3px var(--accent-dim) !important; outline: none; }
+    .fiche-search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--t3); font-size: .9rem; }
+    .fiche-search::placeholder { color: var(--t3); }
+
+    /* ── Sector filter pills ── */
+    .sector-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+    .sect-pill { padding: 4px 12px; border-radius: 20px; font-size: .72rem; font-weight: 700; cursor: pointer; border: 1px solid var(--border-light); color: var(--t2); background: var(--bg-3); transition: all .12s; user-select: none; }
+    .sect-pill:hover { border-color: var(--accent); color: var(--accent); }
+    .sect-pill.active { border-color: var(--accent-glow); color: var(--accent); background: var(--accent-dim); }
+    .sect-pill.sect-BAR { --c: #93C5FD; }
+    .sect-pill.sect-BAT { --c: #C4B5FD; }
+    .sect-pill.sect-IND { --c: #FCA5A5; }
+    .sect-pill.sect-TRA { --c: #6EE7B7; }
+    .sect-pill.sect-AGRI { --c: #FDE68A; }
+    .sect-pill.sect-RES { --c: #5EEAD4; }
+    .sect-pill.active { background: rgba(var(--c, 0,212,170), .15); color: var(--c); border-color: rgba(var(--c, 0,212,170), .4); }
+
+    /* ── Fiche cards grid ── */
+    .fiches-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; max-height: 480px; overflow-y: auto; padding-right: 4px; }
+    .fiche-card { background: var(--bg-3); border: 2px solid var(--border); border-radius: var(--r-md); padding: 14px 16px; cursor: pointer; transition: all .15s; }
+    .fiche-card:hover { border-color: var(--accent); background: var(--accent-dim); transform: translateY(-1px); }
+    .fiche-card.selected { border-color: var(--accent); background: var(--accent-dim); box-shadow: 0 0 0 3px var(--accent-glow); }
+    .fiche-code { font-family: 'Courier New', monospace; font-size: .78rem; font-weight: 800; color: var(--accent); letter-spacing: 1px; }
+    .fiche-nom { font-size: .88rem; font-weight: 600; color: var(--t1); margin: 4px 0 2px; line-height: 1.3; }
+    .fiche-type { font-size: .7rem; color: var(--t3); }
+    .secteur-badge { font-size: .62rem; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; padding: 2px 7px; border-radius: 4px; }
+    .secteur-BAR  { background: rgba(96,165,250,.15); color: #93C5FD; }
+    .secteur-BAT  { background: rgba(167,139,250,.15); color: #C4B5FD; }
+    .secteur-IND  { background: rgba(249,115,22,.15); color: #FCA5A5; }
+    .secteur-TRA  { background: rgba(52,211,153,.15); color: #6EE7B7; }
+    .secteur-AGRI { background: rgba(250,204,21,.15); color: #FDE68A; }
+    .secteur-RES  { background: rgba(0,212,170,.15); color: #5EEAD4; }
+
+    /* ── Params step ── */
+    .param-group { background: var(--bg-3); border: 1px solid var(--border); border-radius: var(--r-md); padding: 16px; margin-bottom: 12px; }
+    .param-label { font-size: .8rem; font-weight: 700; color: var(--t2); margin-bottom: 6px; }
+    .form-control-dark { background: var(--bg-4) !important; border: 1px solid var(--border-light) !important; color: var(--t1) !important; border-radius: var(--r-sm) !important; }
+    .form-control-dark:focus { border-color: var(--accent) !important; box-shadow: 0 0 0 3px var(--accent-dim) !important; }
+    .form-control-dark::placeholder { color: var(--t3) !important; }
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .toggle-row:last-child { border-bottom: none; }
+    .form-check-input { background-color: var(--bg-3); border-color: var(--border-light); width: 2.2em; height: 1.1em; }
+    .form-check-input:checked { background-color: var(--accent); border-color: var(--accent); }
+    .toggle-info { font-size: .78rem; font-weight: 600; color: var(--t1); }
+    .toggle-desc { font-size: .7rem; color: var(--t3); margin-top: 1px; }
+
+    /* ── Result step ── */
+    .result-hero { background: linear-gradient(135deg, rgba(0,212,170,.12) 0%, rgba(96,165,250,.06) 100%); border: 1px solid var(--border-light); border-radius: var(--r-xl); padding: 32px; text-align: center; position: relative; overflow: hidden; }
+    .result-hero::before { content: ''; position: absolute; top: -60px; right: -60px; width: 200px; height: 200px; background: radial-gradient(circle, rgba(0,212,170,.08) 0%, transparent 70%); pointer-events: none; }
+    .result-kwh { font-size: 3.5rem; font-weight: 900; color: var(--accent); letter-spacing: -2px; line-height: 1; }
+    .result-unit { font-size: 1.2rem; font-weight: 600; color: var(--t2); }
+    .result-prime { font-size: 2rem; font-weight: 800; color: var(--success); margin-top: 8px; }
+
+    .result-breakdown { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 24px; }
+    .result-item { background: var(--bg-3); border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px; text-align: center; }
+    .result-item-val { font-size: 1.3rem; font-weight: 800; color: var(--t1); }
+    .result-item-label { font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: var(--t3); margin-top: 2px; }
+
+    /* ── Docs checklist ── */
+    .doc-checklist { background: var(--bg-3); border: 1px solid var(--border); border-radius: var(--r-md); padding: 16px; }
+    .doc-check-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .doc-check-item:last-child { border-bottom: none; }
+    .doc-check-icon { width: 28px; height: 28px; border-radius: 50%; background: var(--warning-dim); color: var(--warning); display: flex; align-items: center; justify-content: center; font-size: .72rem; flex-shrink: 0; }
+
+    /* ── Eligibility badge ── */
+    .elig-badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 20px; font-weight: 700; font-size: .85rem; }
+    .elig-ok   { background: var(--success-dim); color: var(--success); border: 1px solid rgba(34,197,94,.3); }
+    .elig-warn { background: var(--warning-dim); color: var(--warning); border: 1px solid rgba(245,158,11,.3); }
+    .elig-no   { background: var(--danger-dim);  color: var(--danger);  border: 1px solid rgba(248,113,113,.3); }
+
+    /* ── Bonus tags ── */
+    .bonus-tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: .72rem; font-weight: 700; }
+    .bonus-zni  { background: rgba(167,139,250,.15); color: #C4B5FD; border: 1px solid rgba(167,139,250,.3); }
+    .bonus-prec { background: rgba(250,204,21,.15);   color: #FDE68A;  border: 1px solid rgba(250,204,21,.3); }
+
+    /* ── Buttons ── */
+    .btn-accent { background: var(--accent) !important; border-color: var(--accent) !important; color: #000 !important; font-weight: 700 !important; }
+    .btn-accent:hover { background: #00BBAA !important; }
+    .btn-ghost { background: transparent !important; border: 1px solid var(--border-light) !important; color: var(--t2) !important; }
+    .btn-ghost:hover { background: var(--bg-3) !important; color: var(--t1) !important; }
+
+    /* ── Empty state ── */
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--t3); }
+    .empty-state i { font-size: 2.5rem; margin-bottom: 12px; display: block; opacity: .4; }
+
+    /* ── Loading spinner ── */
+    .spin { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toast ── */
+    .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+    .echowai-toast { background: var(--bg-3); border: 1px solid var(--border-light); border-radius: var(--r-md); padding: 12px 18px 12px 14px; color: var(--t1); font-size: .85rem; font-weight: 500; box-shadow: var(--shadow-lg); display: flex; align-items: center; gap: 10px; animation: toastIn .25s ease; max-width: 340px; }
+    .echowai-toast.success { border-left: 3px solid var(--success); }
+    .echowai-toast.danger  { border-left: 3px solid var(--danger); }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes toastOut { to { opacity: 0; transform: translateX(20px); } }
+
+    /* ── Fiche detail sidebar ── */
+    .fiche-detail-sidebar { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 20px; height: fit-content; }
+    .fiche-info-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: .83rem; }
+    .fiche-info-row:last-child { border-bottom: none; }
+    .fiche-info-key { color: var(--t3); font-weight: 600; flex-shrink: 0; }
+    .fiche-info-val { color: var(--t1); text-align: right; margin-left: 12px; }
+
+    /* Bootstrap overrides */
+    .form-control, .form-select { background: var(--bg-3) !important; border: 1px solid var(--border-light) !important; color: var(--t1) !important; border-radius: var(--r-sm) !important; font-size: .875rem; }
+    .form-control:focus, .form-select:focus { border-color: var(--accent) !important; box-shadow: 0 0 0 3px var(--accent-dim) !important; }
+    .form-control::placeholder { color: var(--t3) !important; }
+    .form-label { color: var(--t2); font-size: .82rem; font-weight: 600; }
+    option { background: var(--bg-3); color: var(--t1); }
+    .badge { font-weight: 700 !important; }
+    .text-muted { color: var(--t2) !important; }
+    hr { border-color: var(--border) !important; }
+  </style>
+</head>
+<body>
+
+<!-- ══ HEADER ══ -->
+<div class="sim-header">
+  <div class="sim-logo"><i class="fas fa-bolt"></i></div>
+  <div>
+    <div style="font-weight:800;font-size:1rem;color:var(--t1)">Simulateur Pro CEE</div>
+    <div style="font-size:.7rem;color:var(--t3)">EchoWAI Plateforme CEE</div>
+  </div>
+  <div class="ms-auto d-flex gap-2 align-items-center">
+    <a href="/admin.html" class="btn btn-sm btn-ghost"><i class="fas fa-arrow-left me-2"></i>Retour admin</a>
+    <a href="/simulateur.html" class="btn btn-sm btn-ghost"><i class="fas fa-calculator me-2"></i>Simulateur simple</a>
+  </div>
+</div>
+
+<!-- ══ TOAST ══ -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ══ MAIN ══ -->
+<div class="sim-main">
+
+  <!-- ── Stepper ── -->
+  <div class="stepper mb-4">
+    <div class="step-item active" id="step-dot-1">
+      <div class="step-num">1</div>
+      <div class="step-label">Choisir la fiche</div>
+    </div>
+    <div class="step-line" id="step-line-1"></div>
+    <div class="step-item" id="step-dot-2">
+      <div class="step-num">2</div>
+      <div class="step-label">Paramètres</div>
+    </div>
+    <div class="step-line" id="step-line-2"></div>
+    <div class="step-item" id="step-dot-3">
+      <div class="step-num">3</div>
+      <div class="step-label">Résultats</div>
+    </div>
+  </div>
+
+  <!-- ── STEP 1 — Sélection fiche ── -->
+  <div class="sim-step active" id="simStep1">
+    <div class="row g-4">
+      <div class="col-lg-8">
+        <div class="sim-card">
+          <div class="sim-section-title"><i class="fas fa-book me-2"></i>Bibliothèque des fiches d'opérations standardisées</div>
+
+          <!-- Search + filters -->
+          <div class="fiche-search-wrap mb-3">
+            <i class="fas fa-search fiche-search-icon"></i>
+            <input type="text" class="fiche-search form-control" id="ficheSearch" placeholder="Rechercher une fiche… (ex: BAR-TH-104, isolation, chaudière…)" oninput="filterFiches()">
+          </div>
+          <div class="sector-pills mb-3" id="sectorPills">
+            <span class="sect-pill active" data-secteur="" onclick="setSecteur('',this)">Tous</span>
+            <span class="sect-pill sect-BAR" data-secteur="BAR" onclick="setSecteur('BAR',this)">BAR — Résidentiel</span>
+            <span class="sect-pill sect-BAT" data-secteur="BAT" onclick="setSecteur('BAT',this)">BAT — Tertiaire</span>
+            <span class="sect-pill sect-IND" data-secteur="IND" onclick="setSecteur('IND',this)">IND — Industrie</span>
+            <span class="sect-pill sect-TRA" data-secteur="TRA" onclick="setSecteur('TRA',this)">TRA — Transport</span>
+            <span class="sect-pill sect-AGRI" data-secteur="AGRI" onclick="setSecteur('AGRI',this)">AGRI — Agriculture</span>
+            <span class="sect-pill sect-RES" data-secteur="RES" onclick="setSecteur('RES',this)">RES — Réseaux</span>
+          </div>
+
+          <!-- Result count -->
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <div class="text-muted small" id="ficheCount">Chargement…</div>
+            <div class="d-flex gap-2 align-items-center">
+              <label class="form-check form-switch mb-0 d-flex align-items-center gap-2" style="cursor:pointer">
+                <input class="form-check-input" type="checkbox" id="toggleZNI" onchange="filterFiches()">
+                <span style="font-size:.78rem;color:var(--t2);font-weight:600"><i class="fas fa-map-pin me-1" style="color:var(--purple)"></i>ZNI uniquement</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Fiches grid -->
+          <div class="fiches-grid" id="fichesGrid">
+            <div class="empty-state col-span-all">
+              <i class="fas fa-circle-notch spin"></i>
+              <div>Chargement des fiches…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Preview fiche -->
+      <div class="col-lg-4">
+        <div class="fiche-detail-sidebar" id="fichePreview">
+          <div class="empty-state" style="padding:40px 10px">
+            <i class="fas fa-hand-pointer" style="font-size:2rem;opacity:.25;margin-bottom:10px;display:block"></i>
+            <div style="font-size:.85rem;color:var(--t3)">Sélectionnez une fiche<br>pour voir ses détails</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end mt-4">
+      <button class="btn btn-accent px-5" id="btnStep1Next" disabled onclick="goStep(2)">
+        Suivant — Paramètres <i class="fas fa-arrow-right ms-2"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── STEP 2 — Paramètres ── -->
+  <div class="sim-step" id="simStep2">
+    <div class="row g-4">
+      <div class="col-lg-7">
+        <div class="sim-card">
+          <div class="sim-section-title"><i class="fas fa-sliders me-2"></i>Paramètres de l'opération</div>
+
+          <!-- Fiche sélectionnée -->
+          <div class="param-group" id="selectedFicheRecap" style="background:var(--accent-dim);border-color:var(--accent-glow)">
+            <div class="d-flex align-items-start gap-3">
+              <div style="width:42px;height:42px;background:var(--accent-dim);border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:1.1rem;flex-shrink:0"><i class="fas fa-bolt"></i></div>
+              <div>
+                <div style="font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--accent)" id="recapCode">—</div>
+                <div class="fw-semibold" id="recapNom">—</div>
+                <div class="text-muted small" id="recapSecteur">—</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Facteur principal -->
+          <div class="param-group">
+            <div class="param-label"><i class="fas fa-ruler me-2"></i>Facteur de calcul principal</div>
+            <div class="row g-2 align-items-end">
+              <div class="col">
+                <input type="number" class="form-control form-control-dark" id="paramFacteur" placeholder="Ex: 1 (logement), 100 (m²)…" min="0" step="0.1" oninput="updateLiveCalc()">
+              </div>
+              <div class="col-auto">
+                <div style="background:var(--bg-4);border:1px solid var(--border-light);border-radius:var(--r-sm);padding:8px 12px;font-size:.82rem;color:var(--t2);white-space:nowrap" id="paramFacteurUnit">unité</div>
+              </div>
+            </div>
+            <div class="text-muted small mt-2" id="paramFacteurDesc">Entrez la valeur correspondant à votre opération.</div>
+          </div>
+
+          <!-- Localisation + options -->
+          <div class="param-group">
+            <div class="param-label"><i class="fas fa-map-marker-alt me-2"></i>Localisation et options</div>
+
+            <div class="toggle-row">
+              <div>
+                <div class="toggle-info"><i class="fas fa-map-pin me-2" style="color:var(--purple)"></i>Zone Non Interconnectée (ZNI)</div>
+                <div class="toggle-desc">DOM-TOM, Corse, îles. Bonus multiplicateur si éligible.</div>
+              </div>
+              <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" role="switch" id="paramZNI" onchange="updateLiveCalc()">
+              </div>
+            </div>
+
+            <div class="toggle-row" id="zniStatus" style="display:none">
+              <div class="elig-badge elig-ok" id="zniEligBadge"><i class="fas fa-check-circle"></i><span>ZNI éligible — ×<span id="zniMult">1.0</span></span></div>
+            </div>
+
+            <div class="toggle-row">
+              <div>
+                <div class="toggle-info"><i class="fas fa-house-heart me-2" style="color:var(--warning)"></i>Ménage en situation de précarité énergétique</div>
+                <div class="toggle-desc">Revenu fiscal de référence sous plafond ANAH. Bonus ×2 si éligible.</div>
+              </div>
+              <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" role="switch" id="paramPrecarite" onchange="updateLiveCalc()">
+              </div>
+            </div>
+
+            <div class="toggle-row" id="precStatus" style="display:none">
+              <div class="elig-badge elig-ok" id="precEligBadge"><i class="fas fa-check-circle"></i><span>Précarité éligible — ×<span id="precMult">1.0</span></span></div>
+            </div>
+          </div>
+
+          <!-- Aperçu en temps réel -->
+          <div class="param-group" style="background:var(--bg-3);border-color:var(--border-light)">
+            <div class="param-label"><i class="fas fa-calculator me-2" style="color:var(--accent)"></i>Aperçu du calcul</div>
+            <div class="d-flex align-items-center justify-content-between py-2">
+              <span class="text-muted small">Volume kWhc estimé</span>
+              <span class="fw-bold" style="color:var(--accent);font-size:1.1rem" id="liveKwh">—</span>
+            </div>
+            <div class="d-flex align-items-center justify-content-between py-2" style="border-top:1px solid var(--border)">
+              <span class="text-muted small">Prime estimée (base ~0.4 c€/kWhc)</span>
+              <span class="fw-bold" style="color:var(--success);font-size:1.1rem" id="livePrime">—</span>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-2" id="liveBonus"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fiche info colonne -->
+      <div class="col-lg-5">
+        <div class="fiche-detail-sidebar">
+          <div class="sim-section-title"><i class="fas fa-info-circle me-2"></i>Conditions d'éligibilité</div>
+          <div class="text-muted small mb-3" id="stepConditions" style="line-height:1.6">—</div>
+          <hr>
+          <div class="sim-section-title"><i class="fas fa-file-check me-2"></i>Documents requis</div>
+          <div id="stepDocsList"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between mt-4">
+      <button class="btn btn-ghost px-4" onclick="goStep(1)"><i class="fas fa-arrow-left me-2"></i>Retour</button>
+      <button class="btn btn-accent px-5" onclick="simulate()">
+        <i class="fas fa-calculator me-2"></i>Calculer la prime CEE
+      </button>
+    </div>
+  </div>
+
+  <!-- ── STEP 3 — Résultats ── -->
+  <div class="sim-step" id="simStep3">
+
+    <div class="result-hero mb-4" id="resultHero">
+      <div class="mb-3" id="resultElig"></div>
+      <div class="result-kwh" id="resultKwh">—</div>
+      <div class="result-unit">kWhc</div>
+      <div class="result-prime" id="resultPrime">—</div>
+      <div class="text-muted small mt-1">Prime estimée (0.4 c€/kWhc)</div>
+      <div class="d-flex justify-content-center flex-wrap gap-2 mt-3" id="resultBonusTags"></div>
+    </div>
+
+    <div class="result-breakdown mb-4" id="resultBreakdown"></div>
+
+    <div class="row g-4">
+      <div class="col-lg-7">
+        <div class="sim-card">
+          <div class="sim-section-title"><i class="fas fa-list-check me-2"></i>Documents à rassembler</div>
+          <div id="resultDocsList"></div>
+        </div>
+      </div>
+      <div class="col-lg-5">
+        <div class="sim-card">
+          <div class="sim-section-title"><i class="fas fa-lightbulb me-2"></i>Récapitulatif opération</div>
+          <div id="resultRecap"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between mt-4 flex-wrap gap-2">
+      <button class="btn btn-ghost px-4" onclick="goStep(2)"><i class="fas fa-arrow-left me-2"></i>Modifier</button>
+      <div class="d-flex gap-2">
+        <button class="btn btn-ghost px-4" onclick="resetSim()"><i class="fas fa-redo me-2"></i>Nouvelle simulation</button>
+        <button class="btn btn-accent px-4" onclick="exportResult()"><i class="fas fa-file-export me-2"></i>Exporter PDF</button>
+        <a href="/admin.html" class="btn btn-accent px-4"><i class="fas fa-plus me-2"></i>Créer le dossier</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let allFiches = [];
+let filteredFiches = [];
+let selectedFiche = null;
+let currentSecteur = '';
+let simResult = null;
+
+const SECTEUR_LABELS = { BAR:'Bâtiment Résidentiel', BAT:'Bâtiment Tertiaire', IND:'Industrie', TRA:'Transport', AGRI:'Agriculture', RES:'Réseaux' };
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const r = await fetch('/api/fiches');
+    allFiches = await r.json();
+    filterFiches();
+  } catch(e) {
+    document.getElementById('fichesGrid').innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><div>Erreur de chargement des fiches.<br><small>Vérifiez que le serveur est démarré.</small></div></div>`;
+  }
+}
+
+// ── Filter ────────────────────────────────────────────────────────────────────
+function setSecteur(val, el) {
+  currentSecteur = val;
+  document.querySelectorAll('.sect-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  filterFiches();
+}
+
+function filterFiches() {
+  const q = (document.getElementById('ficheSearch').value || '').toLowerCase();
+  const zniOnly = document.getElementById('toggleZNI').checked;
+
+  filteredFiches = allFiches.filter(f => {
+    if (currentSecteur && f.secteur !== currentSecteur) return false;
+    if (zniOnly && !f.zni_eligible) return false;
+    if (q) {
+      const hay = `${f.code} ${f.nom} ${f.description} ${f.type_travaux} ${f.sous_secteur}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  const countEl = document.getElementById('ficheCount');
+  countEl.textContent = `${filteredFiches.length} fiche${filteredFiches.length !== 1 ? 's' : ''} trouvée${filteredFiches.length !== 1 ? 's' : ''}`;
+
+  renderFiches();
+}
+
+function renderFiches() {
+  const grid = document.getElementById('fichesGrid');
+  if (!filteredFiches.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><i class="fas fa-search"></i><div>Aucune fiche trouvée<br><small>Modifiez votre recherche</small></div></div>`;
+    return;
+  }
+  grid.innerHTML = filteredFiches.map(f => `
+    <div class="fiche-card ${selectedFiche?.code === f.code ? 'selected' : ''}" onclick="selectFiche(${JSON.stringify(f).replace(/"/g,'&quot;')})">
+      <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
+        <span class="secteur-badge secteur-${f.secteur}">${f.secteur}</span>
+        ${f.zni_eligible ? `<span class="bonus-tag bonus-zni"><i class="fas fa-map-pin"></i> ZNI ×${f.zni_multiplier}</span>` : ''}
+      </div>
+      <div class="fiche-code">${escHtml(f.code)}</div>
+      <div class="fiche-nom">${escHtml(f.nom)}</div>
+      <div class="fiche-type">${escHtml(f.type_travaux || '')}${f.sous_secteur ? ' · ' + escHtml(f.sous_secteur) : ''}</div>
+    </div>
+  `).join('');
+}
+
+function selectFiche(f) {
+  selectedFiche = f;
+  document.getElementById('btnStep1Next').disabled = false;
+
+  // Highlight selected card
+  document.querySelectorAll('.fiche-card').forEach(c => c.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+
+  // Update preview sidebar
+  const docs = (() => { try { return JSON.parse(f.documents_requis || '[]'); } catch(e) { return []; } })();
+  document.getElementById('fichePreview').innerHTML = `
+    <div class="d-flex align-items-start gap-3 mb-3">
+      <span class="secteur-badge secteur-${f.secteur} mt-1">${f.secteur}</span>
+      <div>
+        <div style="font-family:monospace;font-size:.8rem;font-weight:800;color:var(--accent)">${escHtml(f.code)}</div>
+        <div class="fw-semibold" style="line-height:1.3">${escHtml(f.nom)}</div>
+      </div>
+    </div>
+    ${f.description ? `<p class="text-muted small" style="line-height:1.6">${escHtml(f.description)}</p>` : ''}
+    <hr>
+    <div class="fiche-info-row"><span class="fiche-info-key">Secteur</span><span class="fiche-info-val">${SECTEUR_LABELS[f.secteur]||f.secteur}</span></div>
+    ${f.type_travaux ? `<div class="fiche-info-row"><span class="fiche-info-key">Travaux</span><span class="fiche-info-val">${escHtml(f.type_travaux)}</span></div>` : ''}
+    ${f.duree_vie ? `<div class="fiche-info-row"><span class="fiche-info-key">Durée de vie</span><span class="fiche-info-val">${f.duree_vie} ans</span></div>` : ''}
+    ${f.zni_eligible ? `<div class="fiche-info-row"><span class="fiche-info-key">ZNI</span><span class="fiche-info-val"><span class="bonus-tag bonus-zni"><i class="fas fa-check"></i> ×${f.zni_multiplier}</span></span></div>` : ''}
+    ${f.precarite_eligible ? `<div class="fiche-info-row"><span class="fiche-info-key">Précarité</span><span class="fiche-info-val"><span class="bonus-tag bonus-prec"><i class="fas fa-check"></i> ×${f.precarite_bonus}</span></span></div>` : ''}
+    ${docs.length ? `<hr><div class="sim-section-title mt-2"><i class="fas fa-file me-1"></i>Documents requis (${docs.length})</div>${docs.map(d => `<div class="d-flex align-items-center gap-2 py-1" style="font-size:.78rem;color:var(--t2)"><i class="fas fa-file-check" style="color:var(--accent);width:14px"></i>${escHtml(d)}</div>`).join('')}` : ''}
+    <div class="mt-3">
+      <button class="btn btn-accent w-100 btn-sm" onclick="goStep(2)"><i class="fas fa-arrow-right me-2"></i>Choisir cette fiche</button>
+    </div>`;
+}
+
+// ── Step navigation ───────────────────────────────────────────────────────────
+function goStep(n) {
+  if (n === 2 && !selectedFiche) { showToast('Sélectionnez une fiche d\'abord', 'warning'); return; }
+
+  // Update stepper UI
+  for (let i = 1; i <= 3; i++) {
+    const dot  = document.getElementById(`step-dot-${i}`);
+    const line = document.getElementById(`step-line-${i}`);
+    dot.classList.remove('active', 'done');
+    if (i < n)  dot.classList.add('done');
+    if (i === n) dot.classList.add('active');
+    if (line && i < n) line.style.background = 'var(--success)';
+    else if (line)     line.style.background  = 'var(--border)';
+  }
+
+  document.querySelectorAll('.sim-step').forEach((s, i) => {
+    s.classList.toggle('active', i + 1 === n);
+  });
+
+  if (n === 2) populateStep2();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function populateStep2() {
+  const f = selectedFiche;
+  if (!f) return;
+
+  document.getElementById('recapCode').textContent = f.code;
+  document.getElementById('recapNom').textContent  = f.nom;
+  document.getElementById('recapSecteur').textContent = `${SECTEUR_LABELS[f.secteur]||f.secteur}${f.sous_secteur ? ' · ' + f.sous_secteur : ''}`;
+
+  // Facteur unit
+  const unitEl = document.getElementById('paramFacteurUnit');
+  const descEl = document.getElementById('paramFacteurDesc');
+  unitEl.textContent = f.unite_facteur || 'unité';
+  descEl.textContent = f.formule_kwh ? `Formule : ${f.formule_kwh}` : 'Entrez le facteur de calcul pour cette fiche.';
+
+  // ZNI & précarité
+  const zniRow  = document.getElementById('zniStatus');
+  const precRow = document.getElementById('precStatus');
+  const zniChk  = document.getElementById('paramZNI');
+  const precChk = document.getElementById('paramPrecarite');
+
+  if (f.zni_eligible) {
+    zniRow.style.display = 'flex';
+    document.getElementById('zniMult').textContent = f.zni_multiplier;
+    document.getElementById('zniEligBadge').className = 'elig-badge elig-ok';
+    document.getElementById('zniEligBadge').innerHTML = `<i class="fas fa-check-circle"></i><span>ZNI éligible — ×${f.zni_multiplier}</span>`;
+  } else {
+    zniRow.style.display = 'none';
+    zniChk.checked = false;
+  }
+
+  if (f.precarite_eligible) {
+    precRow.style.display = 'flex';
+    document.getElementById('precMult').textContent = f.precarite_bonus;
+    document.getElementById('precEligBadge').innerHTML = `<i class="fas fa-check-circle"></i><span>Précarité éligible — ×${f.precarite_bonus}</span>`;
+  } else {
+    precRow.style.display = 'none';
+    precChk.checked = false;
+  }
+
+  // Conditions
+  document.getElementById('stepConditions').textContent = f.conditions_eligibilite || 'Conditions non précisées.';
+
+  // Documents
+  const docs = (() => { try { return JSON.parse(f.documents_requis || '[]'); } catch(e) { return []; } })();
+  document.getElementById('stepDocsList').innerHTML = docs.length
+    ? docs.map(d => `<div class="doc-check-item"><div class="doc-check-icon"><i class="fas fa-file-alt"></i></div><div style="font-size:.82rem;color:var(--t1)">${escHtml(d)}</div></div>`).join('')
+    : '<div class="text-muted small">Aucun document spécifié.</div>';
+
+  updateLiveCalc();
+}
+
+// ── Live calc ─────────────────────────────────────────────────────────────────
+function updateLiveCalc() {
+  const f = selectedFiche;
+  if (!f) return;
+  const facteur   = parseFloat(document.getElementById('paramFacteur').value) || 0;
+  const isZNI     = document.getElementById('paramZNI').checked;
+  const isPrec    = document.getElementById('paramPrecarite').checked;
+
+  let kwh = facteur ? (f.valeur_min || 0) * facteur : 0;
+  let mult = 1;
+  const bonuses = [];
+
+  if (isZNI && f.zni_eligible) { mult *= f.zni_multiplier; bonuses.push(`ZNI ×${f.zni_multiplier}`); }
+  if (isPrec && f.precarite_eligible) { mult *= f.precarite_bonus; bonuses.push(`Précarité ×${f.precarite_bonus}`); }
+
+  const kwhTotal = Math.round(kwh * mult);
+  const prime    = parseFloat((kwhTotal * 0.004).toFixed(2));
+
+  document.getElementById('liveKwh').textContent   = kwhTotal > 0 ? fmtKwh(kwhTotal) : '—';
+  document.getElementById('livePrime').textContent = prime > 0 ? fmtEuro(prime) : '—';
+  document.getElementById('liveBonus').innerHTML   = bonuses.map(b => `<span class="bonus-tag bonus-zni"><i class="fas fa-plus-circle me-1"></i>${b}</span>`).join('');
+}
+
+// ── Simulate (API call) ───────────────────────────────────────────────────────
+async function simulate() {
+  const f = selectedFiche;
+  if (!f) return;
+  const facteur   = parseFloat(document.getElementById('paramFacteur').value) || 1;
+  const isZNI     = document.getElementById('paramZNI').checked;
+  const isPrec    = document.getElementById('paramPrecarite').checked;
+
+  try {
+    const r = await fetch(`/api/fiches/${f.code}/simuler`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ facteur, is_zni: isZNI ? 1 : 0, is_precarite: isPrec ? 1 : 0 })
+    });
+    simResult = await r.json();
+    if (!r.ok) { showToast(simResult.error || 'Erreur de simulation', 'danger'); return; }
+    goStep(3);
+    renderResults();
+  } catch(e) {
+    showToast('Erreur de connexion au serveur', 'danger');
+  }
+}
+
+function renderResults() {
+  const d = simResult;
+  if (!d) return;
+
+  // Hero
+  document.getElementById('resultKwh').textContent = d.kwh_total?.toLocaleString('fr-FR') || '—';
+  document.getElementById('resultPrime').textContent = d.prime_estimee ? fmtEuro(d.prime_estimee) : '—';
+
+  const eligEl = document.getElementById('resultElig');
+  eligEl.innerHTML = d.kwh_total > 0
+    ? `<span class="elig-badge elig-ok"><i class="fas fa-check-circle"></i> Opération éligible</span>`
+    : `<span class="elig-badge elig-warn"><i class="fas fa-exclamation-circle"></i> Entrez un facteur de calcul</span>`;
+
+  const bonusTags = [];
+  if (d.is_zni)      bonusTags.push(`<span class="bonus-tag bonus-zni"><i class="fas fa-map-pin me-1"></i>ZNI ×${selectedFiche?.zni_multiplier||''}</span>`);
+  if (d.is_precarite)bonusTags.push(`<span class="bonus-tag bonus-prec"><i class="fas fa-house-heart me-1"></i>Précarité ×${selectedFiche?.precarite_bonus||''}</span>`);
+  document.getElementById('resultBonusTags').innerHTML = bonusTags.join('');
+
+  // Breakdown
+  document.getElementById('resultBreakdown').innerHTML = `
+    <div class="result-item"><div class="result-item-val">${d.kwh_base?.toLocaleString('fr-FR') || '—'}</div><div class="result-item-label">kWhc de base</div></div>
+    <div class="result-item"><div class="result-item-val" style="color:var(--purple)">×${d.multiplicateur||1}</div><div class="result-item-label">Multiplicateur</div></div>
+    <div class="result-item"><div class="result-item-val" style="color:var(--accent)">${d.kwh_total?.toLocaleString('fr-FR') || '—'}</div><div class="result-item-label">kWhc total</div></div>
+    <div class="result-item"><div class="result-item-val" style="color:var(--success)">${d.prime_estimee ? fmtEuro(d.prime_estimee) : '—'}</div><div class="result-item-label">Prime estimée</div></div>`;
+
+  // Docs
+  document.getElementById('resultDocsList').innerHTML = d.documents_requis?.length
+    ? d.documents_requis.map((doc, i) => `<div class="doc-check-item">
+        <div class="doc-check-icon"><i class="fas fa-file-alt"></i></div>
+        <div>
+          <div style="font-size:.83rem;font-weight:600;color:var(--t1)">${escHtml(doc)}</div>
+          <div style="font-size:.7rem;color:var(--t3)">Document obligatoire n°${i+1}</div>
+        </div>
+      </div>`).join('')
+    : '<div class="text-muted small">Aucun document spécifié.</div>';
+
+  // Récap
+  const f = selectedFiche;
+  document.getElementById('resultRecap').innerHTML = `
+    <div class="fiche-info-row"><span class="fiche-info-key">Code fiche</span><span class="fiche-info-val" style="font-family:monospace;color:var(--accent);font-weight:800">${escHtml(d.code)}</span></div>
+    <div class="fiche-info-row"><span class="fiche-info-key">Opération</span><span class="fiche-info-val">${escHtml(d.nom)}</span></div>
+    <div class="fiche-info-row"><span class="fiche-info-key">Secteur</span><span class="fiche-info-val">${SECTEUR_LABELS[f?.secteur]||f?.secteur||'—'}</span></div>
+    ${f?.duree_vie ? `<div class="fiche-info-row"><span class="fiche-info-key">Durée de vie</span><span class="fiche-info-val">${f.duree_vie} ans</span></div>` : ''}
+    <div class="fiche-info-row"><span class="fiche-info-key">Volume kWhc</span><span class="fiche-info-val fw-bold" style="color:var(--accent)">${d.kwh_total?.toLocaleString('fr-FR') || '—'} kWhc</span></div>
+    <div class="fiche-info-row"><span class="fiche-info-key">Prime estimée</span><span class="fiche-info-val fw-bold" style="color:var(--success)">${fmtEuro(d.prime_estimee)}</span></div>
+    ${d.is_zni ? `<div class="fiche-info-row"><span class="fiche-info-key">Bonus ZNI</span><span class="fiche-info-val"><span class="bonus-tag bonus-zni">×${f?.zni_multiplier}</span></span></div>` : ''}
+    ${d.is_precarite ? `<div class="fiche-info-row"><span class="fiche-info-key">Bonus précarité</span><span class="fiche-info-val"><span class="bonus-tag bonus-prec">×${f?.precarite_bonus}</span></span></div>` : ''}`;
+}
+
+// ── Reset ─────────────────────────────────────────────────────────────────────
+function resetSim() {
+  selectedFiche = null;
+  simResult     = null;
+  document.getElementById('ficheSearch').value = '';
+  document.getElementById('paramFacteur').value = '';
+  document.getElementById('paramZNI').checked = false;
+  document.getElementById('paramPrecarite').checked = false;
+  document.getElementById('toggleZNI').checked = false;
+  document.getElementById('btnStep1Next').disabled = true;
+  document.getElementById('fichePreview').innerHTML = `<div class="empty-state" style="padding:40px 10px"><i class="fas fa-hand-pointer" style="font-size:2rem;opacity:.25;margin-bottom:10px;display:block"></i><div style="font-size:.85rem;color:var(--t3)">Sélectionnez une fiche<br>pour voir ses détails</div></div>`;
+  setSecteur('', document.querySelector('.sect-pill[data-secteur=""]'));
+  goStep(1);
+}
+
+// ── Export (placeholder) ──────────────────────────────────────────────────────
+function exportResult() {
+  if (!simResult) return;
+  const f = selectedFiche;
+  const lines = [
+    `SIMULATION CEE — ${new Date().toLocaleDateString('fr-FR')}`,
+    ``,
+    `Code fiche : ${f?.code}`,
+    `Opération  : ${f?.nom}`,
+    `Secteur    : ${SECTEUR_LABELS[f?.secteur]||f?.secteur}`,
+    ``,
+    `Volume kWhc (base)  : ${simResult.kwh_base?.toLocaleString('fr-FR')} kWhc`,
+    `Multiplicateur      : ×${simResult.multiplicateur}`,
+    `Volume kWhc (total) : ${simResult.kwh_total?.toLocaleString('fr-FR')} kWhc`,
+    `Prime estimée       : ${fmtEuro(simResult.prime_estimee)}`,
+    ``,
+    `Bonus ZNI       : ${simResult.is_zni ? 'Oui ×' + f?.zni_multiplier : 'Non'}`,
+    `Bonus précarité : ${simResult.is_precarite ? 'Oui ×' + f?.precarite_bonus : 'Non'}`,
+    ``,
+    `Documents requis :`,
+    ...(simResult.documents_requis||[]).map(d => `  - ${d}`),
+    ``,
+    `* Simulation indicative — Prime réelle selon barème en vigueur et validation obligé`
+  ].join('\n');
+
+  const blob = new Blob(['﻿' + lines], { type: 'text/plain;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = `simulation-cee-${f?.code}-${Date.now()}.txt`;
+  a.click(); URL.revokeObjectURL(url);
+  showToast('Simulation exportée');
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fmtKwh(v) {
+  if (!v) return '0 kWhc';
+  if (v >= 1e9)  return (v/1e9).toFixed(2) + ' GWhc';
+  if (v >= 1e6)  return (v/1e6).toFixed(2) + ' MWhc';
+  if (v >= 1000) return (v/1000).toFixed(1) + ' MWhc';
+  return Math.round(v).toLocaleString('fr-FR') + ' kWhc';
+}
+function fmtEuro(v) {
+  if (!v) return '0 €';
+  if (v >= 1e6)  return (v/1e6).toFixed(2) + ' M€';
+  if (v >= 1000) return (v/1000).toFixed(1) + ' k€';
+  return Math.round(v).toLocaleString('fr-FR') + ' €';
+}
+function escHtml(s) { return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function showToast(msg, type='success') {
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+  const icons = { success:'fa-circle-check', danger:'fa-circle-exclamation', warning:'fa-triangle-exclamation' };
+  const colors = { success:'var(--success)', danger:'var(--danger)', warning:'var(--warning)' };
+  const t = document.createElement('div');
+  t.className = `echowai-toast ${type}`;
+  t.innerHTML = `<i class="fas ${icons[type]||'fa-circle-check'}" style="color:${colors[type]||'var(--success)'};flex-shrink:0"></i><span>${msg}</span>`;
+  container.appendChild(t);
+  setTimeout(() => { t.style.animation = 'toastOut .2s ease forwards'; setTimeout(() => t.remove(), 200); }, 3200);
+}
+
+// ── Start ─────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
