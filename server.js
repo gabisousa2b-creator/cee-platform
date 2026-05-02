@@ -95,7 +95,7 @@ db.serialize(() => {
     date_engagement  DATE,
     date_achevement  DATE,
     volume_kwh       REAL DEFAULT 0,
-    prime_estimee    REAL DEFAULT 0,
+    prime_negociee   REAL DEFAULT 0,
     prime_validee    REAL DEFAULT 0,
     statut           TEXT DEFAULT 'en_cours',
     notes            TEXT DEFAULT '',
@@ -103,6 +103,9 @@ db.serialize(() => {
     updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (beneficiaire_id) REFERENCES beneficiaires(id) ON DELETE CASCADE
   )`);
+  // Migration silencieuse : renommage prime_estimee → prime_negociee
+  db.run(`ALTER TABLE cee_operations ADD COLUMN prime_negociee REAL DEFAULT 0`, () => {});
+  db.run(`UPDATE cee_operations SET prime_negociee = prime_estimee WHERE prime_negociee = 0 AND prime_estimee > 0`, () => {});
 
   // ── Journal d'activité ────────────────────────────────────────────────────────
   db.run(`CREATE TABLE IF NOT EXISTS activity_logs (
@@ -468,7 +471,7 @@ app.get('/api/admin/stats', requireAdmin, (req, res) => {
           // Stats CEE opérations
           db.get(`SELECT
             COALESCE(SUM(volume_kwh), 0)    AS total_kwh,
-            COALESCE(SUM(prime_estimee), 0) AS total_prime_estimee,
+            COALESCE(SUM(prime_negociee), 0) AS total_prime_negociee,
             COALESCE(SUM(prime_validee), 0) AS total_prime_validee,
             COUNT(*)                         AS total_operations
             FROM cee_operations`, [], (err, ops) => {
@@ -482,7 +485,7 @@ app.get('/api/admin/stats', requireAdmin, (req, res) => {
                 totalDocuments:    docs?.total || 0,
                 archived:          arch?.total || 0,
                 totalKwh:          ops?.total_kwh || 0,
-                totalPrimeEstimee: ops?.total_prime_estimee || 0,
+                totalPrimeNegociee: ops?.total_prime_negociee || 0,
                 totalPrimeValidee: ops?.total_prime_validee || 0,
                 totalOperations:   ops?.total_operations || 0,
                 alertes:           alerts?.cnt || 0
@@ -938,15 +941,14 @@ app.get('/api/admin/operations', requireAdmin, (req, res) => {
 
 // Créer une opération
 app.post('/api/admin/operations', requireAdmin, (req, res) => {
-  const { beneficiaire_id, code_fiche, nom_operation, secteur, date_engagement, date_achevement, volume_kwh, prime_estimee, prime_validee, statut, notes } = req.body;
+  const { beneficiaire_id, code_fiche, nom_operation, secteur, date_engagement, date_achevement, volume_kwh, prime_negociee, prime_validee, statut, notes } = req.body;
   if (!beneficiaire_id || !code_fiche || !nom_operation) return res.status(400).json({ error: 'Champs requis manquants' });
   db.run(
-    `INSERT INTO cee_operations (beneficiaire_id, code_fiche, nom_operation, secteur, date_engagement, date_achevement, volume_kwh, prime_estimee, prime_validee, statut, notes)
+    `INSERT INTO cee_operations (beneficiaire_id, code_fiche, nom_operation, secteur, date_engagement, date_achevement, volume_kwh, prime_negociee, prime_validee, statut, notes)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [beneficiaire_id, code_fiche.trim(), nom_operation.trim(), secteur||'', date_engagement||null, date_achevement||null, parseFloat(volume_kwh)||0, parseFloat(prime_estimee)||0, parseFloat(prime_validee)||0, statut||'en_cours', notes||''],
+    [beneficiaire_id, code_fiche.trim(), nom_operation.trim(), secteur||'', date_engagement||null, date_achevement||null, parseFloat(volume_kwh)||0, parseFloat(prime_negociee)||0, parseFloat(prime_validee)||0, statut||'en_cours', notes||''],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
-      // Log d'activité
       db.run(`INSERT INTO activity_logs (beneficiaire_id, action, details, auteur) VALUES (?, 'operation_created', ?, 'admin')`,
         [beneficiaire_id, `Opération CEE créée : ${code_fiche} — ${nom_operation}`]);
       db.get('SELECT o.*, b.nom, b.prenom, b.raison_sociale, b.code AS benef_code FROM cee_operations o LEFT JOIN beneficiaires b ON b.id=o.beneficiaire_id WHERE o.id=?', [this.lastID], (err, row) => res.json(row));
@@ -956,10 +958,10 @@ app.post('/api/admin/operations', requireAdmin, (req, res) => {
 
 // Modifier une opération
 app.put('/api/admin/operations/:id', requireAdmin, (req, res) => {
-  const { code_fiche, nom_operation, secteur, date_engagement, date_achevement, volume_kwh, prime_estimee, prime_validee, statut, notes } = req.body;
+  const { code_fiche, nom_operation, secteur, date_engagement, date_achevement, volume_kwh, prime_negociee, prime_validee, statut, notes } = req.body;
   db.run(
-    `UPDATE cee_operations SET code_fiche=?, nom_operation=?, secteur=?, date_engagement=?, date_achevement=?, volume_kwh=?, prime_estimee=?, prime_validee=?, statut=?, notes=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
-    [code_fiche, nom_operation, secteur||'', date_engagement||null, date_achevement||null, parseFloat(volume_kwh)||0, parseFloat(prime_estimee)||0, parseFloat(prime_validee)||0, statut||'en_cours', notes||'', req.params.id],
+    `UPDATE cee_operations SET code_fiche=?, nom_operation=?, secteur=?, date_engagement=?, date_achevement=?, volume_kwh=?, prime_negociee=?, prime_validee=?, statut=?, notes=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+    [code_fiche, nom_operation, secteur||'', date_engagement||null, date_achevement||null, parseFloat(volume_kwh)||0, parseFloat(prime_negociee)||0, parseFloat(prime_validee)||0, statut||'en_cours', notes||'', req.params.id],
     err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true })
   );
 });
@@ -1009,7 +1011,7 @@ app.get('/api/admin/export-lot', requireAdmin, (req, res) => {
       b.statut AS statut_dossier, b.created_at AS date_creation,
       o.code_fiche, o.nom_operation, o.secteur,
       o.date_engagement, o.date_achevement,
-      o.volume_kwh, o.prime_estimee, o.prime_validee,
+      o.volume_kwh, o.prime_negociee, o.prime_validee,
       o.statut AS statut_operation
     FROM beneficiaires b
     LEFT JOIN cee_operations o ON o.beneficiaire_id = b.id
@@ -1024,7 +1026,7 @@ app.get('/api/admin/export-lot', requireAdmin, (req, res) => {
         'ADRESSE','CODE_POSTAL','VILLE','ACTIVITE','STATUT_DOSSIER',
         'DATE_CREATION','CODE_FICHE','NOM_OPERATION','SECTEUR',
         'DATE_ENGAGEMENT','DATE_ACHEVEMENT','VOLUME_KWHC',
-        'PRIME_ESTIMEE_EUR','PRIME_VALIDEE_EUR','STATUT_OPERATION'
+        'PRIME_NEGOCIEE_EUR','PRIME_VALIDEE_EUR','STATUT_OPERATION'
       ];
 
       const escCsv = v => {
@@ -1040,7 +1042,7 @@ app.get('/api/admin/export-lot', requireAdmin, (req, res) => {
           r.statut_dossier||'', r.date_creation||'',
           r.code_fiche||'', r.nom_operation||'', r.secteur||'',
           r.date_engagement||'', r.date_achevement||'',
-          r.volume_kwh||'', r.prime_estimee||'', r.prime_validee||'',
+          r.volume_kwh||'', r.prime_negociee||'', r.prime_validee||'',
           r.statut_operation||''
         ].map(escCsv).join(','));
       });

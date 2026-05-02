@@ -312,12 +312,12 @@
     .fpill.active { background:var(--accent-dim); color:var(--accent); border-color:var(--accent-glow); }
 
     /* ── Sortable headers ── */
-    th.sortable { cursor:pointer; user-select:none; white-space:nowrap; }
-    th.sortable:hover { color:var(--t1) !important; }
-    th.sortable .sort-icon { margin-left:4px; opacity:.4; font-size:.68rem; }
-    th.sortable.asc  .sort-icon::after { content:'▲'; opacity:1; color:var(--accent); }
-    th.sortable.desc .sort-icon::after { content:'▼'; opacity:1; color:var(--accent); }
-    th.sortable:not(.asc):not(.desc) .sort-icon::after { content:'⇅'; }
+    th.sortable, th.ops-sortable { cursor:pointer; user-select:none; white-space:nowrap; }
+    th.sortable:hover, th.ops-sortable:hover { color:var(--t1) !important; }
+    th.sortable .sort-icon, th.ops-sortable .sort-icon { margin-left:4px; opacity:.4; font-size:.68rem; }
+    th.sortable.asc  .sort-icon::after, th.ops-sortable.asc  .sort-icon::after { content:'▲'; opacity:1; color:var(--accent); }
+    th.sortable.desc .sort-icon::after, th.ops-sortable.desc .sort-icon::after { content:'▼'; opacity:1; color:var(--accent); }
+    th.sortable:not(.asc):not(.desc) .sort-icon::after, th.ops-sortable:not(.asc):not(.desc) .sort-icon::after { content:'⇅'; }
 
     /* ── Filter row ── */
     .filter-row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
@@ -739,7 +739,7 @@
           <div class="kpi-card prime">
             <div class="d-flex align-items-start justify-content-between mb-2">
               <div>
-                <div class="stat-label mb-1"><i class="fas fa-euro-sign me-1"></i>Prime estimée totale</div>
+                <div class="stat-label mb-1"><i class="fas fa-euro-sign me-1"></i>Prime négociée totale</div>
                 <div class="stat-number" id="statPrime" style="color:var(--info)">—</div>
               </div>
               <div class="stat-icon" style="background:var(--info-dim);color:var(--info);flex-shrink:0"><i class="fas fa-coins"></i></div>
@@ -915,8 +915,8 @@
         </div>
         <div class="col-md-3">
           <div class="stat-card">
-            <div class="text-muted small mb-1"><i class="fas fa-euro-sign me-1" style="color:var(--info)"></i>Prime estimée</div>
-            <div class="fs-4 fw-bold" id="opsPrimeEstimee" style="color:var(--info)">—</div>
+            <div class="text-muted small mb-1"><i class="fas fa-euro-sign me-1" style="color:var(--info)"></i>Prime négociée</div>
+            <div class="fs-4 fw-bold" id="opsPrimeNegociee" style="color:var(--info)">—</div>
           </div>
         </div>
         <div class="col-md-3">
@@ -927,13 +927,37 @@
         </div>
       </div>
 
-      <!-- Filtre statut opérations -->
+      <!-- Filtres opérations — multi-colonnes -->
       <div class="table-card p-3 mb-3">
-        <div class="d-flex gap-2 align-items-center flex-wrap">
-          <div class="fselect-group">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <span class="fw-semibold small" style="color:var(--t2)"><i class="fas fa-filter me-1"></i>Filtres</span>
+          <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="resetOpsFilters()" style="font-size:.75rem"><i class="fas fa-times me-1"></i>Réinitialiser</button>
+        </div>
+        <div class="row g-2">
+          <div class="col-md-3 col-sm-6">
+            <div class="fselect-label">Recherche globale</div>
+            <input type="text" class="form-control form-control-sm" id="opsSearch" placeholder="Nom, code fiche…" oninput="renderOperations()">
+          </div>
+          <div class="col-md-2 col-sm-6">
+            <div class="fselect-label">Code fiche</div>
+            <input type="text" class="form-control form-control-sm" id="opsFilterCode" placeholder="Ex: BAR-TH…" oninput="renderOperations()">
+          </div>
+          <div class="col-md-2 col-sm-6">
+            <div class="fselect-label">Secteur</div>
+            <select class="form-select form-select-sm" id="opsFilterSecteur" onchange="renderOperations()">
+              <option value="">Tous</option>
+              <option value="BAR">BAR</option>
+              <option value="BAT">BAT</option>
+              <option value="IND">IND</option>
+              <option value="AGRI">AGRI</option>
+              <option value="RES">RES</option>
+              <option value="TRA">TRA</option>
+            </select>
+          </div>
+          <div class="col-md-2 col-sm-6">
             <div class="fselect-label">Statut</div>
-            <select class="form-select" id="opsFilterStatut" onchange="loadOperations()">
-              <option value="">Tous les statuts</option>
+            <select class="form-select form-select-sm" id="opsFilterStatut" onchange="loadOperations()">
+              <option value="">Tous</option>
               <option value="en_attente">En attente</option>
               <option value="en_cours">En cours</option>
               <option value="valide">Validé</option>
@@ -941,9 +965,31 @@
               <option value="annule">Annulé</option>
             </select>
           </div>
-          <div class="fselect-group">
-            <div class="fselect-label">Recherche</div>
-            <input type="text" class="form-control" id="opsSearch" placeholder="Code fiche, bénéficiaire…" oninput="renderOperations()" style="height:34px;font-size:.83rem;min-width:220px">
+          <div class="col-md-3 col-sm-6">
+            <div class="fselect-label">Date engagement (de → à)</div>
+            <div class="d-flex gap-1">
+              <input type="date" class="form-control form-control-sm" id="opsFilterDateFrom" onchange="renderOperations()">
+              <input type="date" class="form-control form-control-sm" id="opsFilterDateTo" onchange="renderOperations()">
+            </div>
+          </div>
+          <div class="col-md-2 col-sm-4">
+            <div class="fselect-label">kWhc min</div>
+            <input type="number" class="form-control form-control-sm" id="opsFilterKwhMin" placeholder="0" min="0" oninput="renderOperations()">
+          </div>
+          <div class="col-md-2 col-sm-4">
+            <div class="fselect-label">kWhc max</div>
+            <input type="number" class="form-control form-control-sm" id="opsFilterKwhMax" placeholder="∞" min="0" oninput="renderOperations()">
+          </div>
+          <div class="col-md-2 col-sm-4">
+            <div class="fselect-label">Prime min (€)</div>
+            <input type="number" class="form-control form-control-sm" id="opsFilterPrimeMin" placeholder="0" min="0" oninput="renderOperations()">
+          </div>
+          <div class="col-md-2 col-sm-4">
+            <div class="fselect-label">Prime max (€)</div>
+            <input type="number" class="form-control form-control-sm" id="opsFilterPrimeMax" placeholder="∞" min="0" oninput="renderOperations()">
+          </div>
+          <div class="col-md-4 col-sm-6 d-flex align-items-end">
+            <div class="text-muted small" id="opsFilterCount"></div>
           </div>
         </div>
       </div>
@@ -953,18 +999,19 @@
           <table class="table mb-0">
             <thead>
               <tr>
-                <th>Code fiche</th>
-                <th>Opération</th>
-                <th>Bénéficiaire</th>
-                <th>kWhc</th>
-                <th>Prime est.</th>
-                <th>Engagement</th>
-                <th>Statut</th>
+                <th class="ops-sortable" data-col="code_fiche" onclick="sortOps('code_fiche',this)">Code fiche<span class="sort-icon"></span></th>
+                <th class="ops-sortable" data-col="nom_operation" onclick="sortOps('nom_operation',this)">Opération<span class="sort-icon"></span></th>
+                <th class="ops-sortable" data-col="nom" onclick="sortOps('nom',this)">Bénéficiaire<span class="sort-icon"></span></th>
+                <th class="ops-sortable" data-col="volume_kwh" onclick="sortOps('volume_kwh',this)">kWhc<span class="sort-icon"></span></th>
+                <th class="ops-sortable" data-col="prime_negociee" onclick="sortOps('prime_negociee',this)">Prime négociée<span class="sort-icon"></span></th>
+                <th class="ops-sortable" data-col="prime_validee" onclick="sortOps('prime_validee',this)">Prime validée<span class="sort-icon"></span></th>
+                <th class="ops-sortable" data-col="date_engagement" onclick="sortOps('date_engagement',this)">Engagement<span class="sort-icon"></span></th>
+                <th class="ops-sortable" data-col="statut" onclick="sortOps('statut',this)">Statut<span class="sort-icon"></span></th>
                 <th></th>
               </tr>
             </thead>
             <tbody id="opsTableBody">
-              <tr><td colspan="8" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin"></i></td></tr>
+              <tr><td colspan="9" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin"></i></td></tr>
             </tbody>
           </table>
         </div>
@@ -1644,9 +1691,9 @@
               </div>
             </div>
             <div class="col-md-4">
-              <label class="form-label fw-semibold">Prime estimée (€)</label>
+              <label class="form-label fw-semibold">Prime négociée (€)</label>
               <div class="input-group">
-                <input type="number" class="form-control" id="opPrimeEstimee" placeholder="0" min="0" step="0.01">
+                <input type="number" class="form-control" id="opPrimeNegociee" placeholder="0" min="0" step="0.01">
                 <span class="input-group-text">€</span>
               </div>
             </div>
@@ -1814,13 +1861,13 @@ async function loadStats() {
   // KPIs CEE
   document.getElementById('statKwh').textContent          = fmtKwh(d.totalKwh);
   document.getElementById('statOpsCount').textContent     = `${d.totalOperations || 0} opération(s)`;
-  document.getElementById('statPrime').textContent        = fmtEuro(d.totalPrimeEstimee);
+  document.getElementById('statPrime').textContent        = fmtEuro(d.totalPrimeNegociee);
   document.getElementById('statPrimeValidee').textContent = fmtEuro(d.totalPrimeValidee);
   document.getElementById('statAlertes').textContent      = d.alertes || 0;
 
   // Progress bars animation
   const kwhTarget = d.totalKwh > 0 ? Math.min(100, (d.totalKwh / 1e6) * 100) : 0;
-  const primeTarget = d.totalPrimeEstimee > 0 ? Math.min(100, (d.totalPrimeEstimee / 100000) * 100) : 0;
+  const primeTarget = d.totalPrimeNegociee > 0 ? Math.min(100, (d.totalPrimeNegociee / 100000) * 100) : 0;
   const alertTarget = d.alertes > 0 ? Math.min(100, (d.alertes / (d.total || 1)) * 100) : 0;
   setTimeout(() => {
     const kp = document.getElementById('kwhProgressBar');   if (kp) kp.style.width = kwhTarget + '%';
@@ -1998,11 +2045,29 @@ async function deleteTache(id) {
 
 // ── Opérations CEE ───────────────────────────────────────────────────────────
 let allOpsData = [];
+let opsSortCol = 'date_engagement', opsSortDir = 'desc';
 const OP_STATUT_LABELS = { en_attente:'En attente', en_cours:'En cours', valide:'Validé', refuse:'Refusé', annule:'Annulé' };
 
 function badgeOp(statut) {
-  const lbl = OP_STATUT_LABELS[statut] || statut;
-  return `<span class="op-badge op-${statut}">${lbl}</span>`;
+  return `<span class="op-badge op-${statut}">${OP_STATUT_LABELS[statut]||statut}</span>`;
+}
+
+function sortOps(col, th) {
+  if (opsSortCol === col) { opsSortDir = opsSortDir === 'asc' ? 'desc' : 'asc'; }
+  else { opsSortCol = col; opsSortDir = col === 'date_engagement' ? 'desc' : 'asc'; }
+  document.querySelectorAll('.ops-sortable').forEach(h => h.classList.remove('asc','desc'));
+  th.classList.add(opsSortDir);
+  renderOperations();
+}
+
+function resetOpsFilters() {
+  ['opsSearch','opsFilterCode','opsFilterSecteur','opsFilterStatut',
+   'opsFilterDateFrom','opsFilterDateTo','opsFilterKwhMin','opsFilterKwhMax',
+   'opsFilterPrimeMin','opsFilterPrimeMax'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  loadOperations();
 }
 
 async function loadOperations() {
@@ -2012,42 +2077,83 @@ async function loadOperations() {
   const r = await fetch('/api/admin/operations?' + params);
   allOpsData = await r.json();
 
-  // Calcul KPIs locaux
+  // KPIs sur données brutes (avant filtres locaux)
+  const G = id => document.getElementById(id);
   const totalKwh = allOpsData.reduce((s, o) => s + (o.volume_kwh || 0), 0);
-  const totalPrimeEst = allOpsData.reduce((s, o) => s + (o.prime_estimee || 0), 0);
-  const totalPrimeVal = allOpsData.reduce((s, o) => s + (o.prime_validee || 0), 0);
-  const el = id => document.getElementById(id);
-  if (el('opsTotal'))        el('opsTotal').textContent        = allOpsData.length;
-  if (el('opsKwh'))          el('opsKwh').textContent          = fmtKwh(totalKwh);
-  if (el('opsPrimeEstimee')) el('opsPrimeEstimee').textContent = fmtEuro(totalPrimeEst);
-  if (el('opsPrimeValidee')) el('opsPrimeValidee').textContent = fmtEuro(totalPrimeVal);
+  const totalNeg = allOpsData.reduce((s, o) => s + (o.prime_negociee || 0), 0);
+  const totalVal = allOpsData.reduce((s, o) => s + (o.prime_validee || 0), 0);
+  if (G('opsTotal'))         G('opsTotal').textContent         = allOpsData.length;
+  if (G('opsKwh'))           G('opsKwh').textContent           = fmtKwh(totalKwh);
+  if (G('opsPrimeNegociee')) G('opsPrimeNegociee').textContent = fmtEuro(totalNeg);
+  if (G('opsPrimeValidee'))  G('opsPrimeValidee').textContent  = fmtEuro(totalVal);
 
   renderOperations();
 }
 
 function renderOperations() {
-  const search = (document.getElementById('opsSearch')?.value || '').toLowerCase();
+  const search     = (document.getElementById('opsSearch')?.value || '').toLowerCase();
+  const filterCode = (document.getElementById('opsFilterCode')?.value || '').toLowerCase();
+  const filterSect = document.getElementById('opsFilterSecteur')?.value || '';
+  const dateFrom   = document.getElementById('opsFilterDateFrom')?.value || '';
+  const dateTo     = document.getElementById('opsFilterDateTo')?.value || '';
+  const kwhMin     = parseFloat(document.getElementById('opsFilterKwhMin')?.value) || null;
+  const kwhMax     = parseFloat(document.getElementById('opsFilterKwhMax')?.value) || null;
+  const primeMin   = parseFloat(document.getElementById('opsFilterPrimeMin')?.value) || null;
+  const primeMax   = parseFloat(document.getElementById('opsFilterPrimeMax')?.value) || null;
+
   let list = allOpsData.filter(o => {
-    if (!search) return true;
-    const hay = `${o.code_fiche} ${o.nom_operation} ${o.nom||''} ${o.prenom||''} ${o.benef_code||''} ${o.raison_sociale||''}`.toLowerCase();
-    return hay.includes(search);
+    if (search) {
+      const hay = `${o.code_fiche} ${o.nom_operation} ${o.nom||''} ${o.prenom||''} ${o.benef_code||''} ${o.raison_sociale||''}`.toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    if (filterCode && !(o.code_fiche||'').toLowerCase().includes(filterCode)) return false;
+    if (filterSect && (o.secteur||'') !== filterSect) return false;
+    if (dateFrom && o.date_engagement && o.date_engagement < dateFrom) return false;
+    if (dateTo   && o.date_engagement && o.date_engagement > dateTo)   return false;
+    if (kwhMin !== null && (o.volume_kwh || 0) < kwhMin) return false;
+    if (kwhMax !== null && (o.volume_kwh || 0) > kwhMax) return false;
+    if (primeMin !== null && (o.prime_negociee || 0) < primeMin) return false;
+    if (primeMax !== null && (o.prime_negociee || 0) > primeMax) return false;
+    return true;
   });
 
+  // Tri
+  list = [...list].sort((a, b) => {
+    let va = a[opsSortCol] ?? '', vb = b[opsSortCol] ?? '';
+    if (typeof va === 'number') return opsSortDir === 'asc' ? va - vb : vb - va;
+    return opsSortDir === 'asc'
+      ? String(va).localeCompare(String(vb), 'fr')
+      : String(vb).localeCompare(String(va), 'fr');
+  });
+
+  // Mise à jour compteur
+  const countEl = document.getElementById('opsFilterCount');
+  if (countEl) countEl.textContent = list.length < allOpsData.length
+    ? `${list.length} résultat(s) sur ${allOpsData.length}`
+    : `${list.length} opération(s)`;
+
   const tbody = document.getElementById('opsTableBody');
-  if (!list.length) { tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-muted">Aucune opération trouvée</td></tr>`; return; }
+  if (!list.length) {
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center py-5 text-muted"><i class="fas fa-filter fa-2x mb-2 d-block opacity-25"></i>Aucune opération ne correspond aux filtres.<br><button class="btn btn-sm btn-outline-secondary mt-2" onclick="resetOpsFilters()">Réinitialiser les filtres</button></td></tr>`;
+    return;
+  }
   tbody.innerHTML = list.map(o => `
     <tr class="op-row" onclick="openEditOperation(${JSON.stringify(o).replace(/"/g,'&quot;')})">
-      <td><span class="badge bg-primary bg-opacity-10 text-primary fw-bold font-monospace">${escHtml(o.code_fiche)}</span></td>
+      <td>
+        <span class="badge bg-primary bg-opacity-10 text-primary fw-bold font-monospace">${escHtml(o.code_fiche)}</span>
+        ${o.secteur ? `<div><span class="secteur-badge secteur-${escHtml(o.secteur)}" style="font-size:.6rem;margin-top:2px">${escHtml(o.secteur)}</span></div>` : ''}
+      </td>
       <td>
         <div class="fw-semibold small">${escHtml(o.nom_operation)}</div>
-        ${o.secteur ? `<div class="text-muted" style="font-size:.72rem">${escHtml(o.secteur)}</div>` : ''}
       </td>
       <td>
-        <div class="small">${escHtml((o.prenom||'') + ' ' + (o.nom||''))}</div>
-        ${o.benef_code ? `<span class="badge bg-light text-primary font-monospace" style="font-size:.7rem">${escHtml(o.benef_code)}</span>` : ''}
+        <div class="small">${escHtml(((o.prenom||'') + ' ' + (o.nom||'')).trim() || '—')}</div>
+        ${o.raison_sociale ? `<div class="text-muted" style="font-size:.72rem">${escHtml(o.raison_sociale)}</div>` : ''}
+        ${o.benef_code ? `<span class="badge bg-light text-primary font-monospace" style="font-size:.68rem">${escHtml(o.benef_code)}</span>` : ''}
       </td>
       <td class="fw-semibold small" style="color:var(--success)">${o.volume_kwh ? fmtKwh(o.volume_kwh) : '—'}</td>
-      <td class="fw-semibold small" style="color:var(--info)">${o.prime_estimee ? fmtEuro(o.prime_estimee) : '—'}</td>
+      <td class="fw-semibold small" style="color:var(--info)">${o.prime_negociee ? fmtEuro(o.prime_negociee) : '—'}</td>
+      <td class="fw-semibold small" style="color:var(--accent)">${o.prime_validee ? fmtEuro(o.prime_validee) : '—'}</td>
       <td class="text-muted small">${o.date_engagement ? new Date(o.date_engagement).toLocaleDateString('fr-FR') : '—'}</td>
       <td>${badgeOp(o.statut)}</td>
       <td onclick="event.stopPropagation()" class="text-nowrap">
@@ -2078,7 +2184,7 @@ function openEditOperation(op) {
   document.getElementById('opDateEngagement').value  = op.date_engagement || '';
   document.getElementById('opDateAchevement').value  = op.date_achevement || '';
   document.getElementById('opVolumeKwh').value       = op.volume_kwh || '';
-  document.getElementById('opPrimeEstimee').value    = op.prime_estimee || '';
+  document.getElementById('opPrimeNegociee').value    = op.prime_negociee || '';
   document.getElementById('opPrimeValidee').value    = op.prime_validee || '';
   document.getElementById('opStatut').value          = op.statut || 'en_cours';
   document.getElementById('opNotes').value           = op.notes || '';
@@ -2107,7 +2213,7 @@ document.addEventListener('DOMContentLoaded', () => {
       date_engagement: document.getElementById('opDateEngagement').value || null,
       date_achevement: document.getElementById('opDateAchevement').value || null,
       volume_kwh:      document.getElementById('opVolumeKwh').value,
-      prime_estimee:   document.getElementById('opPrimeEstimee').value,
+      prime_negociee:   document.getElementById('opPrimeNegociee').value,
       prime_validee:   document.getElementById('opPrimeValidee').value,
       statut:          document.getElementById('opStatut').value,
       notes:           document.getElementById('opNotes').value
@@ -2697,11 +2803,11 @@ async function loadPanelOps(benefId) {
     return;
   }
   const totalKwh  = ops.reduce((s,o) => s+(o.volume_kwh||0), 0);
-  const totalPrim = ops.reduce((s,o) => s+(o.prime_estimee||0), 0);
+  const totalPrim = ops.reduce((s,o) => s+(o.prime_negociee||0), 0);
   el.innerHTML = `
     <div class="d-flex gap-4 mb-3 p-3 rounded" style="background:var(--bg-3);border:1px solid var(--border)">
       <div><span class="text-muted small">kWhc total</span><br><strong style="color:var(--success)">${fmtKwh(totalKwh)}</strong></div>
-      <div><span class="text-muted small">Prime estimée</span><br><strong style="color:var(--info)">${fmtEuro(totalPrim)}</strong></div>
+      <div><span class="text-muted small">Prime négociée</span><br><strong style="color:var(--info)">${fmtEuro(totalPrim)}</strong></div>
     </div>
     ${ops.map(o => `
       <div class="d-flex align-items-start gap-3 p-3 rounded mb-2" style="background:var(--bg-3);border:1px solid var(--border)">
@@ -2711,7 +2817,7 @@ async function loadPanelOps(benefId) {
             ${badgeOp(o.statut)}
           </div>
           <div class="fw-semibold small">${escHtml(o.nom_operation)}</div>
-          <div class="text-muted" style="font-size:.72rem">${o.volume_kwh ? fmtKwh(o.volume_kwh) : ''} ${o.prime_estimee ? '· ' + fmtEuro(o.prime_estimee) : ''} ${o.date_engagement ? '· ' + new Date(o.date_engagement).toLocaleDateString('fr-FR') : ''}</div>
+          <div class="text-muted" style="font-size:.72rem">${o.volume_kwh ? fmtKwh(o.volume_kwh) : ''} ${o.prime_negociee ? '· ' + fmtEuro(o.prime_negociee) : ''} ${o.date_engagement ? '· ' + new Date(o.date_engagement).toLocaleDateString('fr-FR') : ''}</div>
         </div>
         <button class="btn btn-sm btn-outline-secondary" onclick="openEditOperation(${JSON.stringify(o).replace(/"/g,'&quot;')})"><i class="fas fa-pencil"></i></button>
       </div>`).join('')}`;
