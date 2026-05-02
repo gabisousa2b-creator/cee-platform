@@ -1690,6 +1690,83 @@ app.post('/api/admin/veille/run', requireAdmin, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Lookup SIRET → raison sociale (proxy annuaire-entreprises.data.gouv.fr) ──
+app.get('/api/siret/:siret', requireAdmin, (req, res) => {
+  const siret = req.params.siret.replace(/\s/g, '');
+  if (!/^\d{14}$/.test(siret)) return res.status(400).json({ error: 'SIRET invalide (14 chiffres requis)' });
+
+  const url = `https://api.annuaire-entreprises.data.gouv.fr/api/v3/etablissement/${siret}`;
+  const opts = { headers: { 'User-Agent': 'EchoWAI-CEE-Platform/2.0', 'Accept': 'application/json' } };
+
+  https.get(url, opts, (resp) => {
+    let data = '';
+    resp.on('data', c => data += c);
+    resp.on('end', () => {
+      try {
+        const json = JSON.parse(data);
+        // Denomination : unite_legale.denomination ou nom_commercial ou fallback prenom/nom dirigeant
+        const ul = json.unite_legale || {};
+        const denomination =
+          ul.denomination ||
+          json.nom_commercial ||
+          (ul.prenom_usuel && ul.nom ? `${ul.prenom_usuel} ${ul.nom}` : null) ||
+          ul.nom ||
+          null;
+        if (!denomination) return res.status(404).json({ error: 'Aucune dénomination trouvée pour ce SIRET' });
+        res.json({
+          siret,
+          denomination,
+          siren: json.siren || siret.slice(0, 9),
+          adresse: json.adresse_complete || '',
+          code_postal: json.code_postal || '',
+          ville: json.commune || '',
+          activite_principale: json.activite_principale || ''
+        });
+      } catch(e) {
+        res.status(500).json({ error: 'Réponse API invalide' });
+      }
+    });
+  }).on('error', (e) => {
+    // Fallback : essai via recherche-entreprises
+    const url2 = `https://recherche-entreprises.api.gouv.fr/search?q=${siret}&page=1&per_page=1`;
+    https.get(url2, opts, (resp2) => {
+      let d2 = '';
+      resp2.on('data', c => d2 += c);
+      resp2.on('end', () => {
+        try {
+          const j2 = JSON.parse(d2);
+          const r2 = j2.results?.[0];
+          if (!r2) return res.status(404).json({ error: 'Entreprise non trouvée' });
+          res.json({
+            siret,
+            denomination: r2.nom_raison_sociale || r2.nom_complet || '—',
+            siren: r2.siren || '',
+            adresse: r2.siege?.adresse_complete || '',
+            code_postal: r2.siege?.code_postal || '',
+            ville: r2.siege?.commune || '',
+            activite_principale: r2.activite_principale || ''
+          });
+        } catch(e2) { res.status(500).json({ error: 'Service indisponible' }); }
+      });
+    }).on('error', () => res.status(503).json({ error: 'Service SIRET indisponible' }));
+  });
+});
+
+// Endpoint pour patcher seulement la raison_sociale d'un bénéficiaire
+app.patch('/api/admin/beneficiaires/:id/raison-sociale', requireAdmin, (req, res) => {
+  const { raison_sociale } = req.body;
+  if (!raison_sociale?.trim()) return res.status(400).json({ error: 'raison_sociale requis' });
+  db.run(
+    'UPDATE beneficiaires SET raison_sociale=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+    [raison_sociale.trim(), req.params.id],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (this.changes === 0) return res.status(404).json({ error: 'Bénéficiaire introuvable' });
+      res.json({ ok: true, raison_sociale: raison_sociale.trim() });
+    }
+  );
+});
+
 // ── ChatBot CEE ───────────────────────────────────────────────────────────────
 app.post('/api/admin/chatbot', requireAdmin, async (req, res) => {
   const { messages } = req.body;

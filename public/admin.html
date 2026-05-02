@@ -1446,8 +1446,8 @@
           <div id="createError" class="alert alert-danger d-none"></div>
           <h6 class="fw-semibold text-muted mb-3"><i class="fas fa-building me-2"></i>Informations entreprise</h6>
           <div class="row g-3 mb-4">
-            <div class="col-md-6"><label class="form-label">Raison sociale</label><input type="text" class="form-control" name="raison_sociale"></div>
-            <div class="col-md-6"><label class="form-label">SIRET</label><input type="text" class="form-control" name="siret" maxlength="14"></div>
+            <div class="col-md-6"><label class="form-label">Raison sociale</label><input type="text" class="form-control" name="raison_sociale" id="createRaisonSociale" placeholder="Récupérée auto via SIRET…"></div>
+            <div class="col-md-6"><label class="form-label">SIRET <span class="badge ms-1" style="background:var(--accent-dim);color:var(--accent);font-size:.62rem">auto-fill</span></label><input type="text" class="form-control" name="siret" id="createSiret" maxlength="14" placeholder="14 chiffres" oninput="if(this.value.replace(/\s/g,'').length===14)autoFillFromSiret(this,document.getElementById('createRaisonSociale'),document.getElementById('createCp'),document.getElementById('createVille'))"></div>
             <div class="col-12">
               <label class="form-label">Partenaire apporteur</label>
               <select class="form-select" name="partenaire" id="createPartenaire">
@@ -1465,8 +1465,8 @@
               </div>
             </div>
             <div class="col-12"><label class="form-label">Adresse</label><input type="text" class="form-control" name="adresse"></div>
-            <div class="col-md-4"><label class="form-label">Code postal</label><input type="text" class="form-control" name="code_postal" maxlength="5"></div>
-            <div class="col-md-8"><label class="form-label">Ville</label><input type="text" class="form-control" name="ville"></div>
+            <div class="col-md-4"><label class="form-label">Code postal</label><input type="text" class="form-control" name="code_postal" id="createCp" maxlength="5"></div>
+            <div class="col-md-8"><label class="form-label">Ville</label><input type="text" class="form-control" name="ville" id="createVille"></div>
           </div>
           <h6 class="fw-semibold text-muted mb-3"><i class="fas fa-user me-2"></i>Contact</h6>
           <div class="row g-3">
@@ -2210,7 +2210,16 @@ function renderBeneficiaires() {
       <div class="text-muted" style="font-size:.75rem">${escHtml(b.email||'')}</div>
     </td>
     <td class="text-muted small">
-      ${escHtml(b.raison_sociale || '—')}
+      ${b.raison_sociale
+        ? escHtml(b.raison_sociale)
+        : b.siret
+          ? `<span id="rs-${b.id}" class="text-danger" style="font-size:.75rem"><i class="fas fa-building me-1 opacity-50"></i>—</span>
+             <button class="btn btn-sm py-0 px-1 ms-1" style="font-size:.68rem;background:var(--warning-dim);color:var(--warning);border:1px solid rgba(245,158,11,.3);border-radius:4px"
+               onclick="event.stopPropagation();fetchRaisonSociale(${b.id},'${escAttr(b.siret)}')" title="Récupérer la raison sociale via SIRET" id="rs-btn-${b.id}">
+               <i class="fas fa-magnifying-glass me-1"></i>SIRET
+             </button>`
+          : '<span class="text-danger" style="font-size:.75rem">—</span>'
+      }
       ${b.partenaire?`<div><span class="badge bg-primary bg-opacity-10 text-primary" style="font-size:.7rem">${escHtml(b.partenaire)}</span></div>`:''}
     </td>
     <td>${docProgressHtml(b)}</td>
@@ -2326,7 +2335,8 @@ async function openDetail(id) {
           <div class="col-6"><label class="form-label small fw-semibold">Prénom</label><input class="form-control" name="prenom" value="${escAttr(b.prenom)}"></div>
           <div class="col-6"><label class="form-label small fw-semibold">Email</label><input class="form-control" name="email" value="${escAttr(b.email||'')}"></div>
           <div class="col-6"><label class="form-label small fw-semibold">Téléphone</label><input class="form-control" name="telephone" value="${escAttr(b.telephone||'')}"></div>
-          <div class="col-12"><label class="form-label small fw-semibold">Raison sociale</label><input class="form-control" name="raison_sociale" value="${escAttr(b.raison_sociale||'')}"></div>
+          <div class="col-8"><label class="form-label small fw-semibold">Raison sociale</label><input class="form-control" name="raison_sociale" id="editRaisonSociale_${b.id}" value="${escAttr(b.raison_sociale||'')}" placeholder="Récupérée auto via SIRET…"></div>
+          <div class="col-4 d-flex align-items-end">${!b.raison_sociale && b.siret ? `<button type="button" class="btn btn-outline-warning btn-sm w-100" onclick="fetchAndFillEditRS(${b.id},'${escAttr(b.siret)}')"><i class="fas fa-magnifying-glass me-1"></i>Fetch SIRET</button>` : ''}</div>
           <div class="col-12">
             <label class="form-label small fw-semibold">Partenaire apporteur</label>
             <select class="form-select" name="partenaire">
@@ -2896,6 +2906,97 @@ async function sendBroadcast() {
 }
 
 // ── Progression documents ─────────────────────────────────────────────────────
+// ── Lookup SIRET → raison sociale ─────────────────────────────────────────────
+
+/** Fetch + patch depuis le panel d'édition */
+async function fetchAndFillEditRS(benefId, siret) {
+  const input = document.getElementById(`editRaisonSociale_${benefId}`);
+  if (!input) return;
+  const origPlaceholder = input.placeholder;
+  input.placeholder = 'Récupération…'; input.disabled = true;
+  try {
+    const r = await fetch(`/api/siret/${siret.replace(/\s/g,'')}`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Erreur');
+    input.value = d.denomination;
+    input.style.borderColor = 'var(--success)';
+    // Met aussi à jour le cache local
+    const idx = allBenefData.findIndex(b => b.id === benefId);
+    if (idx >= 0) allBenefData[idx].raison_sociale = d.denomination;
+    showToast(`Raison sociale : ${d.denomination}`, 'success');
+  } catch(e) {
+    showToast('SIRET : ' + e.message, 'danger');
+  } finally {
+    input.disabled = false; input.placeholder = origPlaceholder;
+  }
+}
+
+async function fetchRaisonSociale(benefId, siret) {
+  const btn = document.getElementById(`rs-btn-${benefId}`);
+  const rsEl = document.getElementById(`rs-${benefId}`);
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>…'; }
+  try {
+    const r = await fetch(`/api/siret/${siret.replace(/\s/g,'')}`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Erreur');
+    // Sauvegarde en DB
+    const patchR = await fetch(`/api/admin/beneficiaires/${benefId}/raison-sociale`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ raison_sociale: d.denomination })
+    });
+    if (!patchR.ok) throw new Error('Erreur sauvegarde');
+    // Mise à jour dans allBenefData (cache local)
+    const idx = allBenefData.findIndex(b => b.id === benefId);
+    if (idx >= 0) allBenefData[idx].raison_sociale = d.denomination;
+    // Mise à jour DOM sans re-render complet
+    if (rsEl) rsEl.outerHTML = escHtml(d.denomination);
+    if (btn) btn.remove();
+    showToast(`Raison sociale récupérée : ${d.denomination}`, 'success');
+  } catch(e) {
+    showToast('SIRET : ' + e.message, 'danger');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-magnifying-glass me-1"></i>SIRET'; }
+  }
+}
+
+/**
+ * Lookup SIRET depuis un formulaire.
+ * @param {HTMLInputElement} siretInput  — champ SIRET
+ * @param {HTMLInputElement} rsInput     — champ raison_sociale à remplir
+ * @param {HTMLInputElement} [cpInput]   — champ code_postal (optionnel)
+ * @param {HTMLInputElement} [villeInput]— champ ville (optionnel)
+ */
+async function autoFillFromSiret(siretInput, rsInput, cpInput, villeInput) {
+  const siret = siretInput.value.replace(/\s/g, '');
+  if (!/^\d{14}$/.test(siret)) return; // pas encore 14 chiffres
+  if (rsInput.value.trim()) return;     // déjà renseigné, on ne touche pas
+
+  const icon = document.createElement('span');
+  icon.style.cssText = 'position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--t3);font-size:.8rem';
+  icon.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  siretInput.parentElement.style.position = 'relative';
+  siretInput.parentElement.appendChild(icon);
+
+  try {
+    const r = await fetch(`/api/siret/${siret}`);
+    const d = await r.json();
+    if (r.ok && d.denomination) {
+      rsInput.value = d.denomination;
+      rsInput.style.borderColor = 'var(--success)';
+      rsInput.title = `Récupéré automatiquement via SIRET ${siret}`;
+      if (cpInput && !cpInput.value && d.code_postal)    cpInput.value = d.code_postal;
+      if (villeInput && !villeInput.value && d.ville)     villeInput.value = d.ville;
+      icon.innerHTML = '<i class="fas fa-check-circle" style="color:var(--success)"></i>';
+      setTimeout(() => icon.remove(), 2000);
+    } else {
+      icon.innerHTML = '<i class="fas fa-exclamation-circle" style="color:var(--warning)"></i>';
+      setTimeout(() => icon.remove(), 3000);
+    }
+  } catch(e) {
+    icon.remove();
+  }
+}
+
 function docProgressHtml(b) {
   const kbis   = b.has_kbis   ? 'ok' : 'ko';
   const liasse = b.has_liasse ? 'ok' : 'ko';
