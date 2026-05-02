@@ -1105,6 +1105,9 @@ app.delete('/api/admin/taches/:id', requireAdmin, (req, res) => {
     err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
 });
 
+// ── Moteur de calcul CEE ─────────────────────────────────────────────────────
+const calcEngine = require('./calc/engine');
+
 // ── Bibliothèque fiches CEE ────────────────────────────────────────────────────
 db.serialize(() => {
   db.run(`CREATE TABLE IF NOT EXISTS cee_fiches (
@@ -1118,6 +1121,16 @@ db.serialize(() => {
     description       TEXT DEFAULT '',
     conditions_eligibilite TEXT DEFAULT '',
     formule_kwh       TEXT DEFAULT '',
+    formule_json      TEXT DEFAULT '{}',
+    type_calcul       TEXT DEFAULT 'assistee',
+    simulation_mode   TEXT DEFAULT 'assistee',
+    statut            TEXT DEFAULT 'valide',
+    date_effet        TEXT DEFAULT '',
+    date_abrogation   TEXT DEFAULT '',
+    source_url        TEXT DEFAULT '',
+    lien_pdf          TEXT DEFAULT '',
+    points_controle   TEXT DEFAULT '[]',
+    etapes            TEXT DEFAULT '[]',
     unite_facteur     TEXT DEFAULT '',
     valeur_min        REAL,
     valeur_max        REAL,
@@ -1133,6 +1146,21 @@ db.serialize(() => {
     created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+
+  // Migrations silencieuses pour nouvelles colonnes
+  const newCols = [
+    `ALTER TABLE cee_fiches ADD COLUMN formule_json TEXT DEFAULT '{}'`,
+    `ALTER TABLE cee_fiches ADD COLUMN type_calcul TEXT DEFAULT 'assistee'`,
+    `ALTER TABLE cee_fiches ADD COLUMN simulation_mode TEXT DEFAULT 'assistee'`,
+    `ALTER TABLE cee_fiches ADD COLUMN statut TEXT DEFAULT 'valide'`,
+    `ALTER TABLE cee_fiches ADD COLUMN date_effet TEXT DEFAULT ''`,
+    `ALTER TABLE cee_fiches ADD COLUMN date_abrogation TEXT DEFAULT ''`,
+    `ALTER TABLE cee_fiches ADD COLUMN source_url TEXT DEFAULT ''`,
+    `ALTER TABLE cee_fiches ADD COLUMN lien_pdf TEXT DEFAULT ''`,
+    `ALTER TABLE cee_fiches ADD COLUMN points_controle TEXT DEFAULT '[]'`,
+    `ALTER TABLE cee_fiches ADD COLUMN etapes TEXT DEFAULT '[]'`
+  ];
+  newCols.forEach(sql => db.run(sql, () => {}));
 
   // Seed avec les fiches les plus courantes si la table est vide
   db.get('SELECT COUNT(*) AS cnt FROM cee_fiches', (err, row) => {
@@ -1292,18 +1320,96 @@ db.serialize(() => {
   });
 });
 
+// ── Tables annexes (veille, devis, factures) ──────────────────────────────────
+db.serialize(() => {
+  db.run(`CREATE TABLE IF NOT EXISTS veille_logs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    statut      TEXT DEFAULT 'ok',
+    fiches_verifiees INTEGER DEFAULT 0,
+    changements TEXT DEFAULT '[]',
+    erreur      TEXT DEFAULT '',
+    declenche_par TEXT DEFAULT 'auto'
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS devis (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    numero          TEXT UNIQUE NOT NULL,
+    type            TEXT DEFAULT 'devis',
+    statut          TEXT DEFAULT 'brouillon',
+    beneficiaire_id INTEGER,
+    client_nom      TEXT DEFAULT '',
+    client_prenom   TEXT DEFAULT '',
+    client_email    TEXT DEFAULT '',
+    client_tel      TEXT DEFAULT '',
+    client_societe  TEXT DEFAULT '',
+    client_siret    TEXT DEFAULT '',
+    client_adresse  TEXT DEFAULT '',
+    client_cp       TEXT DEFAULT '',
+    client_ville    TEXT DEFAULT '',
+    code_fiche      TEXT DEFAULT '',
+    nom_operation   TEXT DEFAULT '',
+    secteur         TEXT DEFAULT '',
+    volume_kwh      REAL DEFAULT 0,
+    prix_eur_mwh    REAL DEFAULT 4.0,
+    montant_ht      REAL DEFAULT 0,
+    tva_pct         REAL DEFAULT 20.0,
+    montant_ttc     REAL DEFAULT 0,
+    validite_jours  INTEGER DEFAULT 30,
+    conditions      TEXT DEFAULT '',
+    mentions_legales TEXT DEFAULT '',
+    partenaire_json TEXT DEFAULT '{}',
+    date_devis      DATE DEFAULT CURRENT_DATE,
+    date_echeance   DATE,
+    notes           TEXT DEFAULT '',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS partenaires (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    nom           TEXT NOT NULL,
+    siret         TEXT DEFAULT '',
+    adresse       TEXT DEFAULT '',
+    code_postal   TEXT DEFAULT '',
+    ville         TEXT DEFAULT '',
+    email         TEXT DEFAULT '',
+    telephone     TEXT DEFAULT '',
+    site_web      TEXT DEFAULT '',
+    logo_url      TEXT DEFAULT '',
+    texte_custom  TEXT DEFAULT '',
+    role_defaut   TEXT DEFAULT '',
+    actif         INTEGER DEFAULT 1,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+});
+
+// Numérotation auto devis/factures
+function generateNumero(type) {
+  const prefix = type === 'facture' ? 'FAC' : 'DEV';
+  const yr = new Date().getFullYear();
+  return new Promise((resolve, reject) => {
+    db.get(`SELECT COUNT(*) AS cnt FROM devis WHERE type=? AND strftime('%Y',created_at)=?`,
+      [type, String(yr)], (err, row) => {
+        if (err) reject(err);
+        else resolve(`${prefix}-${yr}-${String((row?.cnt||0)+1).padStart(4,'0')}`);
+      });
+  });
+}
+
 // ── Routes Fiches CEE ─────────────────────────────────────────────────────────
 // GET — liste avec filtres
 app.get('/api/fiches', (req, res) => {
-  const { secteur, search, actif, zni } = req.query;
+  const { secteur, search, actif, zni, mode } = req.query;
   let where = '1=1';
   const params = [];
   if (actif !== undefined) { where += ' AND actif=?'; params.push(parseInt(actif)); }
   else { where += ' AND actif=1'; }
   if (secteur) { where += ' AND secteur=?'; params.push(secteur); }
   if (zni === '1') { where += ' AND zni_eligible=1'; }
+  if (mode) { where += ' AND simulation_mode=?'; params.push(mode); }
   if (search) {
-    where += ' AND (code LIKE ? OR nom LIKE ? OR description LIKE ? OR secteur LIKE ?)';
+    where += ' AND (code LIKE ? OR nom LIKE ? OR description LIKE ? OR type_travaux LIKE ?)';
     const s = `%${search}%`;
     params.push(s, s, s, s);
   }
@@ -1321,79 +1427,267 @@ app.get('/api/fiches/:code', (req, res) => {
     });
 });
 
-// POST — créer une fiche (admin)
+// POST — simuler prime pour une fiche (V2 — moteur calcul)
+app.post('/api/fiches/:code/simuler', (req, res) => {
+  const { inputs = {}, is_zni, is_precarite, prix_eur_mwh } = req.body;
+  // Compat legacy : si facteur envoyé directement
+  if (req.body.facteur !== undefined && !inputs.facteur) inputs.facteur = req.body.facteur;
+
+  db.get('SELECT * FROM cee_fiches WHERE code=? AND actif=1', [req.params.code.toUpperCase()], (err, fiche) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!fiche) return res.status(404).json({ error: 'Fiche non trouvée' });
+    try {
+      const result = calcEngine.simulate(fiche, inputs, {
+        is_zni: !!is_zni, is_precarite: !!is_precarite,
+        prix_eur_mwh: parseFloat(prix_eur_mwh) || calcEngine.PRIX_DEFAULT_EUR_MWH
+      });
+      res.json(result);
+    } catch(e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+});
+
+// POST — créer fiche (admin)
 app.post('/api/admin/fiches', requireAdmin, (req, res) => {
-  const { code, nom, secteur, sous_secteur, type_travaux, description, conditions_eligibilite,
-    formule_kwh, unite_facteur, valeur_min, valeur_max, duree_vie, documents_requis,
-    zni_eligible, zni_multiplier, precarite_eligible, precarite_bonus, notes } = req.body;
-  if (!code || !nom || !secteur) return res.status(400).json({ error: 'Code, nom et secteur requis' });
-  db.run(`INSERT INTO cee_fiches (code,nom,secteur,sous_secteur,type_travaux,description,conditions_eligibilite,formule_kwh,unite_facteur,valeur_min,valeur_max,duree_vie,documents_requis,zni_eligible,zni_multiplier,precarite_eligible,precarite_bonus,notes)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [code.toUpperCase(),nom,secteur,sous_secteur||'',type_travaux||'',description||'',conditions_eligibilite||'',
-     formule_kwh||'',unite_facteur||'',valeur_min||null,valeur_max||null,duree_vie||0,
-     JSON.stringify(documents_requis||[]),zni_eligible?1:0,zni_multiplier||1.0,
-     precarite_eligible?1:0,precarite_bonus||1.0,notes||''],
+  const f = req.body;
+  if (!f.code || !f.nom || !f.secteur) return res.status(400).json({ error: 'Code, nom et secteur requis' });
+  db.run(`INSERT INTO cee_fiches
+    (code,nom,secteur,sous_secteur,type_travaux,description,conditions_eligibilite,
+     formule_kwh,formule_json,type_calcul,simulation_mode,statut,date_effet,source_url,lien_pdf,
+     unite_facteur,valeur_min,valeur_max,duree_vie,documents_requis,points_controle,
+     zni_eligible,zni_multiplier,precarite_eligible,precarite_bonus,notes)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [f.code.toUpperCase(),f.nom,f.secteur,f.sous_secteur||'',f.type_travaux||'',
+     f.description||'',f.conditions_eligibilite||'',f.formule_kwh||'',
+     JSON.stringify(f.formule_json||{}),f.type_calcul||'assistee',f.simulation_mode||'assistee',
+     f.statut||'valide',f.date_effet||'',f.source_url||'',f.lien_pdf||'',
+     f.unite_facteur||'',f.valeur_min||null,f.valeur_max||null,f.duree_vie||0,
+     JSON.stringify(f.documents_requis||[]),JSON.stringify(f.points_controle||[]),
+     f.zni_eligible?1:0,f.zni_multiplier||1.0,f.precarite_eligible?1:0,f.precarite_bonus||1.0,f.notes||''],
     function(err) {
-      if (err) return res.status(err.message.includes('UNIQUE') ? 409 : 500).json({ error: err.message });
-      db.get('SELECT * FROM cee_fiches WHERE id=?', [this.lastID], (e,r) => res.json(r));
+      if (err) return res.status(err.message.includes('UNIQUE')?409:500).json({ error: err.message });
+      db.get('SELECT * FROM cee_fiches WHERE id=?',[this.lastID],(e,r)=>res.json(r));
     });
 });
 
-// PUT — modifier une fiche (admin)
+// PUT — modifier fiche (admin)
 app.put('/api/admin/fiches/:code', requireAdmin, (req, res) => {
-  const { nom, secteur, sous_secteur, type_travaux, description, conditions_eligibilite,
-    formule_kwh, unite_facteur, valeur_min, valeur_max, duree_vie, documents_requis,
-    zni_eligible, zni_multiplier, precarite_eligible, precarite_bonus, actif, notes } = req.body;
-  db.run(`UPDATE cee_fiches SET nom=?,secteur=?,sous_secteur=?,type_travaux=?,description=?,
-    conditions_eligibilite=?,formule_kwh=?,unite_facteur=?,valeur_min=?,valeur_max=?,duree_vie=?,
-    documents_requis=?,zni_eligible=?,zni_multiplier=?,precarite_eligible=?,precarite_bonus=?,
-    actif=?,notes=?,updated_at=CURRENT_TIMESTAMP WHERE code=?`,
-    [nom,secteur,sous_secteur||'',type_travaux||'',description||'',conditions_eligibilite||'',
-     formule_kwh||'',unite_facteur||'',valeur_min||null,valeur_max||null,duree_vie||0,
-     JSON.stringify(documents_requis||[]),zni_eligible?1:0,zni_multiplier||1.0,
-     precarite_eligible?1:0,precarite_bonus||1.0,actif!==undefined?actif:1,notes||'',
-     req.params.code.toUpperCase()],
+  const f = req.body;
+  db.run(`UPDATE cee_fiches SET
+    nom=?,secteur=?,sous_secteur=?,type_travaux=?,description=?,conditions_eligibilite=?,
+    formule_kwh=?,formule_json=?,type_calcul=?,simulation_mode=?,statut=?,date_effet=?,
+    source_url=?,lien_pdf=?,unite_facteur=?,valeur_min=?,valeur_max=?,duree_vie=?,
+    documents_requis=?,points_controle=?,zni_eligible=?,zni_multiplier=?,
+    precarite_eligible=?,precarite_bonus=?,actif=?,notes=?,updated_at=CURRENT_TIMESTAMP
+    WHERE code=?`,
+    [f.nom,f.secteur,f.sous_secteur||'',f.type_travaux||'',f.description||'',f.conditions_eligibilite||'',
+     f.formule_kwh||'',JSON.stringify(f.formule_json||{}),f.type_calcul||'assistee',f.simulation_mode||'assistee',
+     f.statut||'valide',f.date_effet||'',f.source_url||'',f.lien_pdf||'',
+     f.unite_facteur||'',f.valeur_min||null,f.valeur_max||null,f.duree_vie||0,
+     JSON.stringify(f.documents_requis||[]),JSON.stringify(f.points_controle||[]),
+     f.zni_eligible?1:0,f.zni_multiplier||1.0,f.precarite_eligible?1:0,f.precarite_bonus||1.0,
+     f.actif!==undefined?f.actif:1,f.notes||'',req.params.code.toUpperCase()],
     err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
 });
 
-// DELETE — désactiver une fiche (soft delete)
+// DELETE — désactiver fiche (soft delete)
 app.delete('/api/admin/fiches/:code', requireAdmin, (req, res) => {
   db.run('UPDATE cee_fiches SET actif=0,updated_at=CURRENT_TIMESTAMP WHERE code=?',
     [req.params.code.toUpperCase()],
     err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
 });
 
-// POST — simuler prime pour une fiche
-app.post('/api/fiches/:code/simuler', (req, res) => {
-  const { facteur, is_zni, is_precarite } = req.body;
-  db.get('SELECT * FROM cee_fiches WHERE code=? AND actif=1', [req.params.code.toUpperCase()], (err, fiche) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!fiche) return res.status(404).json({ error: 'Fiche non trouvée' });
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── DEVIS / FACTURES ──────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
 
-    // Calcul de base (simplifié — la formule réelle dépend de nombreux paramètres)
-    let kwh_base = facteur ? fiche.valeur_min * parseFloat(facteur) : (fiche.valeur_min || 0);
+// GET — liste
+app.get('/api/admin/devis', requireAdmin, (req, res) => {
+  const { type, statut } = req.query;
+  let where = '1=1';
+  const params = [];
+  if (type) { where += ' AND type=?'; params.push(type); }
+  if (statut) { where += ' AND statut=?'; params.push(statut); }
+  db.all(`SELECT d.*, b.nom AS benef_nom, b.prenom AS benef_prenom
+    FROM devis d LEFT JOIN beneficiaires b ON b.id=d.beneficiaire_id
+    WHERE ${where} ORDER BY d.created_at DESC`, params,
+    (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows));
+});
 
-    // Multiplicateurs
-    let multiplicateur = 1;
-    if (is_zni && fiche.zni_eligible) multiplicateur *= fiche.zni_multiplier;
-    if (is_precarite && fiche.precarite_eligible) multiplicateur *= fiche.precarite_bonus;
-
-    const kwh_total = Math.round(kwh_base * multiplicateur);
-    // Prix moyen kWhc ≈ 0.002 € à 0.008 € selon période
-    const prime_estimee = parseFloat((kwh_total * 0.004).toFixed(2));
-
-    res.json({
-      code: fiche.code,
-      nom: fiche.nom,
-      kwh_base: Math.round(kwh_base),
-      multiplicateur,
-      kwh_total,
-      prime_estimee,
-      is_zni: !!is_zni && !!fiche.zni_eligible,
-      is_precarite: !!is_precarite && !!fiche.precarite_eligible,
-      documents_requis: (() => { try { return JSON.parse(fiche.documents_requis || '[]'); } catch(e) { return []; } })()
+// GET — un seul devis
+app.get('/api/admin/devis/:id', requireAdmin, (req, res) => {
+  db.get('SELECT * FROM devis WHERE id=?', [req.params.id],
+    (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!row) return res.status(404).json({ error: 'Document non trouvé' });
+      res.json(row);
     });
+});
+
+// POST — créer devis/facture
+app.post('/api/admin/devis', requireAdmin, async (req, res) => {
+  const d = req.body;
+  const type = d.type || 'devis';
+  try {
+    const numero = await generateNumero(type);
+    const montant_ht = parseFloat(d.montant_ht) || 0;
+    const tva = parseFloat(d.tva_pct) || 20;
+    const montant_ttc = parseFloat((montant_ht * (1 + tva/100)).toFixed(2));
+    db.run(`INSERT INTO devis
+      (numero,type,statut,beneficiaire_id,client_nom,client_prenom,client_email,client_tel,
+       client_societe,client_siret,client_adresse,client_cp,client_ville,
+       code_fiche,nom_operation,secteur,volume_kwh,prix_eur_mwh,montant_ht,tva_pct,montant_ttc,
+       validite_jours,conditions,mentions_legales,partenaire_json,date_devis,date_echeance,notes)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [numero,type,d.statut||'brouillon',d.beneficiaire_id||null,
+       d.client_nom||'',d.client_prenom||'',d.client_email||'',d.client_tel||'',
+       d.client_societe||'',d.client_siret||'',d.client_adresse||'',d.client_cp||'',d.client_ville||'',
+       d.code_fiche||'',d.nom_operation||'',d.secteur||'',
+       parseFloat(d.volume_kwh)||0,parseFloat(d.prix_eur_mwh)||4.0,
+       montant_ht,tva,montant_ttc,
+       parseInt(d.validite_jours)||30,d.conditions||'',d.mentions_legales||'',
+       JSON.stringify(d.partenaire||{}),d.date_devis||new Date().toISOString().slice(0,10),
+       d.date_echeance||null,d.notes||''],
+      function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        db.get('SELECT * FROM devis WHERE id=?',[this.lastID],(e,r)=>res.json(r));
+      });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT — modifier devis/facture
+app.put('/api/admin/devis/:id', requireAdmin, (req, res) => {
+  const d = req.body;
+  const montant_ht = parseFloat(d.montant_ht) || 0;
+  const tva = parseFloat(d.tva_pct) || 20;
+  const montant_ttc = parseFloat((montant_ht * (1 + tva/100)).toFixed(2));
+  db.run(`UPDATE devis SET
+    statut=?,client_nom=?,client_prenom=?,client_email=?,client_tel=?,
+    client_societe=?,client_siret=?,client_adresse=?,client_cp=?,client_ville=?,
+    code_fiche=?,nom_operation=?,secteur=?,volume_kwh=?,prix_eur_mwh=?,
+    montant_ht=?,tva_pct=?,montant_ttc=?,validite_jours=?,conditions=?,
+    mentions_legales=?,partenaire_json=?,date_devis=?,date_echeance=?,notes=?,
+    updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+    [d.statut||'brouillon',d.client_nom||'',d.client_prenom||'',d.client_email||'',d.client_tel||'',
+     d.client_societe||'',d.client_siret||'',d.client_adresse||'',d.client_cp||'',d.client_ville||'',
+     d.code_fiche||'',d.nom_operation||'',d.secteur||'',
+     parseFloat(d.volume_kwh)||0,parseFloat(d.prix_eur_mwh)||4.0,
+     montant_ht,tva,montant_ttc,parseInt(d.validite_jours)||30,d.conditions||'',d.mentions_legales||'',
+     JSON.stringify(d.partenaire||{}),d.date_devis||new Date().toISOString().slice(0,10),
+     d.date_echeance||null,d.notes||'',req.params.id],
+    err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+});
+
+// DELETE — supprimer devis
+app.delete('/api/admin/devis/:id', requireAdmin, (req, res) => {
+  db.run('DELETE FROM devis WHERE id=?', [req.params.id],
+    err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+});
+
+// ── Partenaires ────────────────────────────────────────────────────────────────
+app.get('/api/admin/partenaires', requireAdmin, (req, res) => {
+  db.all('SELECT * FROM partenaires WHERE actif=1 ORDER BY nom', [],
+    (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows));
+});
+app.post('/api/admin/partenaires', requireAdmin, (req, res) => {
+  const p = req.body;
+  if (!p.nom) return res.status(400).json({ error: 'Nom requis' });
+  db.run(`INSERT INTO partenaires (nom,siret,adresse,code_postal,ville,email,telephone,site_web,logo_url,texte_custom,role_defaut)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    [p.nom,p.siret||'',p.adresse||'',p.code_postal||'',p.ville||'',p.email||'',
+     p.telephone||'',p.site_web||'',p.logo_url||'',p.texte_custom||'',p.role_defaut||''],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      db.get('SELECT * FROM partenaires WHERE id=?',[this.lastID],(e,r)=>res.json(r));
+    });
+});
+app.put('/api/admin/partenaires/:id', requireAdmin, (req, res) => {
+  const p = req.body;
+  db.run(`UPDATE partenaires SET nom=?,siret=?,adresse=?,code_postal=?,ville=?,email=?,telephone=?,
+    site_web=?,logo_url=?,texte_custom=?,role_defaut=?,actif=? WHERE id=?`,
+    [p.nom,p.siret||'',p.adresse||'',p.code_postal||'',p.ville||'',p.email||'',
+     p.telephone||'',p.site_web||'',p.logo_url||'',p.texte_custom||'',p.role_defaut||'',
+     p.actif!==undefined?p.actif:1,req.params.id],
+    err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── VEILLE JOURNALIÈRE ────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+const https = require('https');
+
+function runVeille(declenchePar = 'auto') {
+  return new Promise((resolve) => {
+    const startTime = Date.now();
+    const ATEE_URL = 'https://www.ecologie.gouv.fr/politiques-publiques/operations-standardisees-deconomies-denergie';
+
+    // Récupère le contenu de la page officielle
+    const req = https.get(ATEE_URL, { headers: { 'User-Agent': 'EchoWAI-CEE-Platform/2.0' } }, (resp) => {
+      let data = '';
+      resp.on('data', chunk => { data += chunk; if (data.length > 500000) data = data.slice(0,500000); });
+      resp.on('end', () => {
+        // Extraction simple des codes fiches via regex
+        const codeRegex = /\b(BAR|BAT|IND|AGRI|RES|TRA)-[A-Z]{2}-\d{3}\b/g;
+        const codesFound = [...new Set(data.match(codeRegex) || [])];
+
+        db.all('SELECT code FROM cee_fiches WHERE actif=1', [], (err, rows) => {
+          const codesDB = rows ? rows.map(r => r.code) : [];
+          const nouveaux = codesFound.filter(c => !codesDB.includes(c));
+          const changements = nouveaux.map(c => ({ type: 'nouveau_code_detecte', code: c }));
+
+          const logEntry = {
+            statut: 'ok',
+            fiches_verifiees: codesDB.length,
+            changements: JSON.stringify(changements),
+            declenche_par: declenchePar,
+            duree_ms: Date.now() - startTime
+          };
+
+          db.run(`INSERT INTO veille_logs (statut,fiches_verifiees,changements,declenche_par)
+            VALUES (?,?,?,?)`,
+            [logEntry.statut, logEntry.fiches_verifiees, logEntry.changements, logEntry.declenche_par],
+            () => resolve({ ...logEntry, changements }));
+        });
+      });
+    });
+
+    req.on('error', (e) => {
+      db.run(`INSERT INTO veille_logs (statut,erreur,declenche_par) VALUES (?,?,?)`,
+        ['erreur', e.message, declenchePar], () => {});
+      resolve({ statut: 'erreur', erreur: e.message });
+    });
+    req.setTimeout(15000, () => { req.destroy(); });
   });
+}
+
+// Planifier veille journalière à 6h
+function scheduleDailyVeille() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(6, 0, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  const delay = next - now;
+  setTimeout(() => {
+    runVeille('auto').then(r => console.log('🔍 Veille CEE:', r.statut, `— ${r.changements?.length||0} changement(s)`));
+    setInterval(() => runVeille('auto'), 24 * 60 * 60 * 1000);
+  }, delay);
+  console.log(`⏰ Veille CEE planifiée dans ${Math.round(delay/3600000)}h`);
+}
+scheduleDailyVeille();
+
+// GET — logs veille
+app.get('/api/admin/veille/logs', requireAdmin, (req, res) => {
+  db.all('SELECT * FROM veille_logs ORDER BY run_at DESC LIMIT 50', [],
+    (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows));
+});
+
+// POST — déclencher veille manuellement
+app.post('/api/admin/veille/run', requireAdmin, async (req, res) => {
+  try {
+    const result = await runVeille('manuel');
+    res.json(result);
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── ChatBot CEE ───────────────────────────────────────────────────────────────

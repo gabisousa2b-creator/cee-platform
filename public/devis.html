@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Devis & Factures — EchoWAI CEE</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+<style>
+:root{
+  --bg-0:#0B0F1A;--bg-1:#0F1623;--bg-2:#141B2D;--bg-3:#1A2236;--bg-4:#212C42;
+  --accent:#00D4AA;--accent-dim:rgba(0,212,170,.12);
+  --success:#10B981;--warning:#F59E0B;--danger:#EF4444;--info:#3B82F6;--purple:#8B5CF6;
+  --success-dim:rgba(16,185,129,.12);--warning-dim:rgba(245,158,11,.12);
+  --danger-dim:rgba(239,68,68,.12);--info-dim:rgba(59,130,246,.12);
+  --t1:#F1F5F9;--t2:#94A3B8;--t3:#64748B;--border:rgba(255,255,255,.07);
+  --radius:14px;--shadow:0 4px 24px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg-0);color:var(--t1);min-height:100vh}
+.page-header{background:var(--bg-2);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:200}
+.page-logo{width:36px;height:36px;background:var(--accent-dim);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--accent);font-size:1rem;flex-shrink:0}
+.main-wrap{max-width:1200px;margin:0 auto;padding:24px 20px 60px}
+.card-d{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px}
+.card-title{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--t3);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.form-group{margin-bottom:14px}
+.form-label{font-size:.78rem;font-weight:600;color:var(--t2);margin-bottom:5px;display:block}
+.form-ctrl{background:var(--bg-3);border:1.5px solid var(--border);border-radius:8px;color:var(--t1);padding:9px 12px;font-size:.85rem;width:100%;transition:border-color .15s;outline:none}
+.form-ctrl:focus{border-color:var(--accent)}.form-ctrl option{background:var(--bg-2)}
+.btn-d{padding:9px 18px;border-radius:8px;font-size:.82rem;font-weight:600;cursor:pointer;border:none;transition:all .15s;display:inline-flex;align-items:center;gap:7px}
+.btn-primary-d{background:var(--accent);color:#0B0F1A}.btn-primary-d:hover{background:#00BF99}
+.btn-ghost-d{background:var(--bg-3);color:var(--t2);border:1.5px solid var(--border)}.btn-ghost-d:hover{background:var(--bg-4);color:var(--t1)}
+.btn-danger-d{background:var(--danger-dim);color:var(--danger);border:1.5px solid var(--danger)}
+.btn-success-d{background:var(--success-dim);color:var(--success);border:1.5px solid var(--success)}
+.statut-badge{font-size:.68rem;font-weight:700;padding:3px 8px;border-radius:5px;text-transform:uppercase;letter-spacing:.4px;display:inline-block}
+.statut-brouillon{background:rgba(100,116,139,.2);color:var(--t2)}
+.statut-envoye{background:var(--info-dim);color:var(--info)}
+.statut-accepte{background:var(--success-dim);color:var(--success)}
+.statut-refuse{background:var(--danger-dim);color:var(--danger)}
+.statut-facture{background:rgba(139,92,246,.15);color:var(--purple)}
+.statut-paye{background:var(--success-dim);color:var(--success)}
+.devis-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.devis-table th{background:var(--bg-3);padding:10px 12px;text-align:left;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);border-bottom:1px solid var(--border)}
+.devis-table td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.devis-table tr:hover td{background:var(--bg-3)}
+.montant-col{font-weight:700;color:var(--success)}
+.type-devis{background:var(--info-dim);color:var(--info);padding:2px 7px;border-radius:4px;font-size:.68rem;font-weight:700}
+.type-facture{background:rgba(139,92,246,.15);color:var(--purple);padding:2px 7px;border-radius:4px;font-size:.68rem;font-weight:700}
+
+/* ── Modal ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
+.modal-box{background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius);width:100%;max-width:860px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow)}
+.modal-header{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:var(--bg-2);z-index:1}
+.modal-body{padding:22px}
+.modal-footer{padding:16px 22px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:var(--bg-2)}
+.modal-close{background:var(--bg-3);border:none;color:var(--t2);border-radius:6px;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.9rem}
+.modal-close:hover{color:var(--t1)}
+
+/* ── Aperçu document ── */
+.doc-preview{background:#fff;color:#1a202c;border-radius:8px;padding:40px;max-width:700px;margin:0 auto;font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.6;position:relative}
+.doc-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:30px;padding-bottom:20px;border-bottom:2px solid #e2e8f0}
+.doc-logo-zone{min-width:160px}
+.doc-title{font-size:24px;font-weight:900;color:#0B0F1A;text-align:right}
+.doc-numero{font-size:13px;color:#64748b;margin-top:4px;text-align:right}
+.doc-parties{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-bottom:24px}
+.doc-partie-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#94a3b8;margin-bottom:6px}
+.doc-partie-name{font-size:15px;font-weight:700;color:#0B0F1A}
+.doc-ligne{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9;font-size:13px}
+.doc-ligne:last-child{border-bottom:none}
+.doc-total{background:#0B0F1A;color:#fff;padding:12px 16px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;font-size:15px;font-weight:700;margin-top:16px}
+.doc-cee-box{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;margin:16px 0;font-size:12px}
+.doc-partenaire{border:1px dashed #cbd5e1;border-radius:8px;padding:14px;margin-top:20px;display:flex;gap:14px;align-items:flex-start}
+.doc-mentions{font-size:10px;color:#94a3b8;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0}
+
+/* ── Encart partenaire ── */
+.partenaire-encart{background:var(--bg-3);border:1.5px dashed var(--border);border-radius:10px;padding:16px;margin-bottom:14px;position:relative}
+.partenaire-encart.active{border-color:var(--accent);border-style:solid}
+.logo-preview{max-height:50px;border-radius:6px;object-fit:contain}
+
+/* ── Toast ── */
+.toast-d{position:fixed;bottom:20px;right:20px;background:var(--bg-3);border:1px solid var(--border);border-radius:9px;padding:11px 16px;font-size:.8rem;color:var(--t1);z-index:9999;display:flex;gap:9px;align-items:center;box-shadow:var(--shadow);animation:toastIn .2s ease;max-width:320px}
+@keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes toastOut{from{opacity:1}to{opacity:0;transform:translateY(8px)}}
+@media print{
+  .page-header,.main-wrap>*:not(#printTarget){display:none!important}
+  #printTarget{display:block!important}
+  .doc-preview{box-shadow:none;padding:20px}
+}
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div class="page-logo"><i class="fas fa-file-invoice"></i></div>
+  <div>
+    <div style="font-weight:800;font-size:1rem">Devis & Factures</div>
+    <div style="font-size:.68rem;color:var(--t3)">EchoWAI · Plateforme CEE</div>
+  </div>
+  <div class="ms-auto d-flex gap-2">
+    <button class="btn-d btn-primary-d" onclick="openCreateModal('devis')"><i class="fas fa-plus"></i> Nouveau devis</button>
+    <button class="btn-d btn-ghost-d" onclick="openCreateModal('facture')"><i class="fas fa-file-invoice-dollar"></i> Nouvelle facture</button>
+    <a href="/simulateur-pro.html" class="btn-d btn-ghost-d"><i class="fas fa-calculator"></i> Simulateur Pro</a>
+    <a href="/admin.html" class="btn-d btn-ghost-d"><i class="fas fa-arrow-left"></i> Admin</a>
+  </div>
+</div>
+
+<div id="toastContainer" style="position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px"></div>
+
+<div class="main-wrap">
+
+  <!-- KPIs -->
+  <div class="row g-3 mb-3">
+    <div class="col-6 col-md-3"><div class="card-d text-center"><div id="kpiTotal" style="font-size:1.8rem;font-weight:800;color:var(--accent)">—</div><div style="font-size:.72rem;color:var(--t3)">Documents total</div></div></div>
+    <div class="col-6 col-md-3"><div class="card-d text-center"><div id="kpiDevis" style="font-size:1.8rem;font-weight:800;color:var(--info)">—</div><div style="font-size:.72rem;color:var(--t3)">Devis</div></div></div>
+    <div class="col-6 col-md-3"><div class="card-d text-center"><div id="kpiFactures" style="font-size:1.8rem;font-weight:800;color:var(--purple)">—</div><div style="font-size:.72rem;color:var(--t3)">Factures</div></div></div>
+    <div class="col-6 col-md-3"><div class="card-d text-center"><div id="kpiCA" style="font-size:1.8rem;font-weight:800;color:var(--success)">—</div><div style="font-size:.72rem;color:var(--t3)">CA TTC (€)</div></div></div>
+  </div>
+
+  <!-- Filtres -->
+  <div class="card-d mb-3">
+    <div class="d-flex gap-2 flex-wrap align-items-center">
+      <button class="btn-d btn-ghost-d active" id="filterAll" onclick="setFilter('',this)" style="border-color:var(--accent);color:var(--accent)">Tous</button>
+      <button class="btn-d btn-ghost-d" id="filterDevis" onclick="setFilter('devis',this)">Devis</button>
+      <button class="btn-d btn-ghost-d" id="filterFacture" onclick="setFilter('facture',this)">Factures</button>
+      <div style="flex:1"></div>
+      <input type="text" id="searchDevis" class="form-ctrl" style="max-width:220px;padding:7px 12px" placeholder="Rechercher…" oninput="renderTable()">
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="card-d" style="padding:0;overflow:hidden">
+    <div style="overflow-x:auto">
+      <table class="devis-table">
+        <thead>
+          <tr>
+            <th>Numéro</th><th>Type</th><th>Client</th><th>Fiche CEE</th>
+            <th>Volume kWhc</th><th>Montant TTC</th><th>Statut</th><th>Date</th><th style="width:120px">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="devisTableBody">
+          <tr><td colspan="9" style="text-align:center;padding:30px;color:var(--t3)"><i class="fas fa-spinner fa-spin"></i> Chargement…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ MODAL CRÉATION/ÉDITION ══ -->
+<div class="modal-overlay" id="modalCreate" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div style="font-weight:700;font-size:1rem" id="modalCreateTitle">Nouveau devis</div>
+      <button class="modal-close" onclick="closeModals()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editId">
+      <div class="row g-3">
+
+        <!-- Colonne gauche -->
+        <div class="col-md-6">
+          <!-- Type + statut -->
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label">Type</label>
+              <select class="form-ctrl" id="fType" onchange="document.getElementById('modalCreateTitle').textContent = this.value==='facture'?'Nouvelle facture':'Nouveau devis'">
+                <option value="devis">Devis</option>
+                <option value="facture">Facture</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Statut</label>
+              <select class="form-ctrl" id="fStatut">
+                <option value="brouillon">Brouillon</option>
+                <option value="envoye">Envoyé</option>
+                <option value="accepte">Accepté</option>
+                <option value="refuse">Refusé</option>
+                <option value="facture">Facturé</option>
+                <option value="paye">Payé</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Client -->
+          <div class="card-title mt-2"><i class="fas fa-user" style="color:var(--info)"></i> Informations client</div>
+          <div class="row g-2">
+            <div class="col-6"><label class="form-label">Nom</label><input class="form-ctrl" id="fClientNom" placeholder="Dupont"></div>
+            <div class="col-6"><label class="form-label">Prénom</label><input class="form-ctrl" id="fClientPrenom" placeholder="Jean"></div>
+            <div class="col-12"><label class="form-label">Société / Raison sociale</label><input class="form-ctrl" id="fClientSociete" placeholder="SAS Exemple"></div>
+            <div class="col-6"><label class="form-label">SIRET</label><input class="form-ctrl" id="fClientSiret" placeholder="000 000 000 00000"></div>
+            <div class="col-6"><label class="form-label">Email</label><input class="form-ctrl" id="fClientEmail" type="email"></div>
+            <div class="col-6"><label class="form-label">Téléphone</label><input class="form-ctrl" id="fClientTel"></div>
+            <div class="col-6"><label class="form-label">Adresse</label><input class="form-ctrl" id="fClientAdresse"></div>
+            <div class="col-4"><label class="form-label">Code postal</label><input class="form-ctrl" id="fClientCp"></div>
+            <div class="col-8"><label class="form-label">Ville</label><input class="form-ctrl" id="fClientVille"></div>
+          </div>
+        </div>
+
+        <!-- Colonne droite -->
+        <div class="col-md-6">
+
+          <!-- Opération CEE -->
+          <div class="card-title"><i class="fas fa-bolt" style="color:var(--accent)"></i> Opération CEE</div>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label">Code fiche</label>
+              <select class="form-ctrl" id="fCodeFiche" onchange="onFicheChange()">
+                <option value="">— Sélectionner —</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Secteur</label>
+              <input class="form-ctrl" id="fSecteur" readonly placeholder="Auto">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Nom de l'opération</label>
+              <input class="form-ctrl" id="fNomOperation" placeholder="Ex : Isolation combles — Maison M. Dupont">
+            </div>
+            <div class="col-6">
+              <label class="form-label">Volume kWhc</label>
+              <input class="form-ctrl" id="fVolumeKwh" type="number" min="0" oninput="calcMontant()">
+            </div>
+            <div class="col-6">
+              <label class="form-label">Prix €/MWhc</label>
+              <input class="form-ctrl" id="fPrixMwh" type="number" value="4" step="0.5" min="1" oninput="calcMontant()">
+            </div>
+          </div>
+
+          <!-- Montants -->
+          <div class="card-title"><i class="fas fa-calculator" style="color:var(--success)"></i> Montants</div>
+          <div class="row g-2 mb-3">
+            <div class="col-4"><label class="form-label">Montant HT (€)</label><input class="form-ctrl" id="fMontantHT" type="number" step="0.01" oninput="calcTTC()"></div>
+            <div class="col-4"><label class="form-label">TVA (%)</label><input class="form-ctrl" id="fTva" type="number" value="20" oninput="calcTTC()"></div>
+            <div class="col-4"><label class="form-label">Montant TTC (€)</label><input class="form-ctrl" id="fMontantTTC" readonly style="color:var(--success);font-weight:700"></div>
+          </div>
+
+          <!-- Dates -->
+          <div class="row g-2 mb-3">
+            <div class="col-6"><label class="form-label">Date du document</label><input class="form-ctrl" id="fDateDevis" type="date"></div>
+            <div class="col-6"><label class="form-label">Validité (jours devis)</label><input class="form-ctrl" id="fValidite" type="number" value="30"></div>
+          </div>
+
+          <!-- Notes -->
+          <div class="form-group">
+            <label class="form-label">Notes internes</label>
+            <textarea class="form-ctrl" id="fNotes" rows="2" placeholder="Observations, rappels…"></textarea>
+          </div>
+
+          <!-- Conditions -->
+          <div class="form-group">
+            <label class="form-label">Conditions particulières</label>
+            <textarea class="form-ctrl" id="fConditions" rows="2" placeholder="Sous réserve de conformité du dossier CEE…"></textarea>
+          </div>
+        </div>
+
+        <!-- Encart partenaire (pleine largeur) -->
+        <div class="col-12">
+          <div class="card-title"><i class="fas fa-handshake" style="color:var(--purple)"></i> Encart partenaire (optionnel)</div>
+          <div class="partenaire-encart" id="partenaireEncart">
+            <div class="row g-2 w-100">
+              <div class="col-md-3">
+                <label class="form-label">Partenaire enregistré</label>
+                <select class="form-ctrl" id="fPartenaireSelect" onchange="loadPartenaire()">
+                  <option value="">— Aucun —</option>
+                </select>
+                <button class="btn-d btn-ghost-d mt-1 w-100" onclick="openPartenaireModal()" style="font-size:.75rem;padding:6px"><i class="fas fa-plus"></i> Nouveau</button>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Nom commercial</label>
+                <input class="form-ctrl" id="pNom" placeholder="Relève Energie" oninput="updatePartenaireJSON()">
+                <label class="form-label mt-2">SIRET</label>
+                <input class="form-ctrl" id="pSiret" placeholder="000 000 000 00000" oninput="updatePartenaireJSON()">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Email</label>
+                <input class="form-ctrl" id="pEmail" type="email" oninput="updatePartenaireJSON()">
+                <label class="form-label mt-2">Téléphone</label>
+                <input class="form-ctrl" id="pTel" oninput="updatePartenaireJSON()">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Rôle dans l'opération</label>
+                <input class="form-ctrl" id="pRole" placeholder="Ex : Mandataire CEE" oninput="updatePartenaireJSON()">
+                <label class="form-label mt-2">Texte personnalisé</label>
+                <textarea class="form-ctrl" id="pTexte" rows="2" placeholder="Présenté par…" oninput="updatePartenaireJSON()"></textarea>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">URL Logo</label>
+                <input class="form-ctrl" id="pLogoUrl" placeholder="https://…/logo.png" oninput="previewLogo()">
+                <div id="logoPreviewWrap" style="margin-top:8px;display:none">
+                  <img id="logoPreviewImg" class="logo-preview" alt="Logo partenaire">
+                </div>
+              </div>
+            </div>
+            <input type="hidden" id="fPartenaireJSON" value="{}">
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-d btn-ghost-d" onclick="closeModals()"><i class="fas fa-times"></i> Annuler</button>
+      <button class="btn-d btn-ghost-d" onclick="previewDocument()"><i class="fas fa-eye"></i> Aperçu</button>
+      <button class="btn-d btn-primary-d" onclick="saveDocument()"><i class="fas fa-save"></i> Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL APERÇU ══ -->
+<div class="modal-overlay" id="modalPreview" style="display:none">
+  <div class="modal-box" style="max-width:780px">
+    <div class="modal-header">
+      <div style="font-weight:700;font-size:1rem">Aperçu du document</div>
+      <button class="modal-close" onclick="closeModals()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body" id="previewContent"></div>
+    <div class="modal-footer">
+      <button class="btn-d btn-ghost-d" onclick="closeModals()"><i class="fas fa-arrow-left"></i> Retour</button>
+      <button class="btn-d btn-ghost-d" onclick="printDoc()"><i class="fas fa-print"></i> Imprimer PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL PARTENAIRE ══ -->
+<div class="modal-overlay" id="modalPartenaire" style="display:none">
+  <div class="modal-box" style="max-width:500px">
+    <div class="modal-header">
+      <div style="font-weight:700">Nouveau partenaire</div>
+      <button class="modal-close" onclick="document.getElementById('modalPartenaire').style.display='none'"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="row g-2">
+        <div class="col-12"><label class="form-label">Nom *</label><input class="form-ctrl" id="npNom" placeholder="Nom commercial"></div>
+        <div class="col-6"><label class="form-label">SIRET</label><input class="form-ctrl" id="npSiret"></div>
+        <div class="col-6"><label class="form-label">Téléphone</label><input class="form-ctrl" id="npTel"></div>
+        <div class="col-12"><label class="form-label">Email</label><input class="form-ctrl" id="npEmail" type="email"></div>
+        <div class="col-12"><label class="form-label">Adresse</label><input class="form-ctrl" id="npAdresse"></div>
+        <div class="col-4"><label class="form-label">CP</label><input class="form-ctrl" id="npCp"></div>
+        <div class="col-8"><label class="form-label">Ville</label><input class="form-ctrl" id="npVille"></div>
+        <div class="col-12"><label class="form-label">URL Logo</label><input class="form-ctrl" id="npLogo" placeholder="https://…/logo.png"></div>
+        <div class="col-12"><label class="form-label">Texte personnalisé</label><textarea class="form-ctrl" id="npTexte" rows="2"></textarea></div>
+        <div class="col-12"><label class="form-label">Rôle par défaut</label><input class="form-ctrl" id="npRole" placeholder="Mandataire CEE"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-d btn-ghost-d" onclick="document.getElementById('modalPartenaire').style.display='none'">Annuler</button>
+      <button class="btn-d btn-primary-d" onclick="savePartenaire()"><i class="fas fa-save"></i> Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Print target -->
+<div id="printTarget" style="display:none"></div>
+
+<script>
+// ══ État ══
+let allDocs=[], allFiches=[], allPartenaires=[], currentFilter='', currentDoc=null;
+let partenaireData={};
+
+// ══ Init ══
+window.addEventListener('DOMContentLoaded', async () => {
+  // Lire params URL depuis simulateur-pro
+  const p = new URLSearchParams(window.location.search);
+  if(p.has('fiche')) { setTimeout(()=>{ openCreateModal('devis', { code_fiche:p.get('fiche'), volume_kwh:p.get('kwh'), prime:p.get('prime'), prix_eur_mwh:p.get('prix') }); }, 500); }
+
+  await Promise.all([loadDocs(), loadFiches(), loadPartenaires()]);
+  const d=new Date(); document.getElementById('fDateDevis').value=d.toISOString().slice(0,10);
+});
+
+async function loadDocs() {
+  try {
+    const r = await fetch('/api/admin/devis', { credentials:'include' });
+    if (!r.ok) return;
+    allDocs = await r.json();
+    renderTable(); updateKPIs();
+  } catch(e) { console.warn('Auth needed or server error'); }
+}
+async function loadFiches() {
+  try {
+    const r = await fetch('/api/fiches?actif=1');
+    allFiches = await r.json();
+    const sel = document.getElementById('fCodeFiche');
+    allFiches.forEach(f => { const o=document.createElement('option'); o.value=f.code; o.textContent=`${f.code} — ${f.nom}`; sel.appendChild(o); });
+  } catch(e) {}
+}
+async function loadPartenaires() {
+  try {
+    const r = await fetch('/api/admin/partenaires', { credentials:'include' });
+    if (!r.ok) return;
+    allPartenaires = await r.json();
+    const sel = document.getElementById('fPartenaireSelect');
+    allPartenaires.forEach(p => { const o=document.createElement('option'); o.value=p.id; o.textContent=p.nom; sel.appendChild(o); });
+  } catch(e) {}
+}
+
+// ══ Table ══
+function renderTable() {
+  const q = document.getElementById('searchDevis').value.toLowerCase();
+  let list = allDocs;
+  if (currentFilter) list = list.filter(d=>d.type===currentFilter);
+  if (q) list = list.filter(d=>
+    (d.numero||'').toLowerCase().includes(q) ||
+    (d.client_nom||'').toLowerCase().includes(q) ||
+    (d.client_societe||'').toLowerCase().includes(q) ||
+    (d.code_fiche||'').toLowerCase().includes(q)
+  );
+  const tbody = document.getElementById('devisTableBody');
+  if (!list.length) { tbody.innerHTML=`<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--t3)">Aucun document trouvé</td></tr>`; return; }
+  tbody.innerHTML = list.map(d => {
+    const client = [d.client_nom, d.client_prenom, d.client_societe].filter(Boolean).join(' ') || '—';
+    const ttc = parseFloat(d.montant_ttc||0).toLocaleString('fr-FR',{minimumFractionDigits:2});
+    return `<tr>
+      <td style="font-family:monospace;font-size:.78rem;font-weight:700">${d.numero}</td>
+      <td><span class="${d.type==='facture'?'type-facture':'type-devis'}">${d.type}</span></td>
+      <td style="font-size:.82rem">${client}</td>
+      <td style="font-family:monospace;font-size:.75rem">${d.code_fiche||'—'}</td>
+      <td style="font-size:.8rem">${d.volume_kwh ? Number(d.volume_kwh).toLocaleString('fr-FR')+' kWhc' : '—'}</td>
+      <td class="montant-col">${ttc} €</td>
+      <td><span class="statut-badge statut-${d.statut||'brouillon'}">${d.statut||'brouillon'}</span></td>
+      <td style="font-size:.75rem;color:var(--t3)">${new Date(d.date_devis||d.created_at).toLocaleDateString('fr-FR')}</td>
+      <td>
+        <div class="d-flex gap-1">
+          <button class="btn-d btn-ghost-d" onclick="viewDoc(${d.id})" style="padding:5px 8px" title="Aperçu"><i class="fas fa-eye"></i></button>
+          <button class="btn-d btn-ghost-d" onclick="editDoc(${d.id})" style="padding:5px 8px" title="Modifier"><i class="fas fa-edit"></i></button>
+          <button class="btn-d btn-danger-d" onclick="deleteDoc(${d.id})" style="padding:5px 8px" title="Supprimer"><i class="fas fa-trash"></i></button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function updateKPIs() {
+  const devisL = allDocs.filter(d=>d.type==='devis').length;
+  const factL  = allDocs.filter(d=>d.type==='facture').length;
+  const ca = allDocs.filter(d=>d.type==='facture'&&d.statut==='paye').reduce((s,d)=>s+parseFloat(d.montant_ttc||0),0);
+  document.getElementById('kpiTotal').textContent = allDocs.length;
+  document.getElementById('kpiDevis').textContent = devisL;
+  document.getElementById('kpiFactures').textContent = factL;
+  document.getElementById('kpiCA').textContent = ca.toLocaleString('fr-FR',{minimumFractionDigits:2});
+}
+
+function setFilter(f, el) {
+  currentFilter=f;
+  document.querySelectorAll('#mainWrap .btn-ghost-d').forEach(b=>b.style.borderColor='');
+  el.style.borderColor='var(--accent)'; el.style.color='var(--accent)';
+  renderTable();
+}
+
+// ══ Modal création ══
+function openCreateModal(type='devis', prefill={}) {
+  document.getElementById('editId').value='';
+  document.getElementById('fType').value=type;
+  document.getElementById('modalCreateTitle').textContent=type==='facture'?'Nouvelle facture':'Nouveau devis';
+  document.getElementById('fStatut').value='brouillon';
+  ['fClientNom','fClientPrenom','fClientSociete','fClientSiret','fClientEmail','fClientTel','fClientAdresse','fClientCp','fClientVille','fNomOperation','fNotes','fConditions'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('fVolumeKwh').value = prefill.volume_kwh||'';
+  document.getElementById('fPrixMwh').value   = prefill.prix_eur_mwh||4;
+  document.getElementById('fCodeFiche').value = prefill.code_fiche||'';
+  document.getElementById('fTva').value=20;
+  document.getElementById('fValidite').value=30;
+  const d=new Date(); document.getElementById('fDateDevis').value=d.toISOString().slice(0,10);
+  if(prefill.code_fiche) onFicheChange();
+  if(prefill.volume_kwh) calcMontant();
+  resetPartenaire();
+  document.getElementById('modalCreate').style.display='flex';
+}
+
+function closeModals() {
+  document.getElementById('modalCreate').style.display='none';
+  document.getElementById('modalPreview').style.display='none';
+}
+
+function onFicheChange() {
+  const code = document.getElementById('fCodeFiche').value;
+  const f = allFiches.find(x=>x.code===code);
+  if(f) { document.getElementById('fSecteur').value=f.secteur; document.getElementById('fNomOperation').value=f.nom; }
+  else  { document.getElementById('fSecteur').value=''; }
+}
+
+function calcMontant() {
+  const kwh = parseFloat(document.getElementById('fVolumeKwh').value)||0;
+  const prix = parseFloat(document.getElementById('fPrixMwh').value)||4;
+  const ht = parseFloat((kwh * prix / 1000).toFixed(2));
+  document.getElementById('fMontantHT').value = ht;
+  calcTTC();
+}
+function calcTTC() {
+  const ht = parseFloat(document.getElementById('fMontantHT').value)||0;
+  const tva = parseFloat(document.getElementById('fTva').value)||20;
+  document.getElementById('fMontantTTC').value = parseFloat((ht*(1+tva/100)).toFixed(2));
+}
+
+// ══ Encart partenaire ══
+function loadPartenaire() {
+  const id = document.getElementById('fPartenaireSelect').value;
+  const p = allPartenaires.find(x=>String(x.id)===id);
+  if(!p) { resetPartenaire(); return; }
+  document.getElementById('pNom').value    = p.nom||'';
+  document.getElementById('pSiret').value  = p.siret||'';
+  document.getElementById('pEmail').value  = p.email||'';
+  document.getElementById('pTel').value    = p.telephone||'';
+  document.getElementById('pRole').value   = p.role_defaut||'';
+  document.getElementById('pTexte').value  = p.texte_custom||'';
+  document.getElementById('pLogoUrl').value= p.logo_url||'';
+  previewLogo();
+  updatePartenaireJSON();
+  document.getElementById('partenaireEncart').classList.add('active');
+}
+function resetPartenaire() {
+  ['pNom','pSiret','pEmail','pTel','pRole','pTexte','pLogoUrl'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('fPartenaireJSON').value='{}';
+  document.getElementById('logoPreviewWrap').style.display='none';
+  document.getElementById('partenaireEncart').classList.remove('active');
+}
+function updatePartenaireJSON() {
+  const d={
+    nom:   document.getElementById('pNom').value,
+    siret: document.getElementById('pSiret').value,
+    email: document.getElementById('pEmail').value,
+    tel:   document.getElementById('pTel').value,
+    role:  document.getElementById('pRole').value,
+    texte: document.getElementById('pTexte').value,
+    logo:  document.getElementById('pLogoUrl').value
+  };
+  document.getElementById('fPartenaireJSON').value=JSON.stringify(d);
+  document.getElementById('partenaireEncart').classList.toggle('active', !!(d.nom||d.logo));
+}
+function previewLogo() {
+  const url = document.getElementById('pLogoUrl').value;
+  const wrap = document.getElementById('logoPreviewWrap');
+  const img  = document.getElementById('logoPreviewImg');
+  if(url){wrap.style.display='block';img.src=url;}else{wrap.style.display='none';}
+}
+
+// ══ Sauvegarde ══
+async function saveDocument() {
+  const id = document.getElementById('editId').value;
+  const body = {
+    type:          document.getElementById('fType').value,
+    statut:        document.getElementById('fStatut').value,
+    client_nom:    document.getElementById('fClientNom').value,
+    client_prenom: document.getElementById('fClientPrenom').value,
+    client_societe:document.getElementById('fClientSociete').value,
+    client_siret:  document.getElementById('fClientSiret').value,
+    client_email:  document.getElementById('fClientEmail').value,
+    client_tel:    document.getElementById('fClientTel').value,
+    client_adresse:document.getElementById('fClientAdresse').value,
+    client_cp:     document.getElementById('fClientCp').value,
+    client_ville:  document.getElementById('fClientVille').value,
+    code_fiche:    document.getElementById('fCodeFiche').value,
+    nom_operation: document.getElementById('fNomOperation').value,
+    secteur:       document.getElementById('fSecteur').value,
+    volume_kwh:    document.getElementById('fVolumeKwh').value,
+    prix_eur_mwh:  document.getElementById('fPrixMwh').value,
+    montant_ht:    document.getElementById('fMontantHT').value,
+    tva_pct:       document.getElementById('fTva').value,
+    validite_jours:document.getElementById('fValidite').value,
+    conditions:    document.getElementById('fConditions').value,
+    notes:         document.getElementById('fNotes').value,
+    partenaire:    safeJSON(document.getElementById('fPartenaireJSON').value, {}),
+    date_devis:    document.getElementById('fDateDevis').value
+  };
+  try {
+    const url = id ? `/api/admin/devis/${id}` : '/api/admin/devis';
+    const method = id ? 'PUT' : 'POST';
+    const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify(body) });
+    if (!r.ok) { const e=await r.json(); showToast(e.error||'Erreur','danger'); return; }
+    showToast(id?'Modifié avec succès':'Document créé','success');
+    closeModals();
+    await loadDocs();
+  } catch(e) { showToast('Erreur : '+e.message,'danger'); }
+}
+
+// ══ Édition ══
+async function editDoc(id) {
+  const r=await fetch(`/api/admin/devis/${id}`,{credentials:'include'});
+  const d=await r.json();
+  document.getElementById('editId').value=d.id;
+  document.getElementById('fType').value=d.type||'devis';
+  document.getElementById('modalCreateTitle').textContent=d.type==='facture'?'Modifier facture':'Modifier devis';
+  document.getElementById('fStatut').value=d.statut||'brouillon';
+  document.getElementById('fClientNom').value=d.client_nom||'';
+  document.getElementById('fClientPrenom').value=d.client_prenom||'';
+  document.getElementById('fClientSociete').value=d.client_societe||'';
+  document.getElementById('fClientSiret').value=d.client_siret||'';
+  document.getElementById('fClientEmail').value=d.client_email||'';
+  document.getElementById('fClientTel').value=d.client_tel||'';
+  document.getElementById('fClientAdresse').value=d.client_adresse||'';
+  document.getElementById('fClientCp').value=d.client_cp||'';
+  document.getElementById('fClientVille').value=d.client_ville||'';
+  document.getElementById('fCodeFiche').value=d.code_fiche||'';
+  document.getElementById('fNomOperation').value=d.nom_operation||'';
+  document.getElementById('fSecteur').value=d.secteur||'';
+  document.getElementById('fVolumeKwh').value=d.volume_kwh||'';
+  document.getElementById('fPrixMwh').value=d.prix_eur_mwh||4;
+  document.getElementById('fMontantHT').value=d.montant_ht||'';
+  document.getElementById('fTva').value=d.tva_pct||20;
+  document.getElementById('fMontantTTC').value=d.montant_ttc||'';
+  document.getElementById('fValidite').value=d.validite_jours||30;
+  document.getElementById('fConditions').value=d.conditions||'';
+  document.getElementById('fNotes').value=d.notes||'';
+  document.getElementById('fDateDevis').value=d.date_devis||new Date().toISOString().slice(0,10);
+  const part = safeJSON(d.partenaire_json,{});
+  document.getElementById('pNom').value=part.nom||'';
+  document.getElementById('pSiret').value=part.siret||'';
+  document.getElementById('pEmail').value=part.email||'';
+  document.getElementById('pTel').value=part.tel||'';
+  document.getElementById('pRole').value=part.role||'';
+  document.getElementById('pTexte').value=part.texte||'';
+  document.getElementById('pLogoUrl').value=part.logo||'';
+  document.getElementById('fPartenaireJSON').value=JSON.stringify(part);
+  if(part.nom||part.logo) document.getElementById('partenaireEncart').classList.add('active');
+  previewLogo();
+  document.getElementById('modalCreate').style.display='flex';
+}
+
+// ══ Aperçu document ══
+function viewDoc(id) {
+  const d = allDocs.find(x=>x.id===id);
+  if(d) renderDocPreview(d);
+}
+function previewDocument() {
+  const body={
+    numero: document.getElementById('editId').value ? allDocs.find(x=>x.id==document.getElementById('editId').value)?.numero : 'APERÇU',
+    type:          document.getElementById('fType').value,
+    statut:        document.getElementById('fStatut').value,
+    client_nom:    document.getElementById('fClientNom').value,
+    client_prenom: document.getElementById('fClientPrenom').value,
+    client_societe:document.getElementById('fClientSociete').value,
+    client_siret:  document.getElementById('fClientSiret').value,
+    client_adresse:document.getElementById('fClientAdresse').value,
+    client_cp:     document.getElementById('fClientCp').value,
+    client_ville:  document.getElementById('fClientVille').value,
+    code_fiche:    document.getElementById('fCodeFiche').value,
+    nom_operation: document.getElementById('fNomOperation').value,
+    secteur:       document.getElementById('fSecteur').value,
+    volume_kwh:    document.getElementById('fVolumeKwh').value,
+    prix_eur_mwh:  document.getElementById('fPrixMwh').value,
+    montant_ht:    document.getElementById('fMontantHT').value,
+    tva_pct:       document.getElementById('fTva').value,
+    montant_ttc:   document.getElementById('fMontantTTC').value,
+    conditions:    document.getElementById('fConditions').value,
+    date_devis:    document.getElementById('fDateDevis').value,
+    partenaire_json: document.getElementById('fPartenaireJSON').value
+  };
+  closeModals();
+  renderDocPreview(body);
+}
+function renderDocPreview(d) {
+  const isFacture = d.type==='facture';
+  const part = safeJSON(d.partenaire_json,{});
+  const hasPart = !!(part.nom||part.logo);
+  const montantHT = parseFloat(d.montant_ht||0).toLocaleString('fr-FR',{minimumFractionDigits:2});
+  const montantTTC = parseFloat(d.montant_ttc||0).toLocaleString('fr-FR',{minimumFractionDigits:2});
+  const tva = (parseFloat(d.montant_ttc||0)-parseFloat(d.montant_ht||0)).toLocaleString('fr-FR',{minimumFractionDigits:2});
+  const client = [d.client_societe, [d.client_prenom, d.client_nom].filter(Boolean).join(' ')].filter(Boolean).join('\n');
+  document.getElementById('previewContent').innerHTML=`
+    <div class="doc-preview">
+      <div class="doc-header">
+        <div class="doc-logo-zone">
+          <div style="font-size:20px;font-weight:900;color:#0B0F1A">EchoWAI</div>
+          <div style="font-size:11px;color:#64748b">Plateforme CEE</div>
+          ${d.date_devis?`<div style="font-size:11px;color:#64748b;margin-top:4px">Date : ${new Date(d.date_devis).toLocaleDateString('fr-FR')}</div>`:''}
+        </div>
+        <div>
+          <div class="doc-title">${isFacture?'FACTURE':'DEVIS'}</div>
+          <div class="doc-numero">N° ${d.numero||'—'}</div>
+          <div style="margin-top:8px"><span style="background:${isFacture?'#f3f0ff':'#eff6ff'};color:${isFacture?'#6d28d9':'#1d4ed8'};padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700">${(d.statut||'brouillon').toUpperCase()}</span></div>
+        </div>
+      </div>
+      <div class="doc-parties">
+        <div>
+          <div class="doc-partie-label">Émetteur</div>
+          <div class="doc-partie-name">EchoWAI — Plateforme CEE</div>
+          <div style="font-size:12px;color:#475569;margin-top:4px">contact@echowai.com<br>echowai.com</div>
+        </div>
+        <div>
+          <div class="doc-partie-label">Destinataire</div>
+          <div class="doc-partie-name">${client||'—'}</div>
+          ${d.client_siret?`<div style="font-size:11px;color:#94a3b8">SIRET : ${d.client_siret}</div>`:''}
+          <div style="font-size:12px;color:#475569;margin-top:4px">${[d.client_adresse, [d.client_cp,d.client_ville].filter(Boolean).join(' ')].filter(Boolean).join('<br>')||''}</div>
+        </div>
+      </div>
+      <!-- Opération CEE -->
+      <div class="doc-cee-box">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#065f46;margin-bottom:8px"><i class="fas fa-bolt"></i> Opération CEE</div>
+        <div class="doc-ligne"><span>${d.nom_operation||'—'}</span><span style="font-family:monospace;font-weight:700">${d.code_fiche||''}</span></div>
+        ${d.volume_kwh>0?`<div class="doc-ligne"><span>Volume certifié estimé</span><span><strong>${Number(d.volume_kwh).toLocaleString('fr-FR')} kWhc</strong> = ${(d.volume_kwh/1000).toLocaleString('fr-FR',{minimumFractionDigits:2})} MWhc</span></div>`:''}
+        ${d.prix_eur_mwh>0?`<div class="doc-ligne"><span>Prix de valorisation</span><span>${d.prix_eur_mwh} €/MWhc</span></div>`:''}
+      </div>
+      <!-- Montants -->
+      <div class="doc-ligne"><span>Montant HT</span><span>${montantHT} €</span></div>
+      <div class="doc-ligne"><span>TVA (${d.tva_pct||20}%)</span><span>${tva} €</span></div>
+      <div class="doc-total"><span>TOTAL TTC</span><span>${montantTTC} €</span></div>
+      ${d.conditions?`<div style="font-size:11px;color:#64748b;margin-top:14px;padding:10px;background:#f8fafc;border-radius:6px">${d.conditions}</div>`:''}
+      <!-- Encart partenaire -->
+      ${hasPart?`<div class="doc-partenaire">
+        ${part.logo?`<img src="${part.logo}" style="max-height:45px;border-radius:5px;object-fit:contain;flex-shrink:0" alt="">`:''}
+        <div style="flex:1">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:4px">Partenaire</div>
+          ${part.nom?`<div style="font-weight:700;font-size:13px">${part.nom}</div>`:''}
+          ${part.siret?`<div style="font-size:11px;color:#64748b">SIRET : ${part.siret}</div>`:''}
+          ${part.email||part.tel?`<div style="font-size:11px;color:#64748b">${[part.email,part.tel].filter(Boolean).join(' · ')}</div>`:''}
+          ${part.role?`<div style="font-size:11px;color:#475569;margin-top:3px;font-style:italic">${part.role}</div>`:''}
+          ${part.texte?`<div style="font-size:11px;color:#64748b;margin-top:5px">${part.texte}</div>`:''}
+        </div>
+      </div>`:''}
+      <div class="doc-mentions">Document généré par EchoWAI Plateforme CEE · Simulation indicative, sous réserve de conformité du dossier CEE · Ce document ne constitue pas un engagement juridique définitif.</div>
+    </div>`;
+  document.getElementById('modalPreview').style.display='flex';
+}
+
+function printDoc() {
+  const content = document.getElementById('previewContent').innerHTML;
+  const w = window.open('','_blank','width=800,height=900');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Document CEE</title><style>body{font-family:'Segoe UI',system-ui,sans-serif;margin:0;padding:20px;color:#1a202c}.doc-preview{max-width:700px;margin:0 auto;padding:30px}.doc-header{display:flex;justify-content:space-between;margin-bottom:25px;padding-bottom:15px;border-bottom:2px solid #e2e8f0}.doc-title{font-size:22px;font-weight:900;text-align:right}.doc-parties{display:grid;grid-template-columns:1fr 1fr;gap:25px;margin-bottom:20px}.doc-partie-label{font-size:10px;font-weight:700;text-transform:uppercase;color:#94a3b8;margin-bottom:4px}.doc-partie-name{font-size:14px;font-weight:700}.doc-ligne{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:12px}.doc-total{background:#0B0F1A;color:#fff;padding:10px 14px;border-radius:6px;display:flex;justify-content:space-between;font-size:14px;font-weight:700;margin-top:12px}.doc-cee-box{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:12px;margin:12px 0;font-size:11px}.doc-partenaire{border:1px dashed #cbd5e1;border-radius:6px;padding:12px;margin-top:16px;display:flex;gap:12px}.doc-mentions{font-size:9px;color:#94a3b8;margin-top:16px;padding-top:12px;border-top:1px solid #e2e8f0}</style></head><body>${content}</body></html>`);
+  w.document.close(); w.focus(); setTimeout(()=>w.print(),300);
+}
+
+// ══ Suppression ══
+async function deleteDoc(id) {
+  if(!confirm('Supprimer ce document ?')) return;
+  const r = await fetch(`/api/admin/devis/${id}`,{method:'DELETE',credentials:'include'});
+  if(r.ok){showToast('Supprimé','success');await loadDocs();}
+  else showToast('Erreur suppression','danger');
+}
+
+// ══ Partenaire modal ══
+function openPartenaireModal() { document.getElementById('modalPartenaire').style.display='flex'; }
+async function savePartenaire() {
+  const body={
+    nom:      document.getElementById('npNom').value,
+    siret:    document.getElementById('npSiret').value,
+    telephone:document.getElementById('npTel').value,
+    email:    document.getElementById('npEmail').value,
+    adresse:  document.getElementById('npAdresse').value,
+    code_postal:document.getElementById('npCp').value,
+    ville:    document.getElementById('npVille').value,
+    logo_url: document.getElementById('npLogo').value,
+    texte_custom:document.getElementById('npTexte').value,
+    role_defaut:document.getElementById('npRole').value
+  };
+  if(!body.nom){showToast('Nom requis','warning');return;}
+  try{
+    const r=await fetch('/api/admin/partenaires',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify(body)});
+    if(r.ok){
+      const p=await r.json();
+      allPartenaires.push(p);
+      const sel=document.getElementById('fPartenaireSelect');
+      const o=document.createElement('option');o.value=p.id;o.textContent=p.nom;sel.appendChild(o);
+      sel.value=p.id; loadPartenaire();
+      document.getElementById('modalPartenaire').style.display='none';
+      showToast('Partenaire enregistré','success');
+    }
+  }catch(e){showToast('Erreur : '+e.message,'danger');}
+}
+
+// ══ Utilitaires ══
+function safeJSON(v,def){if(!v)return def;if(typeof v==='object')return v;try{return JSON.parse(v);}catch(e){return def;}}
+function showToast(msg,type='info'){const c={success:['var(--success)','check-circle'],warning:['var(--warning)','triangle-exclamation'],danger:['var(--danger)','circle-xmark'],info:['var(--info)','info-circle']};const[color,icon]=c[type]||c.info;const t=document.createElement('div');t.className='toast-d';t.style.borderLeft=`3px solid ${color}`;t.innerHTML=`<i class="fas fa-${icon}" style="color:${color};flex-shrink:0"></i><span>${msg}</span>`;document.getElementById('toastContainer').appendChild(t);setTimeout(()=>{t.style.animation='toastOut .2s ease forwards';setTimeout(()=>t.remove(),200);},3500);}
+</script>
+</body>
+</html>

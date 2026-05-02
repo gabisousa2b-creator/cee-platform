@@ -640,9 +640,10 @@
         <span class="notif-badge d-none" id="notifBadge">0</span>
       </div>
       <div class="sidebar-section-label" style="margin-top:10px">Outils CEE</div>
-      <div class="nav-item-s" onclick="window.location='/simulateur.html'"><i class="fas fa-calculator fa-fw"></i> Simulateur CEE</div>
-      <div class="nav-item-s" onclick="window.location='/simulateur-pro.html'"><i class="fas fa-flask fa-fw"></i> Simulateur Pro</div>
-      <div class="nav-item-s" style="opacity:.55;cursor:not-allowed" title="Bientôt disponible"><i class="fas fa-book fa-fw"></i> Biblio. fiches <span style="font-size:.6rem;background:var(--accent-dim);color:var(--accent);padding:1px 5px;border-radius:4px;margin-left:auto">soon</span></div>
+      <div class="nav-item-s" onclick="window.location='/simulateur-pro.html'"><i class="fas fa-calculator fa-fw"></i> Simulateur Pro</div>
+      <div class="nav-item-s" data-section="biblio_fiches" id="navBiblio" onclick="showSection('biblio_fiches')"><i class="fas fa-book-open fa-fw"></i> Biblio. fiches</div>
+      <div class="nav-item-s" data-section="veille" onclick="showSection('veille')"><i class="fas fa-radar fa-fw"></i> Veille réglementaire</div>
+      <div class="nav-item-s" data-section="devis" onclick="showSection('devis')"><i class="fas fa-file-invoice-dollar fa-fw"></i> Devis &amp; Factures</div>
     </nav>
     <div class="sidebar-footer">
       <button class="btn btn-sm btn-outline-secondary w-100" onclick="logout()"><i class="fas fa-right-from-bracket me-2"></i>Déconnexion</button>
@@ -673,9 +674,9 @@
                 <div class="dash-action-icon" style="background:var(--warning-dim);color:var(--warning)"><i class="fas fa-list-check"></i></div>
                 <div><div class="fw-semibold small">Créer une tâche</div><div style="font-size:.7rem;color:var(--t3)">Rappel ou action</div></div>
               </div>
-              <div class="dash-action-card" onclick="window.location='/simulateur.html'">
+              <div class="dash-action-card" onclick="window.location='/simulateur-pro.html'">
                 <div class="dash-action-icon" style="background:var(--purple-dim);color:var(--purple)"><i class="fas fa-calculator"></i></div>
-                <div><div class="fw-semibold small">Simuler une prime</div><div style="font-size:.7rem;color:var(--t3)">Calculer kWhc</div></div>
+                <div><div class="fw-semibold small">Simulateur Pro</div><div style="font-size:.7rem;color:var(--t3)">190+ fiches CEE</div></div>
               </div>
             </div>
           </div>
@@ -1155,6 +1156,226 @@
       </div>
     </div>
 
+    <!-- ══ Biblio Fiches ══ -->
+    <div id="sectionBiblioFiches" style="display:none">
+      <div class="topbar">
+        <div>
+          <h4 class="fw-bold mb-0"><i class="fas fa-book-open me-2"></i>Bibliothèque des fiches CEE</h4>
+          <div class="text-muted small mt-1" id="biblioCount">Chargement…</div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+          <input type="text" class="form-control form-control-sm" id="biblioSearch" placeholder="Rechercher code, nom…" oninput="filterBiblio()" style="width:220px">
+          <select class="form-select form-select-sm" id="biblioSecteur" onchange="filterBiblio()" style="width:140px">
+            <option value="">Tous secteurs</option>
+            <option value="BAR">BAR — Résidentiel</option>
+            <option value="BAT">BAT — Tertiaire</option>
+            <option value="IND">IND — Industrie</option>
+            <option value="TRA">TRA — Transport</option>
+            <option value="AGRI">AGRI — Agriculture</option>
+            <option value="RES">RES — Réseaux</option>
+          </select>
+          <select class="form-select form-select-sm" id="biblioStatut" onchange="filterBiblio()" style="width:130px">
+            <option value="">Tous statuts</option>
+            <option value="valide">Valide</option>
+            <option value="en_cours">En cours</option>
+            <option value="abrogee">Abrogée</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-card">
+        <div class="p-3">
+          <table class="table mb-0" id="biblioTable">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Nom</th>
+                <th>Secteur</th>
+                <th>Type calcul</th>
+                <th>Statut</th>
+                <th>Version</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="biblioTbody">
+              <tr><td colspan="7" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin"></i></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ Veille réglementaire ══ -->
+    <div id="sectionVeille" style="display:none">
+      <div class="topbar">
+        <div>
+          <h4 class="fw-bold mb-0"><i class="fas fa-satellite-dish me-2" style="color:var(--info)"></i>Veille réglementaire</h4>
+          <div class="text-muted small mt-1">Surveillance automatique des nouvelles fiches CEE publiées</div>
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-outline-primary btn-sm" onclick="runVeilleManual()" id="veilleRunBtn">
+            <i class="fas fa-play me-1"></i> Lancer maintenant
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI last run -->
+      <div class="row g-3 mb-4" id="veilleKpis">
+        <div class="col-md-3">
+          <div class="stat-card text-center">
+            <div class="stat-icon mx-auto mb-2" style="background:var(--info-dim);color:var(--info)"><i class="fas fa-clock"></i></div>
+            <div class="stat-number" style="font-size:1.2rem" id="veilleLastRun">—</div>
+            <div class="stat-label mt-1">Dernier passage</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="stat-card text-center">
+            <div class="stat-icon mx-auto mb-2" style="background:var(--success-dim);color:var(--success)"><i class="fas fa-check-circle"></i></div>
+            <div class="stat-number" style="font-size:1.2rem" id="veilleStatut">—</div>
+            <div class="stat-label mt-1">Statut dernier</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="stat-card text-center">
+            <div class="stat-icon mx-auto mb-2" style="background:var(--accent-dim);color:var(--accent)"><i class="fas fa-file-alt"></i></div>
+            <div class="stat-number" style="font-size:1.2rem" id="veilleVerifiees">—</div>
+            <div class="stat-label mt-1">Fiches vérifiées</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="stat-card text-center">
+            <div class="stat-icon mx-auto mb-2" style="background:var(--warning-dim);color:var(--warning)"><i class="fas fa-exclamation-triangle"></i></div>
+            <div class="stat-number" style="font-size:1.2rem" id="veilleChangements">—</div>
+            <div class="stat-label mt-1">Changements détectés</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Info prochaine veille -->
+      <div class="alert alert-info mb-4" style="border-radius:var(--r-md)">
+        <i class="fas fa-info-circle me-2"></i>
+        La veille automatique s'exécute chaque jour à <strong>06h00</strong>. Elle compare les codes de fiches publiés sur le site officiel avec la base de données locale.
+        <a href="https://www.ecologie.gouv.fr/politiques-publiques/operations-standardisees-deconomies-denergie" target="_blank" class="ms-2 text-info">
+          <i class="fas fa-external-link-alt me-1"></i>Site officiel
+        </a>
+      </div>
+
+      <!-- Log table -->
+      <div class="table-card">
+        <div class="p-3 border-bottom d-flex align-items-center justify-content-between">
+          <h6 class="fw-bold mb-0"><i class="fas fa-list me-2"></i>Journal des passages</h6>
+          <button class="btn btn-sm btn-outline-secondary" onclick="loadVeilleLogs()"><i class="fas fa-rotate-right"></i></button>
+        </div>
+        <div class="p-3">
+          <table class="table mb-0">
+            <thead>
+              <tr>
+                <th>Date / Heure</th>
+                <th>Déclenchement</th>
+                <th>Fiches vérifiées</th>
+                <th>Statut</th>
+                <th>Changements</th>
+                <th>Détail</th>
+              </tr>
+            </thead>
+            <tbody id="veilleTbody">
+              <tr><td colspan="6" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin"></i></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ Devis & Factures ══ -->
+    <div id="sectionDevis" style="display:none">
+      <div class="topbar">
+        <div>
+          <h4 class="fw-bold mb-0"><i class="fas fa-file-invoice-dollar me-2" style="color:var(--success)"></i>Devis &amp; Factures</h4>
+          <div class="text-muted small mt-1" id="devisCount">Chargement…</div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+          <a href="/devis.html" class="btn btn-primary btn-sm" target="_blank">
+            <i class="fas fa-arrow-up-right-from-square me-1"></i> Ouvrir module complet
+          </a>
+          <button class="btn btn-outline-secondary btn-sm" onclick="loadDevisAdmin()"><i class="fas fa-rotate-right me-1"></i>Actualiser</button>
+        </div>
+      </div>
+
+      <!-- KPI devis -->
+      <div class="row g-3 mb-4" id="devisKpis">
+        <div class="col-md-3">
+          <div class="stat-card">
+            <div class="d-flex align-items-center gap-3">
+              <div class="stat-icon" style="background:var(--info-dim);color:var(--info)"><i class="fas fa-file-lines"></i></div>
+              <div>
+                <div class="stat-number" style="font-size:1.4rem" id="devisKpiTotal">—</div>
+                <div class="stat-label">Documents</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="stat-card">
+            <div class="d-flex align-items-center gap-3">
+              <div class="stat-icon" style="background:var(--warning-dim);color:var(--warning)"><i class="fas fa-hourglass-half"></i></div>
+              <div>
+                <div class="stat-number" style="font-size:1.4rem" id="devisKpiDevis">—</div>
+                <div class="stat-label">Devis</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="stat-card">
+            <div class="d-flex align-items-center gap-3">
+              <div class="stat-icon" style="background:var(--accent-dim);color:var(--accent)"><i class="fas fa-file-invoice"></i></div>
+              <div>
+                <div class="stat-number" style="font-size:1.4rem" id="devisKpiFactures">—</div>
+                <div class="stat-label">Factures</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="stat-card">
+            <div class="d-flex align-items-center gap-3">
+              <div class="stat-icon" style="background:var(--success-dim);color:var(--success)"><i class="fas fa-euro-sign"></i></div>
+              <div>
+                <div class="stat-number" style="font-size:1.4rem;color:var(--success)" id="devisKpiCa">—</div>
+                <div class="stat-label">CA TTC</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent devis table -->
+      <div class="table-card">
+        <div class="p-3 border-bottom d-flex align-items-center justify-content-between">
+          <h6 class="fw-bold mb-0">Derniers documents</h6>
+          <a href="/devis.html" class="btn btn-sm btn-outline-primary" target="_blank"><i class="fas fa-plus me-1"></i>Nouveau devis</a>
+        </div>
+        <div class="p-3">
+          <table class="table mb-0">
+            <thead>
+              <tr>
+                <th>Numéro</th>
+                <th>Type</th>
+                <th>Client</th>
+                <th>Opération CEE</th>
+                <th>Montant TTC</th>
+                <th>Statut</th>
+                <th>Date</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="devisTbody">
+              <tr><td colspan="8" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin"></i></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- Emails broadcast -->
     <div id="sectionEmails" style="display:none">
       <div class="topbar"><h4 class="fw-bold mb-0"><i class="fas fa-paper-plane me-2"></i>Envoi de mails groupés</h4></div>
@@ -1520,10 +1741,11 @@ async function loadActivites() {
 function showSection(name) {
   document.querySelectorAll('[data-section]').forEach(el => el.classList.remove('active'));
   document.querySelector(`[data-section="${name}"]`)?.classList.add('active');
-  const sections = ['dashboard','beneficiaires','operations','taches','emails','notifications'];
+  const sections = ['dashboard','beneficiaires','operations','taches','emails','notifications','biblio_fiches','veille','devis'];
   sections.forEach(s => {
-    const key = s.charAt(0).toUpperCase() + s.slice(1);
-    const el = document.getElementById('section' + key);
+    const key = s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    const domKey = key.charAt(0).toUpperCase() + key.slice(1);
+    const el = document.getElementById('section' + domKey);
     if (el) el.style.display = s === name ? 'block' : 'none';
   });
   if (name === 'beneficiaires')  loadBeneficiaires();
@@ -1538,6 +1760,9 @@ function showSection(name) {
     document.getElementById('npane-messages')?.classList.add('active');
     loadNotifications();
   }
+  if (name === 'biblio_fiches')  loadBiblioFiches();
+  if (name === 'veille')         loadVeilleLogs();
+  if (name === 'devis')          loadDevisAdmin();
 }
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
@@ -3032,6 +3257,191 @@ function clearChat() {
   const chatEl = document.getElementById('chatMessages');
   if (chatEl) chatEl.innerHTML = '';
   initChatbot();
+}
+
+// ══════════════ BIBLIO FICHES ═══════════════════════════════════════════════
+
+let allFiches = [];
+
+async function loadBiblioFiches() {
+  const tbody = document.getElementById('biblioTbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin"></i></td></tr>';
+  try {
+    const r = await fetch('/api/fiches');
+    allFiches = await r.json();
+    const countEl = document.getElementById('biblioCount');
+    if (countEl) countEl.textContent = `${allFiches.length} fiche(s) dans la bibliothèque`;
+    renderBiblio(allFiches);
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-danger"><i class="fas fa-exclamation-circle me-2"></i>Erreur de chargement</td></tr>';
+  }
+}
+
+function renderBiblio(fiches) {
+  const tbody = document.getElementById('biblioTbody');
+  if (!tbody) return;
+  if (!fiches.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5 text-muted"><i class="fas fa-book-open fa-2x mb-2 d-block opacity-25"></i>Aucune fiche dans la bibliothèque.<br><small>Ajoutez des fiches via l\'API ou importez-les.</small></td></tr>';
+    return;
+  }
+  const TYPE_LABELS = { assistee:'Assistée', forfait_logement:'Forfait/logement', forfait_logement_zone:'Forfait/zone', surface_zone:'Surface×zone', surface_r_zone:'Surface×R×zone', quantite_zone:'Qté×zone', puissance_zone:'Puissance×zone', conso_pct:'Conso%' };
+  const STATUT_COLORS = { valide:'var(--success)', en_cours:'var(--info)', abrogee:'var(--t3)', suspendue:'var(--warning)' };
+  tbody.innerHTML = fiches.map(f => {
+    const secteur = (f.code||'').split('-')[0] || f.secteur || '—';
+    const tc = f.type_calcul || 'assistee';
+    const st = f.statut || 'valide';
+    return `<tr class="clickrow" onclick="window.open('/simulateur-pro.html?fiche=${escHtml(f.code)}','_blank')">
+      <td><code class="text-primary fw-bold">${escHtml(f.code)}</code></td>
+      <td style="max-width:320px;white-space:normal">${escHtml(f.nom)}</td>
+      <td><span class="secteur-badge secteur-${escHtml(secteur)}">${escHtml(secteur)}</span></td>
+      <td><span class="badge" style="background:var(--bg-4);color:var(--t2);font-size:.68rem">${escHtml(TYPE_LABELS[tc]||tc)}</span></td>
+      <td><span class="badge" style="background:rgba(0,0,0,.3);color:${STATUT_COLORS[st]||'var(--t2)'};border:1px solid ${STATUT_COLORS[st]||'var(--border)'}30">${st}</span></td>
+      <td class="text-muted small">${escHtml(f.version||'—')}</td>
+      <td>
+        <a href="/simulateur-pro.html?fiche=${escHtml(f.code)}" target="_blank" class="btn btn-sm btn-outline-primary py-0 px-2" title="Simuler"><i class="fas fa-calculator"></i></a>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function filterBiblio() {
+  const q = (document.getElementById('biblioSearch')?.value || '').toLowerCase();
+  const s = document.getElementById('biblioSecteur')?.value || '';
+  const st = document.getElementById('biblioStatut')?.value || '';
+  const filtered = allFiches.filter(f => {
+    const matchQ = !q || (f.code||'').toLowerCase().includes(q) || (f.nom||'').toLowerCase().includes(q);
+    const matchS = !s || (f.code||'').startsWith(s) || (f.secteur||'') === s;
+    const matchSt = !st || (f.statut||'valide') === st;
+    return matchQ && matchS && matchSt;
+  });
+  document.getElementById('biblioCount').textContent = `${filtered.length} / ${allFiches.length} fiche(s)`;
+  renderBiblio(filtered);
+}
+
+// ══════════════ VEILLE ═══════════════════════════════════════════════════════
+
+async function loadVeilleLogs() {
+  const tbody = document.getElementById('veilleTbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin"></i></td></tr>';
+  try {
+    const r = await fetch('/api/admin/veille/logs');
+    const logs = await r.json();
+    // Update KPI cards
+    if (logs.length) {
+      const last = logs[0];
+      const lastRunEl = document.getElementById('veilleLastRun');
+      const statEl = document.getElementById('veilleStatut');
+      const verEl = document.getElementById('veilleVerifiees');
+      const chgEl = document.getElementById('veilleChangements');
+      if (lastRunEl) lastRunEl.textContent = formatDate(last.run_at).replace(/\d{2}:\d{2}$/, m => '<br><small class="text-muted">'+m+'</small>');
+      let changements = 0;
+      try { const c = JSON.parse(last.changements||'{}'); changements = (c.nouveaux||[]).length + (c.modifies||[]).length; } catch(e){}
+      if (statEl) {
+        const ok = last.statut === 'ok';
+        statEl.innerHTML = `<span style="color:${ok?'var(--success)':'var(--danger)'}">${ok?'✓ OK':'✗ Erreur'}</span>`;
+      }
+      if (verEl) verEl.textContent = last.fiches_verifiees || '—';
+      if (chgEl) chgEl.innerHTML = changements > 0
+        ? `<span style="color:var(--warning)">${changements}</span>`
+        : `<span style="color:var(--success)">0</span>`;
+    }
+    if (!logs.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-muted"><i class="fas fa-satellite-dish fa-2x mb-2 d-block opacity-25"></i>Aucun passage enregistré.<br><small>Lancez une veille manuelle pour commencer.</small></td></tr>';
+      return;
+    }
+    tbody.innerHTML = logs.map(log => {
+      let changements = 0; let changeDetail = '';
+      try {
+        const c = JSON.parse(log.changements||'{}');
+        const nv = c.nouveaux||[]; const mo = c.modifies||[];
+        changements = nv.length + mo.length;
+        if (nv.length) changeDetail += `<div class="small text-warning"><i class="fas fa-plus-circle me-1"></i>${nv.length} nouvelle(s) : ${nv.slice(0,3).join(', ')}${nv.length>3?'…':''}</div>`;
+        if (mo.length) changeDetail += `<div class="small text-info"><i class="fas fa-edit me-1"></i>${mo.length} modifiée(s)</div>`;
+      } catch(e){}
+      const ok = log.statut === 'ok';
+      return `<tr>
+        <td class="text-muted small">${formatDate(log.run_at)}</td>
+        <td><span class="badge" style="background:var(--bg-4);color:${log.declenche_par==='manuel'?'var(--warning)':'var(--t2)'}">${log.declenche_par==='manuel'?'👤 Manuel':'⏰ Auto'}</span></td>
+        <td class="text-center">${log.fiches_verifiees||'—'}</td>
+        <td><span style="color:${ok?'var(--success)':'var(--danger)'};font-weight:700">${ok?'✓ OK':'✗ Erreur'}</span>${log.erreur?`<div class="text-danger small text-truncate" style="max-width:200px">${escHtml(log.erreur)}</div>`:''}</td>
+        <td>${changements > 0 ? `<span style="color:var(--warning);font-weight:700">${changements}</span>${changeDetail}` : `<span class="text-muted">0</span>`}</td>
+        <td>${changeDetail || '<span class="text-muted small">RAS</span>'}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-danger"><i class="fas fa-exclamation-circle me-2"></i>Erreur : ' + escHtml(e.message) + '</td></tr>';
+  }
+}
+
+async function runVeilleManual() {
+  const btn = document.getElementById('veilleRunBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> En cours…'; }
+  try {
+    const r = await fetch('/api/admin/veille/run', { method: 'POST', headers: {'Content-Type':'application/json'} });
+    const d = await r.json();
+    if (r.ok) {
+      showToast('Veille lancée avec succès — résultats disponibles dans quelques secondes', 'success');
+      setTimeout(loadVeilleLogs, 3000);
+    } else {
+      showToast('Erreur : ' + (d.error || 'inconnue'), 'danger');
+    }
+  } catch(e) {
+    showToast('Erreur réseau : ' + e.message, 'danger');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-play me-1"></i> Lancer maintenant'; }
+  }
+}
+
+// ══════════════ DEVIS ADMIN ══════════════════════════════════════════════════
+
+const DEVIS_STATUT_LABELS = {
+  brouillon:'Brouillon', envoye:'Envoyé', accepte:'Accepté',
+  refuse:'Refusé', facture:'Facturé', paye:'Payé'
+};
+const DEVIS_STATUT_COLORS = {
+  brouillon:'var(--t3)', envoye:'var(--info)', accepte:'var(--success)',
+  refuse:'var(--danger)', facture:'var(--accent)', paye:'var(--success)'
+};
+
+async function loadDevisAdmin() {
+  const tbody = document.getElementById('devisTbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin"></i></td></tr>';
+  try {
+    const r = await fetch('/api/admin/devis?limit=20');
+    if (!r.ok) throw new Error('Non autorisé');
+    const data = await r.json();
+    const list = Array.isArray(data) ? data : (data.devis || []);
+    // KPIs
+    document.getElementById('devisKpiTotal').textContent = list.length;
+    document.getElementById('devisKpiDevis').textContent = list.filter(d=>d.type==='devis').length;
+    document.getElementById('devisKpiFactures').textContent = list.filter(d=>d.type==='facture').length;
+    const ca = list.filter(d=>d.type==='facture').reduce((s,d)=>s+(parseFloat(d.montant_ttc)||0),0);
+    document.getElementById('devisKpiCa').textContent = ca > 0 ? ca.toLocaleString('fr-FR',{minimumFractionDigits:2})+'€' : '0€';
+    const countEl = document.getElementById('devisCount');
+    if (countEl) countEl.textContent = `${list.length} document(s) créé(s)`;
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center py-5 text-muted"><i class="fas fa-file-invoice fa-2x mb-2 d-block opacity-25"></i>Aucun document.<br><a href="/devis.html" target="_blank" class="btn btn-sm btn-outline-primary mt-2">Créer le premier devis</a></td></tr>';
+      return;
+    }
+    tbody.innerHTML = list.map(d => {
+      const st = d.statut || 'brouillon';
+      return `<tr class="clickrow" onclick="window.open('/devis.html','_blank')">
+        <td><code class="text-primary">${escHtml(d.numero||'—')}</code></td>
+        <td><span class="badge" style="background:var(--bg-4);color:var(--t2)">${d.type==='facture'?'Facture':'Devis'}</span></td>
+        <td>${escHtml(d.client_nom||d.client_raison_sociale||'—')}</td>
+        <td class="text-muted small">${escHtml(d.nom_operation||d.code_fiche||'—')}</td>
+        <td class="fw-semibold">${d.montant_ttc?parseFloat(d.montant_ttc).toLocaleString('fr-FR',{minimumFractionDigits:2})+'€':'—'}</td>
+        <td><span class="badge" style="background:rgba(0,0,0,.3);color:${DEVIS_STATUT_COLORS[st]||'var(--t2)'};border:1px solid ${DEVIS_STATUT_COLORS[st]||'var(--border)'}30">${DEVIS_STATUT_LABELS[st]||st}</span></td>
+        <td class="text-muted small">${d.date_devis ? new Date(d.date_devis).toLocaleDateString('fr-FR') : '—'}</td>
+        <td><a href="/devis.html" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="fas fa-arrow-right"></i></a></td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-5 text-muted"><i class="fas fa-lock fa-2x mb-2 d-block"></i>Session expirée ou accès refusé.<br><small>${escHtml(e.message)}</small></td></tr>`;
+  }
 }
 
 // ── Exclure relance ───────────────────────────────────────────────────────────
