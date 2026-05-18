@@ -160,7 +160,7 @@
       <button class="btn btn-sm btn-outline-secondary d-none" id="btnCatalogue" onclick="openCatalogue()"><i class="fas fa-layer-group me-1"></i>Catalogue</button>
       <button class="btn btn-sm btn-outline-secondary d-none" id="btnTeam" onclick="openTeam()"><i class="fas fa-users me-1"></i>Mon équipe</button>
       <button class="btn btn-sm btn-primary" onclick="openDeposit()"><i class="fas fa-plus me-1"></i>Déposer un dossier</button>
-      <button class="btn btn-sm btn-outline-secondary" onclick="openPwModal()" title="Changer mon mot de passe"><i class="fas fa-key me-1"></i>Mot de passe</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="openAccountModal()" title="Mon compte"><i class="fas fa-id-card me-1"></i>Mon compte</button>
       <button class="btn btn-sm btn-outline-secondary" onclick="logout()"><i class="fas fa-right-from-bracket me-1"></i>Déconnexion</button>
     </div>
   </div>
@@ -347,31 +347,56 @@
   </div>
 </div>
 
-<!-- ══ MODAL MOT DE PASSE ══ -->
-<div class="modal fade" id="pwModal" tabindex="-1">
-  <div class="modal-dialog">
+<!-- ══ MODAL MON COMPTE ══ -->
+<div class="modal fade" id="accountModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
     <div class="modal-content border-0 rounded-4">
       <div class="modal-header border-bottom">
-        <h5 class="modal-title fw-bold"><i class="fas fa-key me-2" style="color:var(--accent)"></i>Changer mon mot de passe</h5>
+        <h5 class="modal-title fw-bold"><i class="fas fa-id-card me-2" style="color:var(--accent)"></i>Mon compte</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body p-4">
+
+        <div id="accProfileSection" class="d-none">
+          <div class="fw-semibold mb-3"><i class="fas fa-building me-2" style="color:var(--accent)"></i>Coordonnées de l'organisation</div>
+          <div id="profileError" class="alert alert-danger d-none py-2"></div>
+          <form id="profileForm">
+            <div class="row g-2">
+              <div class="col-md-7"><label class="form-label">Raison sociale <span class="text-danger">*</span></label><input class="form-control form-control-sm" id="prNom" required></div>
+              <div class="col-md-5"><label class="form-label">SIRET</label><input class="form-control form-control-sm" id="prSiret"></div>
+              <div class="col-12"><label class="form-label">Adresse</label><input class="form-control form-control-sm" id="prAdresse"></div>
+              <div class="col-md-4"><label class="form-label">Code postal</label><input class="form-control form-control-sm" id="prCp"></div>
+              <div class="col-md-8"><label class="form-label">Ville</label><input class="form-control form-control-sm" id="prVille"></div>
+              <div class="col-md-6"><label class="form-label">Email</label><input class="form-control form-control-sm" type="email" id="prEmail"></div>
+              <div class="col-md-6"><label class="form-label">Téléphone</label><input class="form-control form-control-sm" id="prTel"></div>
+              <div class="col-12"><label class="form-label">Site web</label><input class="form-control form-control-sm" id="prSite" placeholder="https://"></div>
+            </div>
+            <button class="btn btn-sm btn-primary mt-3" type="submit"><i class="fas fa-save me-1"></i>Enregistrer les coordonnées</button>
+          </form>
+          <div class="fw-semibold mt-4 mb-2"><i class="fas fa-image me-2" style="color:var(--accent)"></i>Logo</div>
+          <div class="d-flex align-items-center gap-3">
+            <div id="logoPreview" style="width:88px;height:88px;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--bg-3);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
+              <i class="fas fa-image" style="color:var(--t3);font-size:1.5rem"></i>
+            </div>
+            <div>
+              <input type="file" class="form-control form-control-sm" id="logoInput" accept="image/png,image/jpeg,image/svg+xml,image/webp" style="max-width:280px">
+              <div class="form-text small">PNG, JPG, SVG ou WebP — 3 Mo max.</div>
+            </div>
+          </div>
+          <hr style="border-color:var(--border);margin:22px 0">
+        </div>
+
+        <div class="fw-semibold mb-3"><i class="fas fa-key me-2" style="color:var(--accent)"></i>Mot de passe</div>
         <div id="pwError" class="alert alert-danger d-none py-2"></div>
         <form id="pwForm">
-          <div class="mb-3">
-            <label class="form-label">Mot de passe actuel</label>
-            <input class="form-control" type="password" id="pwCurrent" autocomplete="current-password" required>
+          <div class="row g-2">
+            <div class="col-md-4"><label class="form-label">Mot de passe actuel</label><input class="form-control form-control-sm" type="password" id="pwCurrent" autocomplete="current-password" required></div>
+            <div class="col-md-4"><label class="form-label">Nouveau <span style="font-size:.72rem;color:var(--t3)">— 6 car. min</span></label><input class="form-control form-control-sm" type="password" id="pwNew" autocomplete="new-password" minlength="6" required></div>
+            <div class="col-md-4"><label class="form-label">Confirmer</label><input class="form-control form-control-sm" type="password" id="pwConfirm" autocomplete="new-password" minlength="6" required></div>
           </div>
-          <div class="mb-3">
-            <label class="form-label">Nouveau mot de passe <span style="font-size:.76rem;color:var(--t3)">— 6 caractères minimum</span></label>
-            <input class="form-control" type="password" id="pwNew" autocomplete="new-password" minlength="6" required>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Confirmer le nouveau mot de passe</label>
-            <input class="form-control" type="password" id="pwConfirm" autocomplete="new-password" minlength="6" required>
-          </div>
-          <button class="btn btn-primary w-100" type="submit"><i class="fas fa-check me-1"></i>Enregistrer</button>
+          <button class="btn btn-sm btn-primary mt-3" type="submit"><i class="fas fa-check me-1"></i>Changer le mot de passe</button>
         </form>
+
       </div>
     </div>
   </div>
@@ -834,12 +859,63 @@ async function deleteOperation(id) {
   else showToast('Erreur', 'danger');
 }
 
-// ── Mon mot de passe ──
-function openPwModal() {
+// ── Mon compte ──
+function openAccountModal() {
   document.getElementById('pwForm').reset();
   document.getElementById('pwError').classList.add('d-none');
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('pwModal')).show();
+  const isAdmin = myRole === 'admin_partenaire';
+  document.getElementById('accProfileSection').classList.toggle('d-none', !isAdmin);
+  if (isAdmin) loadProfile();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('accountModal')).show();
 }
+async function loadProfile() {
+  document.getElementById('profileError').classList.add('d-none');
+  try {
+    const p = await (await fetch('/api/partner/profile')).json();
+    document.getElementById('prNom').value     = p.nom || '';
+    document.getElementById('prSiret').value   = p.siret || '';
+    document.getElementById('prAdresse').value = p.adresse || '';
+    document.getElementById('prCp').value      = p.code_postal || '';
+    document.getElementById('prVille').value   = p.ville || '';
+    document.getElementById('prEmail').value   = p.email || '';
+    document.getElementById('prTel').value     = p.telephone || '';
+    document.getElementById('prSite').value    = p.site_web || '';
+    document.getElementById('logoPreview').innerHTML = p.logo_url
+      ? `<img src="${escH(p.logo_url)}?t=${Date.now()}" style="width:100%;height:100%;object-fit:contain">`
+      : '<i class="fas fa-image" style="color:var(--t3);font-size:1.5rem"></i>';
+  } catch(e) {}
+}
+document.getElementById('profileForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const err = document.getElementById('profileError'); err.classList.add('d-none');
+  const body = {
+    nom: document.getElementById('prNom').value.trim(),
+    siret: document.getElementById('prSiret').value.trim(),
+    adresse: document.getElementById('prAdresse').value.trim(),
+    code_postal: document.getElementById('prCp').value.trim(),
+    ville: document.getElementById('prVille').value.trim(),
+    email: document.getElementById('prEmail').value.trim(),
+    telephone: document.getElementById('prTel').value.trim(),
+    site_web: document.getElementById('prSite').value.trim()
+  };
+  if (!body.nom) { err.textContent = 'La raison sociale est requise'; err.classList.remove('d-none'); return; }
+  const r = await fetch('/api/partner/profile', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok && d.success) showToast('Coordonnées enregistrées');
+  else { err.textContent = d.error || 'Erreur'; err.classList.remove('d-none'); }
+});
+document.getElementById('logoInput').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const fd = new FormData(); fd.append('logo', file);
+  const r = await fetch('/api/partner/logo', { method:'POST', body:fd });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok && d.success) {
+    document.getElementById('logoPreview').innerHTML = `<img src="${escH(d.logo_url)}?t=${Date.now()}" style="width:100%;height:100%;object-fit:contain">`;
+    showToast('Logo mis à jour');
+  } else showToast(d.error || 'Erreur logo', 'danger');
+  e.target.value = '';
+});
 document.getElementById('pwForm').addEventListener('submit', async e => {
   e.preventDefault();
   const err = document.getElementById('pwError'); err.classList.add('d-none');
@@ -851,10 +927,8 @@ document.getElementById('pwForm').addEventListener('submit', async e => {
   const r = await fetch('/api/partner/change-password', { method:'POST', headers:{'Content-Type':'application/json'},
     body:JSON.stringify({ current_password:cur, new_password:nw }) });
   const d = await r.json().catch(() => ({}));
-  if (r.ok && d.success) {
-    bootstrap.Modal.getInstance(document.getElementById('pwModal')).hide();
-    showToast('Mot de passe mis à jour');
-  } else { err.textContent = d.error || 'Erreur'; err.classList.remove('d-none'); }
+  if (r.ok && d.success) { document.getElementById('pwForm').reset(); showToast('Mot de passe mis à jour'); }
+  else { err.textContent = d.error || 'Erreur'; err.classList.remove('d-none'); }
 });
 
 // ── Helpers ──

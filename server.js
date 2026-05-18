@@ -19,7 +19,8 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Perruche2b';
 const DATA_DIR    = path.join(__dirname, 'data');
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 const PUBLIC_DIR  = path.join(__dirname, 'public');
-[DATA_DIR, UPLOADS_DIR, path.join(PUBLIC_DIR, 'data')].forEach(dir => {
+const LOGOS_DIR   = path.join(PUBLIC_DIR, 'logos');
+[DATA_DIR, UPLOADS_DIR, LOGOS_DIR, path.join(PUBLIC_DIR, 'data')].forEach(dir => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
@@ -196,6 +197,32 @@ L'équipe Plateforme CEE` }
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// ── Routage par domaine ───────────────────────────────────────────────────────
+// compte.echowai.com → plateforme (admin / partenaire / apporteur)
+// echowai.com        → vitrine institutionnelle + /beneficiaire
+const COMPTE_HOST = 'compte.echowai.com';
+const MAIN_HOSTS  = ['echowai.com', 'www.echowai.com'];
+app.use((req, res, next) => {
+  if (req.method !== 'GET' || req.path.startsWith('/api/')) return next();
+  const host = (req.hostname || '').toLowerCase();
+  const u = req.path;
+  if (host === COMPTE_HOST) {
+    if (u === '/' || u === '/index.html') return res.sendFile(path.join(PUBLIC_DIR, 'compte.html'));
+    if (u === '/beneficiaire' || u === '/portal.html') return res.redirect(301, 'https://echowai.com/beneficiaire');
+    return next();
+  }
+  if (MAIN_HOSTS.includes(host)) {
+    if (u === '/admin'      || u === '/admin.html')      return res.redirect(301, 'https://' + COMPTE_HOST + '/admin.html');
+    if (u === '/partenaire' || u === '/partenaire.html') return res.redirect(301, 'https://' + COMPTE_HOST + '/partenaire.html');
+    if (u === '/compte.html')                            return res.redirect(301, 'https://' + COMPTE_HOST + '/');
+    return next();
+  }
+  return next(); // localhost / dev : tout est servi, aucune redirection
+});
+// Portail bénéficiaire — accessible sur echowai.com/beneficiaire
+app.get('/beneficiaire', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'portal.html')));
+
 app.use(express.static(PUBLIC_DIR));
 app.use(session({
   secret: process.env.SESSION_SECRET || 'cee-platform-secret-2024',
@@ -231,6 +258,19 @@ const uploadBenef = multer({
 });
 
 const csvXlsxUpload = multer({ storage: multer.memoryStorage() });
+
+// Logo partenaire : images uniquement, stockées dans public/logos (servies en statique)
+const uploadLogo = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, LOGOS_DIR),
+    filename:    (req, file, cb) => cb(null, 'logo-' + Date.now() + '-' + Math.round(Math.random() * 1e9) + path.extname(file.originalname).toLowerCase())
+  }),
+  limits: { fileSize: 3 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = ['.jpg','.jpeg','.png','.svg','.webp'];
+    ok.includes(path.extname(file.originalname).toLowerCase()) ? cb(null, true) : cb(new Error('Image requise (jpg, png, svg, webp)'));
+  }
+});
 
 // ── Rate limiting (login) ─────────────────────────────────────────────────────
 const loginAttempts = new Map(); // ip → { count, resetAt }
@@ -1846,6 +1886,34 @@ app.post('/api/partner/change-password', requirePartner, (req, res) => {
       return res.status(403).json({ error: 'Mot de passe actuel incorrect' });
     db.run('UPDATE comptes SET password_hash=? WHERE id=?', [hashPassword(new_password), req.session.compteId],
       e => e ? res.status(500).json({ error: e.message }) : res.json({ success: true }));
+  });
+});
+
+// Profil de l'organisation partenaire — l'admin partenaire gère ses coordonnées
+app.get('/api/partner/profile', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    db.get('SELECT id,nom,siret,adresse,code_postal,ville,email,telephone,site_web,logo_url FROM partenaires WHERE id=?',
+      [s.partenaire_id], (err, row) => err ? res.status(500).json({ error: err.message }) : res.json(row || {}));
+  });
+});
+app.put('/api/partner/profile', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    const f = req.body;
+    if (!f.nom || !String(f.nom).trim()) return res.status(400).json({ error: 'Le nom est requis' });
+    db.run(`UPDATE partenaires SET nom=?,siret=?,adresse=?,code_postal=?,ville=?,email=?,telephone=?,site_web=? WHERE id=?`,
+      [String(f.nom).trim(), f.siret||'', f.adresse||'', f.code_postal||'', f.ville||'', f.email||'', f.telephone||'', f.site_web||'', s.partenaire_id],
+      err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+  });
+});
+app.post('/api/partner/logo', requireRole('admin_partenaire'), (req, res) => {
+  uploadLogo.single('logo')(req, res, (err) => {
+    if (err)        return res.status(400).json({ error: err.message || 'Upload échoué' });
+    if (!req.file)  return res.status(400).json({ error: 'Aucun fichier reçu' });
+    partnerScope(req, res, (s) => {
+      const url = '/logos/' + req.file.filename;
+      db.run('UPDATE partenaires SET logo_url=? WHERE id=?', [url, s.partenaire_id],
+        e => e ? res.status(500).json({ error: e.message }) : res.json({ success: true, logo_url: url }));
+    });
   });
 });
 

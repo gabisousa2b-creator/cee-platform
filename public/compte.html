@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EchoWAI — Accès plateforme</title>
+  <meta name="robots" content="noindex">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/echowai.css">
+  <style>
+    body { background:var(--bg-0); min-height:100vh; display:flex; align-items:center; overflow-x:hidden; }
+    .orb { position:fixed; border-radius:50%; filter:blur(90px); opacity:.5; z-index:0; pointer-events:none; }
+    .orb-1 { width:520px; height:520px; top:-200px; right:-140px; background:radial-gradient(circle,var(--accent-glow),transparent 70%); }
+    .orb-2 { width:460px; height:460px; bottom:-180px; left:-160px; background:radial-gradient(circle,rgba(91,140,255,.2),transparent 70%); }
+    .hub { position:relative; z-index:1; max-width:760px; margin:0 auto; padding:48px 22px; width:100%; }
+    .logo-box { width:78px; height:78px; border-radius:var(--r-lg);
+      background:linear-gradient(135deg,var(--accent),var(--accent-2));
+      display:flex; align-items:center; justify-content:center; font-size:2rem; color:#04201B;
+      margin:0 auto 20px; box-shadow:0 0 46px -8px var(--accent-glow); }
+    .hub h1 { font-size:2rem; font-weight:700; letter-spacing:-.03em; color:var(--t1); text-align:center; margin-bottom:6px; }
+    .hub h1 span { color:var(--accent); }
+    .hub .sub { text-align:center; color:var(--t2); font-size:.96rem; margin-bottom:34px; }
+    .cards { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+    .acc { display:block; text-decoration:none; background:var(--glass-fill);
+      -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+      border:1px solid var(--border); border-radius:var(--r-xl); padding:32px 26px;
+      transition:transform .17s, border-color .17s, box-shadow .17s; position:relative; overflow:hidden; }
+    .acc::before { content:''; position:absolute; top:0; left:0; right:0; height:1px;
+      background:linear-gradient(90deg,transparent,var(--accent-line),transparent); opacity:0; transition:opacity .17s; }
+    .acc:hover { transform:translateY(-5px); border-color:var(--accent-line); box-shadow:var(--shadow-lg); }
+    .acc:hover::before { opacity:1; }
+    .acc-ic { width:58px; height:58px; border-radius:var(--r-lg);
+      display:flex; align-items:center; justify-content:center; font-size:1.5rem; margin-bottom:18px; }
+    .acc h3 { font-size:1.18rem; font-weight:700; color:var(--t1); margin-bottom:8px; }
+    .acc p { color:var(--t2); font-size:.87rem; line-height:1.6; margin-bottom:18px; }
+    .acc-go { color:var(--accent); font-size:.86rem; font-weight:700; display:inline-flex; align-items:center; gap:7px; }
+    .hub-foot { text-align:center; margin-top:32px; color:var(--t3); font-size:.79rem; }
+    .hub-foot a { color:var(--t3); text-decoration:none; }
+    .hub-foot a:hover { color:var(--accent); }
+    @media (max-width:620px) { .cards { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="hub">
+    <div class="logo-box"><i class="fas fa-bolt"></i></div>
+    <h1>Echo<span>WAI</span> — Plateforme</h1>
+    <div class="sub">Accédez à votre espace de travail</div>
+    <div class="cards">
+      <a href="/partenaire.html" class="acc">
+        <div class="acc-ic" style="background:rgba(91,140,255,.14);border:1px solid rgba(91,140,255,.4);color:var(--BAR)"><i class="fas fa-handshake"></i></div>
+        <h3>Espace partenaire</h3>
+        <p>Apporteurs d'affaires et administrateurs partenaires : dossiers, équipe et catalogue d'opérations.</p>
+        <span class="acc-go">Se connecter <i class="fas fa-arrow-right"></i></span>
+      </a>
+      <a href="/admin.html" class="acc">
+        <div class="acc-ic" style="background:rgba(169,139,255,.14);border:1px solid rgba(169,139,255,.4);color:var(--purple)"><i class="fas fa-shield-halved"></i></div>
+        <h3>Administration</h3>
+        <p>Pilotage de la plateforme : dossiers, partenaires, fiches d'opérations et paramètres.</p>
+        <span class="acc-go">Se connecter <i class="fas fa-arrow-right"></i></span>
+      </a>
+    </div>
+    <div class="hub-foot">
+      EchoWAI © 2026 · <a href="https://echowai.com">echowai.com</a> · <a href="https://echowai.com/beneficiaire">Espace bénéficiaire</a>
+    </div>
+  </div>
+</body>
+</html>
