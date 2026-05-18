@@ -546,6 +546,7 @@
       <div class="sidebar-section-label">CRM</div>
       <div class="nav-item-s active" data-section="dashboard" onclick="showSection('dashboard')"><i class="fas fa-gauge-high fa-fw"></i> Tableau de bord</div>
       <div class="nav-item-s" data-section="beneficiaires" onclick="showSection('beneficiaires')"><i class="fas fa-users fa-fw"></i> Bénéficiaires</div>
+      <div class="nav-item-s" data-section="partenaires" onclick="showSection('partenaires')"><i class="fas fa-handshake fa-fw"></i> Partenaires</div>
       <div class="nav-item-s" data-section="operations" onclick="showSection('operations')"><i class="fas fa-bolt fa-fw"></i> Opérations CEE</div>
       <div class="nav-item-s" data-section="taches" onclick="showSection('taches')">
         <i class="fas fa-check-square fa-fw"></i> Tâches
@@ -1326,6 +1327,32 @@
         </div>
       </div>
     </div>
+
+    <!-- ══ PARTENAIRES ══ -->
+    <div id="sectionPartenaires" style="display:none">
+      <div class="topbar">
+        <div>
+          <h4 class="fw-bold mb-0"><i class="fas fa-handshake me-2" style="color:var(--accent)"></i>Partenaires</h4>
+          <div class="text-muted small mt-1" id="partenairesCount">—</div>
+        </div>
+        <button class="btn btn-primary" onclick="openPartenaireModal()"><i class="fas fa-plus me-2"></i>Nouveau partenaire</button>
+      </div>
+      <div class="table-card">
+        <div class="table-responsive">
+          <table class="table mb-0">
+            <thead>
+              <tr><th>Partenaire</th><th>Contact</th><th>Ville</th><th>Dossiers</th><th>Compte d'accès</th><th></th></tr>
+            </thead>
+            <tbody id="partenairesBody">
+              <tr><td colspan="6" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin"></i></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="alert alert-light border small mt-3 mb-0">
+        <i class="fas fa-circle-info me-1"></i>Un partenaire dont le compte est <strong>actif</strong> peut se connecter sur <code>/partenaire.html</code> et consulter ses dossiers en lecture seule. Les dossiers sont rattachés via le champ « Partenaire apporteur » de la fiche bénéficiaire.
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1360,10 +1387,8 @@
               <label class="form-label">Partenaire apporteur</label>
               <select class="form-select" name="partenaire" id="createPartenaire">
                 <option value="">— Aucun partenaire —</option>
-                <option value="Relève Energie">Relève Energie</option>
-                <option value="France Eco Habitat">France Eco Habitat</option>
               </select>
-              <div class="form-text small">Le bénéficiaire verra les coordonnées de ce partenaire sur son espace.</div>
+              <div class="form-text small">Rattache le dossier à un partenaire — il le verra dans son espace dédié.</div>
             </div>
             <div class="col-12">
               <label class="form-label">Activité</label>
@@ -1590,6 +1615,78 @@
   </div>
 </div>
 
+<!-- ══ PARTENAIRE MODAL ══ -->
+<div class="modal fade" id="partenaireModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-0 rounded-4">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fw-bold" id="partenaireModalTitle">Nouveau partenaire</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="partenaireForm">
+        <div class="modal-body p-4">
+          <div id="partenaireError" class="alert alert-danger d-none"></div>
+          <input type="hidden" id="partenaireId">
+          <div class="row g-3">
+            <div class="col-md-7"><label class="form-label">Nom du partenaire <span class="text-danger">*</span></label><input class="form-control" id="pNom" required></div>
+            <div class="col-md-5"><label class="form-label">SIRET</label><input class="form-control" id="pSiret"></div>
+            <div class="col-md-6"><label class="form-label">Email</label><input type="email" class="form-control" id="pEmail"></div>
+            <div class="col-md-6"><label class="form-label">Téléphone</label><input class="form-control" id="pTel"></div>
+            <div class="col-12"><label class="form-label">Adresse</label><input class="form-control" id="pAdresse"></div>
+            <div class="col-md-4"><label class="form-label">Code postal</label><input class="form-control" id="pCp"></div>
+            <div class="col-md-8"><label class="form-label">Ville</label><input class="form-control" id="pVille"></div>
+            <div class="col-md-6"><label class="form-label">Site web</label><input class="form-control" id="pSite"></div>
+            <div class="col-md-6"><label class="form-label">Rôle / type</label><input class="form-control" id="pRole" placeholder="Ex : Mandataire CEE, Apporteur…"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+          <button type="submit" class="btn btn-primary px-4">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ══ COMPTE PARTENAIRE MODAL ══ -->
+<div class="modal fade" id="compteModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 rounded-4">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fw-bold"><i class="fas fa-key me-2" style="color:var(--accent)"></i>Compte d'accès partenaire</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div id="compteError" class="alert alert-danger d-none"></div>
+        <div class="mb-3"><div class="fw-semibold" id="compteNom"></div><div class="text-muted small">Identifiants de connexion à l'espace partenaire</div></div>
+        <input type="hidden" id="compteId">
+        <div class="mb-3">
+          <label class="form-label">Email de connexion</label>
+          <input type="email" class="form-control" id="compteEmail" placeholder="login@partenaire.fr">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Mot de passe <span class="text-muted small" id="comptePwHint"></span></label>
+          <div class="input-group">
+            <input type="text" class="form-control" id="comptePw" placeholder="6 caractères minimum">
+            <button class="btn btn-outline-secondary" type="button" onclick="genPassword()"><i class="fas fa-dice me-1"></i>Générer</button>
+          </div>
+        </div>
+        <div class="form-check form-switch mb-3">
+          <input class="form-check-input" type="checkbox" id="compteActif">
+          <label class="form-check-label" for="compteActif">Compte actif — le partenaire peut se connecter</label>
+        </div>
+        <div class="alert alert-light border small mb-0">
+          <i class="fas fa-circle-info me-1"></i>Communiquez l'email et le mot de passe au partenaire. Le mot de passe n'est pas récupérable ensuite — laissez le champ vide pour le conserver inchangé.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+        <button type="button" class="btn btn-primary px-4" onclick="saveCompte()"><i class="fas fa-save me-2"></i>Enregistrer le compte</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ TOAST CONTAINER ══ -->
 <div class="toast-container" id="toastContainer"></div>
 
@@ -1633,6 +1730,7 @@ function showApp() {
   loadActivityFeed();
   loadActivites();
   loadTaches();
+  loadPartenaires();
   pollNotifications();
 }
 
@@ -1649,7 +1747,7 @@ async function loadActivites() {
 function showSection(name) {
   document.querySelectorAll('[data-section]').forEach(el => el.classList.remove('active'));
   document.querySelector(`[data-section="${name}"]`)?.classList.add('active');
-  const sections = ['dashboard','beneficiaires','operations','taches','emails','notifications','biblio_fiches','veille','devis'];
+  const sections = ['dashboard','beneficiaires','partenaires','operations','taches','emails','notifications','biblio_fiches','veille','devis'];
   sections.forEach(s => {
     const key = s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
     const domKey = key.charAt(0).toUpperCase() + key.slice(1);
@@ -1671,6 +1769,7 @@ function showSection(name) {
   if (name === 'biblio_fiches')  loadBiblioFiches();
   if (name === 'veille')         loadVeilleLogs();
   if (name === 'devis')          loadDevisAdmin();
+  if (name === 'partenaires')    loadPartenaires();
 }
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
@@ -2269,9 +2368,7 @@ async function openDetail(id) {
             <label class="form-label small fw-semibold">Partenaire apporteur</label>
             <select class="form-select" name="partenaire">
               <option value="" ${!b.partenaire?'selected':''}>— Aucun —</option>
-              <option value="Relève Energie" ${b.partenaire==='Relève Energie'?'selected':''}>Relève Energie</option>
-              <option value="France Eco Habitat" ${b.partenaire==='France Eco Habitat'?'selected':''}>France Eco Habitat</option>
-              ${b.partenaire && b.partenaire!=='Relève Energie' && b.partenaire!=='France Eco Habitat' ? `<option value="${escAttr(b.partenaire)}" selected>${escHtml(b.partenaire)}</option>` : ''}
+              ${partenaireOptionsHtml(b.partenaire)}
             </select>
           </div>
           <div class="col-12">
@@ -3481,6 +3578,154 @@ async function toggleExcludeRelance(checked) {
   });
   if (r.ok) showToast(checked ? 'Bénéficiaire exclu des relances' : 'Bénéficiaire inclus dans les relances');
   else showToast('Erreur lors de la mise à jour', 'danger');
+}
+
+// ══════════════ PARTENAIRES ══════════════
+let allPartenaires = [];
+let partenaireNames = [];
+
+async function loadPartenaires() {
+  try {
+    const r = await fetch('/api/admin/partenaires');
+    allPartenaires = await r.json();
+  } catch(e) { allPartenaires = []; }
+  partenaireNames = allPartenaires.map(p => p.nom);
+
+  // Sélecteur du formulaire de création bénéficiaire
+  const sel = document.getElementById('createPartenaire');
+  if (sel) {
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— Aucun partenaire —</option>' +
+      partenaireNames.map(n => `<option value="${escAttr(n)}">${escHtml(n)}</option>`).join('');
+    if (cur) sel.value = cur;
+  }
+
+  const cnt = document.getElementById('partenairesCount');
+  if (cnt) cnt.textContent = `${allPartenaires.length} partenaire(s)`;
+  const tb = document.getElementById('partenairesBody');
+  if (!tb) return;
+  if (!allPartenaires.length) {
+    tb.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-muted"><i class="fas fa-handshake fa-2x mb-2 d-block opacity-25"></i>Aucun partenaire. Créez-en un pour commencer.</td></tr>';
+    return;
+  }
+  tb.innerHTML = allPartenaires.map(p => {
+    let compte;
+    if (!p.login_email)      compte = '<span class="badge bg-secondary">Non créé</span>';
+    else if (p.compte_actif) compte = `<span class="badge bg-success">Actif</span> <span class="text-muted small">${escHtml(p.login_email)}</span>`;
+    else                     compte = `<span class="badge bg-warning text-dark">Inactif</span> <span class="text-muted small">${escHtml(p.login_email)}</span>`;
+    return `<tr>
+      <td><strong>${escHtml(p.nom)}</strong>${p.siret?`<div class="text-muted" style="font-size:.72rem">SIRET ${escHtml(p.siret)}</div>`:''}</td>
+      <td class="small">${escHtml(p.email||'—')}${p.telephone?`<div class="text-muted" style="font-size:.72rem">${escHtml(p.telephone)}</div>`:''}</td>
+      <td class="text-muted small">${escHtml(p.ville||'—')}</td>
+      <td><span class="badge bg-primary">${p.nb_dossiers||0}</span></td>
+      <td>${compte}</td>
+      <td class="text-nowrap">
+        <button class="btn btn-sm btn-outline-primary me-1" onclick="openCompteModal(${p.id})" title="Compte d'accès"><i class="fas fa-key"></i></button>
+        <button class="btn btn-sm btn-outline-secondary me-1" onclick="openPartenaireModal(${p.id})" title="Modifier"><i class="fas fa-pen"></i></button>
+        <button class="btn btn-sm btn-outline-danger" onclick="deletePartenaire(${p.id})" title="Supprimer"><i class="fas fa-trash"></i></button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function partenaireOptionsHtml(selected) {
+  let opts = partenaireNames.map(n => `<option value="${escAttr(n)}" ${n===selected?'selected':''}>${escHtml(n)}</option>`).join('');
+  if (selected && !partenaireNames.includes(selected)) opts += `<option value="${escAttr(selected)}" selected>${escHtml(selected)}</option>`;
+  return opts;
+}
+
+function openPartenaireModal(id) {
+  const p = id ? allPartenaires.find(x => x.id === id) : null;
+  document.getElementById('partenaireForm').reset();
+  document.getElementById('partenaireError').classList.add('d-none');
+  document.getElementById('partenaireId').value = p ? p.id : '';
+  document.getElementById('partenaireModalTitle').textContent = p ? 'Modifier le partenaire' : 'Nouveau partenaire';
+  const g = elId => document.getElementById(elId);
+  g('pNom').value = p?.nom || '';
+  g('pSiret').value = p?.siret || '';
+  g('pEmail').value = p?.email || '';
+  g('pTel').value = p?.telephone || '';
+  g('pAdresse').value = p?.adresse || '';
+  g('pCp').value = p?.code_postal || '';
+  g('pVille').value = p?.ville || '';
+  g('pSite').value = p?.site_web || '';
+  g('pRole').value = p?.role_defaut || '';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('partenaireModal')).show();
+}
+
+document.getElementById('partenaireForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const id = document.getElementById('partenaireId').value;
+  const body = {
+    nom:         document.getElementById('pNom').value.trim(),
+    siret:       document.getElementById('pSiret').value.trim(),
+    email:       document.getElementById('pEmail').value.trim(),
+    telephone:   document.getElementById('pTel').value.trim(),
+    adresse:     document.getElementById('pAdresse').value.trim(),
+    code_postal: document.getElementById('pCp').value.trim(),
+    ville:       document.getElementById('pVille').value.trim(),
+    site_web:    document.getElementById('pSite').value.trim(),
+    role_defaut: document.getElementById('pRole').value.trim()
+  };
+  const errEl = document.getElementById('partenaireError');
+  if (!body.nom) { errEl.textContent = 'Le nom est requis'; errEl.classList.remove('d-none'); return; }
+  const r = await fetch(id ? `/api/admin/partenaires/${id}` : '/api/admin/partenaires', {
+    method: id ? 'PUT' : 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify(body)
+  });
+  if (r.ok) {
+    bootstrap.Modal.getInstance(document.getElementById('partenaireModal')).hide();
+    showToast(id ? 'Partenaire mis à jour' : 'Partenaire créé');
+    loadPartenaires();
+  } else { const d = await r.json(); errEl.textContent = d.error || 'Erreur'; errEl.classList.remove('d-none'); }
+});
+
+function openCompteModal(id) {
+  const p = allPartenaires.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('compteError').classList.add('d-none');
+  document.getElementById('compteId').value = p.id;
+  document.getElementById('compteNom').textContent = p.nom;
+  document.getElementById('compteEmail').value = p.login_email || p.email || '';
+  document.getElementById('comptePw').value = '';
+  document.getElementById('compteActif').checked = !!p.compte_actif;
+  document.getElementById('comptePwHint').textContent = p.login_email ? '· laisser vide = inchangé' : '';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('compteModal')).show();
+}
+
+function genPassword() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  let pw = '';
+  for (let i = 0; i < 10; i++) pw += chars[Math.floor(Math.random() * chars.length)];
+  document.getElementById('comptePw').value = pw;
+}
+
+async function saveCompte() {
+  const id = document.getElementById('compteId').value;
+  const errEl = document.getElementById('compteError');
+  errEl.classList.add('d-none');
+  const login_email = document.getElementById('compteEmail').value.trim();
+  const password = document.getElementById('comptePw').value;
+  const compte_actif = document.getElementById('compteActif').checked;
+  if (!login_email) { errEl.textContent = 'Email de connexion requis'; errEl.classList.remove('d-none'); return; }
+  if (password && password.length < 6) { errEl.textContent = 'Mot de passe : 6 caractères minimum'; errEl.classList.remove('d-none'); return; }
+  const body = { login_email, compte_actif };
+  if (password) body.password = password;
+  const r = await fetch(`/api/admin/partenaires/${id}/compte`, {
+    method: 'PUT', headers: { 'Content-Type':'application/json' }, body: JSON.stringify(body)
+  });
+  if (r.ok) {
+    bootstrap.Modal.getInstance(document.getElementById('compteModal')).hide();
+    showToast('Compte partenaire enregistré');
+    loadPartenaires();
+  } else { const d = await r.json(); errEl.textContent = d.error || 'Erreur'; errEl.classList.remove('d-none'); }
+}
+
+async function deletePartenaire(id) {
+  const p = allPartenaires.find(x => x.id === id);
+  if (!confirm(`Supprimer le partenaire "${p?.nom||''}" ? Son compte d'accès sera désactivé. Les dossiers liés ne sont pas supprimés.`)) return;
+  const r = await fetch(`/api/admin/partenaires/${id}`, { method: 'DELETE' });
+  if (r.ok) { showToast('Partenaire supprimé'); loadPartenaires(); }
+  else showToast('Erreur lors de la suppression', 'danger');
 }
 
 // Drag-drop import

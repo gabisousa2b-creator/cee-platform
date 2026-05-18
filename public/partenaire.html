@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Espace Partenaire — EchoWAI CEE</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/echowai.css">
+  <style>
+    /* Espace partenaire — design system → /css/echowai.css */
+    #loginScreen { min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+    .login-card {
+      background:var(--glass-fill);
+      -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+      border:1px solid var(--border-light); border-radius:var(--r-xl);
+      padding:42px 38px; width:100%; max-width:430px; box-shadow:var(--shadow-lg);
+      position:relative; overflow:hidden;
+    }
+    .login-card::before { content:''; position:absolute; top:0; left:0; right:0; height:1px;
+      background:linear-gradient(90deg,transparent,var(--accent-line),transparent); }
+    .login-logo { width:66px; height:66px; background:linear-gradient(135deg,var(--accent),var(--accent-2));
+      border-radius:var(--r-lg); display:flex; align-items:center; justify-content:center;
+      font-size:1.7rem; color:#04201B; margin:0 auto 22px; box-shadow:0 0 36px -6px var(--accent-glow); }
+
+    #appScreen { display:none; }
+    .topbar-p {
+      background:var(--glass-fill);
+      -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+      border-bottom:1px solid var(--border);
+      padding:13px 26px; display:flex; align-items:center; justify-content:space-between;
+      position:sticky; top:0; z-index:200;
+    }
+    .brand-p { font-weight:700; color:var(--t1); font-size:1.02rem; letter-spacing:-.02em; }
+    .brand-p span { color:var(--accent); }
+    .main-p { max-width:1180px; margin:0 auto; padding:28px 26px 64px; }
+
+    .hero-p {
+      background:linear-gradient(135deg, rgba(31,227,194,.07), rgba(91,140,255,.05) 60%, rgba(255,255,255,.014));
+      -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+      border:1px solid var(--border-light); border-radius:var(--r-xl);
+      padding:24px 28px; margin-bottom:20px; position:relative; overflow:hidden;
+    }
+    .hero-p::before { content:''; position:absolute; top:0; left:0; right:0; height:1px;
+      background:linear-gradient(90deg,transparent,var(--accent-line),transparent); }
+
+    .card-p {
+      background:var(--glass-fill);
+      -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+      border:1px solid var(--border); border-radius:var(--r-lg);
+      box-shadow:var(--shadow-md), inset 0 1px 0 rgba(255,255,255,.045);
+    }
+    .stat-num { font-size:2rem; font-weight:800; letter-spacing:-.5px; line-height:1; }
+    .stat-lbl { font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.6px; color:var(--t2); }
+
+    table.tbl-p { width:100%; border-collapse:collapse; }
+    table.tbl-p thead th { background:var(--glass-2); font-size:.72rem; font-weight:600;
+      text-transform:uppercase; letter-spacing:.6px; color:var(--t2);
+      padding:12px 16px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap; }
+    table.tbl-p tbody td { padding:12px 16px; font-size:.875rem; border-bottom:1px solid var(--hair); color:var(--t1); }
+    table.tbl-p tbody tr { transition:background .12s; cursor:pointer; }
+    table.tbl-p tbody tr:hover td { background:var(--glass-1); }
+
+    .badge-statut { padding:3px 10px; border-radius:20px; font-size:.7rem; font-weight:700; white-space:nowrap; }
+    .s-en_attente      { background:var(--warning-dim); color:var(--warning); border:1px solid rgba(255,178,62,.3); }
+    .s-en_cours        { background:var(--info-dim);    color:var(--info);    border:1px solid rgba(91,140,255,.3); }
+    .s-documents_recus { background:rgba(255,150,60,.13);color:#FFB27A;        border:1px solid rgba(255,150,60,.3); }
+    .s-dossier_complet { background:var(--success-dim); color:var(--success); border:1px solid rgba(43,217,138,.4); }
+    .s-valide          { background:var(--success-dim); color:var(--success); border:1px solid rgba(43,217,138,.4); }
+    .s-refuse          { background:var(--danger-dim);  color:var(--danger);  border:1px solid rgba(255,107,107,.3); }
+
+    .ds { padding:2px 9px; border-radius:14px; font-size:.68rem; font-weight:700; }
+    .ds-recu     { background:var(--info-dim);    color:var(--info); }
+    .ds-valide   { background:var(--success-dim); color:var(--success); }
+    .ds-refuse   { background:var(--danger-dim);  color:var(--danger); }
+    .ds-manquant { background:var(--warning-dim); color:var(--warning); }
+
+    .doc-dot { display:inline-block; width:9px; height:9px; border-radius:50%; }
+    .doc-dot.ok { background:var(--success); box-shadow:0 0 7px rgba(43,217,138,.6); }
+    .doc-dot.ko { background:var(--bg-4); border:1px solid var(--border-light); }
+
+    .pill-f { display:flex; flex-wrap:wrap; gap:6px; }
+    .fpill { padding:5px 13px; border-radius:20px; font-size:.76rem; font-weight:600; cursor:pointer;
+      border:1px solid var(--border-light); color:var(--t2); background:var(--bg-3); transition:all .12s; user-select:none; }
+    .fpill:hover { color:var(--t1); border-color:var(--accent-line); }
+    .fpill.active { background:var(--accent-dim); color:var(--accent); border-color:var(--accent-line); }
+
+    /* Detail panel */
+    .overlay { position:fixed; inset:0; background:rgba(0,0,0,.62); z-index:150; display:none; backdrop-filter:blur(2px); }
+    .overlay.show { display:block; }
+    .detail-panel {
+      position:fixed; top:0; right:-680px; width:680px; max-width:100vw; height:100vh;
+      background:var(--glass-solid);
+      -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+      border-left:1px solid var(--border-light); box-shadow:-12px 0 60px rgba(0,0,0,.6);
+      z-index:200; transition:right .28s cubic-bezier(.4,0,.2,1); overflow-y:auto;
+    }
+    .detail-panel.open { right:0; }
+    .panel-hd { padding:18px 24px; border-bottom:1px solid var(--border);
+      display:flex; align-items:center; justify-content:space-between; position:sticky; top:0;
+      background:var(--glass-solid); -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur); z-index:1; }
+    .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px 18px; }
+    .info-grid .lbl { font-size:.66rem; text-transform:uppercase; letter-spacing:.6px; color:var(--t3); font-weight:700; }
+    .info-grid .val { font-size:.9rem; color:var(--t1); margin-top:2px; }
+    .doc-row { display:flex; align-items:center; gap:12px; padding:11px 13px; background:var(--bg-3);
+      border:1px solid var(--border); border-radius:var(--r-sm); margin-bottom:7px; }
+    .doc-ic { width:36px; height:36px; border-radius:var(--r-sm); background:var(--accent-dim);
+      color:var(--accent); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .sec-title { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px;
+      color:var(--t3); margin:22px 0 10px; }
+    .toast-box { position:fixed; bottom:24px; right:24px; z-index:9999; display:flex; flex-direction:column; gap:8px; }
+  </style>
+</head>
+<body>
+
+<!-- ══ LOGIN ══ -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo"><i class="fas fa-handshake"></i></div>
+    <h4 class="text-center fw-bold mb-1">Espace Partenaire</h4>
+    <p class="text-center mb-4" style="color:var(--t2);font-size:.9rem">Accédez au suivi de vos dossiers CEE</p>
+    <div id="loginError" class="alert alert-danger d-none py-2"></div>
+    <form id="loginForm">
+      <label class="form-label">Email</label>
+      <input type="email" class="form-control mb-3" id="loginEmail" placeholder="vous@partenaire.fr" autocomplete="username" autofocus>
+      <label class="form-label">Mot de passe</label>
+      <input type="password" class="form-control mb-4" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+      <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">Connexion <i class="fas fa-arrow-right ms-2"></i></button>
+    </form>
+    <div class="text-center mt-4">
+      <a href="/" style="color:var(--t3);font-size:.82rem"><i class="fas fa-arrow-left me-1"></i>Retour à l'accueil</a>
+    </div>
+    <p class="text-center mt-3 mb-0" style="color:var(--t3);font-size:.76rem">
+      <i class="fas fa-circle-info me-1"></i>Identifiants fournis par votre interlocuteur EchoWAI.
+    </p>
+  </div>
+</div>
+
+<!-- ══ APP ══ -->
+<div id="appScreen">
+  <div class="topbar-p">
+    <div class="d-flex align-items-center gap-2">
+      <div style="width:34px;height:34px;background:linear-gradient(135deg,var(--accent),var(--accent-2));border-radius:9px;display:flex;align-items:center;justify-content:center;color:#04201B;box-shadow:0 0 18px -4px var(--accent-glow)"><i class="fas fa-bolt"></i></div>
+      <div>
+        <div class="brand-p">Echo<span>WAI</span> CEE</div>
+        <div style="font-size:.62rem;color:var(--t3);font-weight:600;letter-spacing:.5px">Espace Partenaire</div>
+      </div>
+    </div>
+    <div class="d-flex align-items-center gap-3">
+      <span style="color:var(--t2);font-size:.86rem" id="partnerName"></span>
+      <button class="btn btn-sm btn-outline-secondary" onclick="logout()"><i class="fas fa-right-from-bracket me-2"></i>Déconnexion</button>
+    </div>
+  </div>
+
+  <div class="main-p">
+    <!-- Hero -->
+    <div class="hero-p">
+      <div style="font-size:1.5rem;font-weight:700;letter-spacing:-.02em" id="heroTitle">Vos dossiers CEE</div>
+      <div style="color:var(--t2);font-size:.88rem;margin-top:3px" id="heroSub">Suivi de l'avancement et de la validation</div>
+    </div>
+
+    <!-- Compteurs -->
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-lg-3"><div class="card-p" style="padding:20px 22px">
+        <div class="stat-num" id="stTotal">—</div>
+        <div class="stat-lbl mt-2"><i class="fas fa-folder-open me-1" style="color:var(--accent)"></i>Dossiers</div>
+      </div></div>
+      <div class="col-6 col-lg-3"><div class="card-p" style="padding:20px 22px">
+        <div class="stat-num" id="stValide" style="color:var(--success)">—</div>
+        <div class="stat-lbl mt-2"><i class="fas fa-circle-check me-1" style="color:var(--success)"></i>Validés</div>
+      </div></div>
+      <div class="col-6 col-lg-3"><div class="card-p" style="padding:20px 22px">
+        <div class="stat-num" id="stCours" style="color:var(--info)">—</div>
+        <div class="stat-lbl mt-2"><i class="fas fa-spinner me-1" style="color:var(--info)"></i>En cours</div>
+      </div></div>
+      <div class="col-6 col-lg-3"><div class="card-p" style="padding:20px 22px">
+        <div class="stat-num" id="stAttente" style="color:var(--warning)">—</div>
+        <div class="stat-lbl mt-2"><i class="fas fa-hourglass-half me-1" style="color:var(--warning)"></i>En attente</div>
+      </div></div>
+    </div>
+
+    <!-- Dossiers -->
+    <div class="card-p">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 p-3 border-bottom" style="border-color:var(--border)!important">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+          <h6 class="fw-bold mb-0"><i class="fas fa-list-check me-2" style="color:var(--accent)"></i>Dossiers rattachés</h6>
+          <span style="color:var(--t3);font-size:.8rem" id="dossierCount"></span>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <div class="pill-f" id="statutPills">
+            <span class="fpill active" data-s="" onclick="setFilter('',this)">Tous</span>
+            <span class="fpill" data-s="en_attente" onclick="setFilter('en_attente',this)">En attente</span>
+            <span class="fpill" data-s="en_cours" onclick="setFilter('en_cours',this)">En cours</span>
+            <span class="fpill" data-s="valide" onclick="setFilter('valide',this)">Validés</span>
+          </div>
+          <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Rechercher…" oninput="renderDossiers()" style="width:180px">
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="tbl-p">
+          <thead>
+            <tr><th>Code</th><th>Bénéficiaire</th><th>Entreprise</th><th>Ville</th><th>Documents</th><th>Statut</th><th></th></tr>
+          </thead>
+          <tbody id="dossiersBody">
+            <tr><td colspan="7" class="text-center py-5" style="color:var(--t3)"><i class="fas fa-spinner fa-spin"></i></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DETAIL ══ -->
+<div class="overlay" id="overlay" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detailPanel">
+  <div class="panel-hd">
+    <div>
+      <h6 class="fw-bold mb-1" id="panelTitle">Dossier</h6>
+      <div id="panelCode"></div>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary" onclick="closeDetail()"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="p-4" id="panelBody"><div class="text-center py-5" style="color:var(--t3)"><i class="fas fa-spinner fa-spin"></i></div></div>
+</div>
+
+<div class="toast-box" id="toastBox"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const STATUT_LABELS = { en_attente:'En attente', en_cours:'En cours', documents_recus:'Documents reçus', dossier_complet:'Dossier complet', valide:'Validé', refuse:'Refusé' };
+const DOC_TYPES = [
+  { key:'kbis_rne',           label:'KBIS / RNE',             icon:'fa-building' },
+  { key:'liasse_fiscale',     label:'Liasse fiscale 2024',    icon:'fa-file-invoice' },
+  { key:'attestation_urssaf', label:'Attestation URSSAF 2024',icon:'fa-certificate' }
+];
+const DOC_STATUT = { recu:'Reçu', valide:'Validé', refuse:'Refusé', manquant:'Manquant' };
+const OP_STATUT  = { en_attente:'En attente', en_cours:'En cours', valide:'Validé', refuse:'Refusé', annule:'Annulé' };
+let allDossiers = [], filterStatut = '';
+
+// ── Init ──
+document.addEventListener('DOMContentLoaded', async () => {
+  const r = await fetch('/api/partner/check-auth');
+  const d = await r.json();
+  if (d.authenticated) showApp();
+});
+
+document.getElementById('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const err = document.getElementById('loginError');
+  err.classList.add('d-none');
+  const r = await fetch('/api/partner/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ email, password }) });
+  const d = await r.json();
+  if (r.ok && d.success) showApp();
+  else { err.textContent = d.error || 'Connexion impossible'; err.classList.remove('d-none'); }
+});
+
+async function logout() { await fetch('/api/partner/logout', { method:'POST' }); location.reload(); }
+
+async function showApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appScreen').style.display = 'block';
+  loadMe(); loadStats(); loadDossiers();
+}
+
+async function loadMe() {
+  try {
+    const r = await fetch('/api/partner/me');
+    if (!r.ok) return;
+    const p = await r.json();
+    document.getElementById('partnerName').textContent = p.nom || '';
+    document.getElementById('heroSub').textContent = `${p.nom} — suivi de l'avancement et de la validation`;
+  } catch(e) {}
+}
+
+async function loadStats() {
+  try {
+    const r = await fetch('/api/partner/stats');
+    if (!r.ok) return;
+    const d = await r.json();
+    const by = d.byStatut || {};
+    const set = (id,v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('stTotal', d.total || 0);
+    set('stValide', by.valide || 0);
+    set('stCours', (by.en_cours || 0) + (by.documents_recus || 0) + (by.dossier_complet || 0));
+    set('stAttente', by.en_attente || 0);
+  } catch(e) {}
+}
+
+async function loadDossiers() {
+  const r = await fetch('/api/partner/dossiers');
+  if (!r.ok) { if (r.status === 401) location.reload(); return; }
+  allDossiers = await r.json();
+  renderDossiers();
+}
+
+function setFilter(s, el) {
+  filterStatut = s;
+  document.querySelectorAll('#statutPills .fpill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  renderDossiers();
+}
+
+function docDots(b) {
+  const n = b.docs_count || 0;
+  let dots = '';
+  for (let i = 0; i < 3; i++) dots += `<span class="doc-dot ${i < n ? 'ok' : 'ko'}"></span>`;
+  return `<div class="d-flex align-items-center gap-1">${dots}<span style="font-size:.74rem;color:${n===3?'var(--success)':'var(--t3)'};font-weight:600;margin-left:5px">${n}/3</span></div>`;
+}
+
+function renderDossiers() {
+  const q = (document.getElementById('searchInput').value || '').toLowerCase();
+  let list = allDossiers.filter(b => {
+    if (filterStatut && b.statut !== filterStatut) return false;
+    if (q) {
+      const hay = `${b.code} ${b.nom} ${b.prenom} ${b.raison_sociale||''} ${b.ville||''}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  document.getElementById('dossierCount').textContent =
+    `${list.length} dossier${list.length>1?'s':''}${list.length!==allDossiers.length?` / ${allDossiers.length}`:''}`;
+  const tb = document.getElementById('dossiersBody');
+  if (!list.length) {
+    tb.innerHTML = `<tr><td colspan="7" class="text-center py-5" style="color:var(--t3)"><i class="fas fa-folder-open mb-2 d-block" style="font-size:1.6rem;opacity:.4"></i>Aucun dossier ${allDossiers.length?'pour ce filtre':'rattaché à votre compte'}.</td></tr>`;
+    return;
+  }
+  tb.innerHTML = list.map(b => `
+    <tr onclick="openDetail(${b.id})">
+      <td><span class="mono" style="color:var(--accent);font-weight:700;font-size:.82rem">${escH(b.code)}</span></td>
+      <td><strong>${escH(b.prenom)} ${escH(b.nom)}</strong></td>
+      <td style="color:var(--t2)">${escH(b.raison_sociale || '—')}</td>
+      <td style="color:var(--t2)">${escH(b.ville || '—')}</td>
+      <td>${docDots(b)}</td>
+      <td><span class="badge-statut s-${b.statut}">${STATUT_LABELS[b.statut] || b.statut}</span></td>
+      <td><i class="fas fa-chevron-right" style="color:var(--t3);font-size:.75rem"></i></td>
+    </tr>`).join('');
+}
+
+async function openDetail(id) {
+  document.getElementById('detailPanel').classList.add('open');
+  document.getElementById('overlay').classList.add('show');
+  document.getElementById('panelBody').innerHTML = '<div class="text-center py-5" style="color:var(--t3)"><i class="fas fa-spinner fa-spin"></i></div>';
+  const r = await fetch(`/api/partner/dossiers/${id}`);
+  if (!r.ok) {
+    document.getElementById('panelBody').innerHTML = '<div class="alert alert-danger">Dossier inaccessible.</div>';
+    return;
+  }
+  const b = await r.json();
+  document.getElementById('panelTitle').textContent = `${b.prenom} ${b.nom}`;
+  document.getElementById('panelCode').innerHTML =
+    `<span class="code-badge">${escH(b.code)}</span> <span class="badge-statut s-${b.statut} ms-1">${STATUT_LABELS[b.statut]||b.statut}</span>`;
+
+  const docsByType = t => (b.documents || []).filter(d => d.type === t);
+  const docsHtml = DOC_TYPES.map(dt => {
+    const docs = docsByType(dt.key);
+    const head = `<div class="d-flex align-items-center gap-2 mb-2">
+      <span style="font-weight:600;font-size:.86rem"><i class="fas ${dt.icon} me-2" style="color:var(--accent)"></i>${dt.label}</span>
+      ${docs.length ? '' : '<span class="ds ds-manquant">Manquant</span>'}</div>`;
+    const rows = docs.map(d => `
+      <div class="doc-row">
+        <div class="doc-ic"><i class="fas fa-file-pdf"></i></div>
+        <div class="flex-grow-1" style="min-width:0">
+          <div style="font-size:.84rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escH(d.original_name)}</div>
+          <div style="font-size:.72rem;color:var(--t3)">${fmtDate(d.created_at)}</div>
+        </div>
+        <span class="ds ds-${d.doc_statut || 'recu'}">${DOC_STATUT[d.doc_statut || 'recu']}</span>
+        <a href="/api/documents/${d.id}/download" class="btn btn-sm btn-outline-primary" title="Télécharger"><i class="fas fa-download"></i></a>
+      </div>`).join('');
+    return `<div style="margin-bottom:14px">${head}${rows || '<div style="font-size:.8rem;color:var(--t3);font-style:italic">Aucun document déposé.</div>'}</div>`;
+  }).join('');
+
+  const otherDocs = (b.documents || []).filter(d => d.type === 'admin' || d.type === 'autre');
+  const otherHtml = otherDocs.length ? `<div class="sec-title">Documents complémentaires</div>` + otherDocs.map(d => `
+      <div class="doc-row">
+        <div class="doc-ic" style="background:var(--info-dim);color:var(--info)"><i class="fas fa-file"></i></div>
+        <div class="flex-grow-1" style="min-width:0">
+          <div style="font-size:.84rem;font-weight:600">${escH(d.original_name)}</div>
+          <div style="font-size:.72rem;color:var(--t3)">${fmtDate(d.created_at)}</div>
+        </div>
+        <a href="/api/documents/${d.id}/download" class="btn btn-sm btn-outline-primary"><i class="fas fa-download"></i></a>
+      </div>`).join('') : '';
+
+  const ops = b.operations || [];
+  const opsHtml = ops.length ? `<div class="sec-title">Opérations CEE</div>` + ops.map(o => `
+      <div class="doc-row" style="cursor:default">
+        <div class="flex-grow-1">
+          <div class="d-flex align-items-center gap-2">
+            <span class="mono" style="color:var(--accent);font-weight:700;font-size:.78rem">${escH(o.code_fiche)}</span>
+            <span class="ds ds-${o.statut==='valide'?'valide':o.statut==='refuse'?'refuse':'recu'}">${OP_STATUT[o.statut]||o.statut}</span>
+          </div>
+          <div style="font-size:.82rem;font-weight:600;margin-top:3px">${escH(o.nom_operation)}</div>
+          <div style="font-size:.74rem;color:var(--t3);margin-top:2px">
+            ${o.volume_kwh ? fmtKwh(o.volume_kwh) : '—'}
+            ${o.prime_validee ? ' · Prime validée : ' + fmtEur(o.prime_validee) : (o.prime_negociee ? ' · Prime estimée : ' + fmtEur(o.prime_negociee) : '')}
+          </div>
+        </div>
+      </div>`).join('') : '';
+
+  document.getElementById('panelBody').innerHTML = `
+    <div class="sec-title" style="margin-top:0">Bénéficiaire</div>
+    <div class="info-grid">
+      <div><div class="lbl">Contact</div><div class="val">${escH(b.prenom)} ${escH(b.nom)}</div></div>
+      <div><div class="lbl">Entreprise</div><div class="val">${escH(b.raison_sociale || '—')}</div></div>
+      <div><div class="lbl">Email</div><div class="val">${escH(b.email || '—')}</div></div>
+      <div><div class="lbl">Téléphone</div><div class="val">${escH(b.telephone || '—')}</div></div>
+      <div><div class="lbl">SIRET</div><div class="val">${escH(b.siret || '—')}</div></div>
+      <div><div class="lbl">Ville</div><div class="val">${escH([b.code_postal,b.ville].filter(Boolean).join(' ') || '—')}</div></div>
+    </div>
+    <div class="sec-title">Pièces justificatives</div>
+    ${docsHtml}
+    ${otherHtml}
+    ${opsHtml}
+    <div class="alert alert-light mt-3 mb-0" style="font-size:.78rem">
+      <i class="fas fa-circle-info me-1"></i>Vue en lecture seule. Pour toute action sur ce dossier, contactez votre interlocuteur EchoWAI.
+    </div>`;
+}
+
+function closeDetail() {
+  document.getElementById('detailPanel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('show');
+}
+
+// ── Helpers ──
+function escH(s) { return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtDate(dt) { if (!dt) return '—'; return new Date(dt).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' }); }
+function fmtKwh(v) { if (!v) return '0 kWhc'; return v >= 1e6 ? (v/1e6).toFixed(1)+' GWhc' : v >= 1000 ? (v/1000).toFixed(1)+' MWhc' : Math.round(v)+' kWhc'; }
+function fmtEur(v) { if (!v) return '0 €'; return v >= 1000 ? (v/1000).toFixed(1)+' k€' : Math.round(v).toLocaleString('fr-FR')+' €'; }
+</script>
+</body>
+</html>

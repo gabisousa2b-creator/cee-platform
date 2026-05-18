@@ -270,6 +270,23 @@ function generateUniqueCode() {
 }
 const requireAdmin       = (req, res, next) => req.session.isAdmin        ? next() : res.status(401).json({ error: 'Non autorisé' });
 const requireBeneficiary = (req, res, next) => req.session.beneficiaireId ? next() : res.status(401).json({ error: 'Non autorisé' });
+const requirePartner     = (req, res, next) => req.session.partenaireId   ? next() : res.status(401).json({ error: 'Non autorisé' });
+
+// ── Hash mot de passe (crypto natif, scrypt — aucune dépendance) ──────────────
+const crypto = require('crypto');
+function hashPassword(pw) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  return salt + ':' + crypto.scryptSync(String(pw), salt, 64).toString('hex');
+}
+function verifyPassword(pw, stored) {
+  if (!stored || !stored.includes(':')) return false;
+  const [salt, dk] = stored.split(':');
+  try {
+    const test = crypto.scryptSync(String(pw), salt, 64);
+    const ref  = Buffer.from(dk, 'hex');
+    return test.length === ref.length && crypto.timingSafeEqual(test, ref);
+  } catch(e) { return false; }
+}
 
 // ── Import : détection automatique des champs ─────────────────────────────────
 const FIELD_SYNONYMS = {
@@ -1384,6 +1401,13 @@ db.serialize(() => {
     actif         INTEGER DEFAULT 1,
     created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+  // Migrations : compte de connexion partenaire
+  [`ALTER TABLE partenaires ADD COLUMN login_email TEXT DEFAULT ''`,
+   `ALTER TABLE partenaires ADD COLUMN password_hash TEXT DEFAULT ''`,
+   `ALTER TABLE partenaires ADD COLUMN compte_actif INTEGER DEFAULT 0`,
+   `ALTER TABLE partenaires ADD COLUMN last_login DATETIME`,
+   `ALTER TABLE partenaires ADD COLUMN permissions TEXT DEFAULT '{}'`
+  ].forEach(sql => db.run(sql, () => {}));
 });
 
 // Numérotation auto devis/factures
@@ -1589,7 +1613,11 @@ app.delete('/api/admin/devis/:id', requireAdmin, (req, res) => {
 
 // ── Partenaires ────────────────────────────────────────────────────────────────
 app.get('/api/admin/partenaires', requireAdmin, (req, res) => {
-  db.all('SELECT * FROM partenaires WHERE actif=1 ORDER BY nom', [],
+  db.all(`SELECT p.id,p.nom,p.siret,p.adresse,p.code_postal,p.ville,p.email,p.telephone,
+            p.site_web,p.logo_url,p.texte_custom,p.role_defaut,p.actif,
+            p.login_email,p.compte_actif,p.last_login,p.permissions,p.created_at,
+            (SELECT COUNT(*) FROM beneficiaires b WHERE b.partenaire=p.nom AND b.archived=0) AS nb_dossiers
+          FROM partenaires p WHERE p.actif=1 ORDER BY p.nom`, [],
     (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows));
 });
 app.post('/api/admin/partenaires', requireAdmin, (req, res) => {
@@ -1612,6 +1640,102 @@ app.put('/api/admin/partenaires/:id', requireAdmin, (req, res) => {
      p.telephone||'',p.site_web||'',p.logo_url||'',p.texte_custom||'',p.role_defaut||'',
      p.actif!==undefined?p.actif:1,req.params.id],
     err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+});
+
+// Suppression partenaire (soft delete)
+app.delete('/api/admin/partenaires/:id', requireAdmin, (req, res) => {
+  db.run('UPDATE partenaires SET actif=0, compte_actif=0 WHERE id=?', [req.params.id],
+    err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+});
+
+// Compte de connexion partenaire — création / mise à jour (admin)
+app.put('/api/admin/partenaires/:id/compte', requireAdmin, (req, res) => {
+  const { login_email, password, compte_actif } = req.body;
+  const sets = [], vals = [];
+  if (login_email !== undefined) { sets.push('login_email=?'); vals.push(String(login_email||'').trim().toLowerCase()); }
+  if (compte_actif !== undefined) { sets.push('compte_actif=?'); vals.push(compte_actif ? 1 : 0); }
+  if (password) {
+    if (String(password).length < 6) return res.status(400).json({ error: 'Mot de passe : 6 caractères minimum' });
+    sets.push('password_hash=?'); vals.push(hashPassword(password));
+  }
+  if (!sets.length) return res.status(400).json({ error: 'Aucune modification' });
+  vals.push(req.params.id);
+  db.run(`UPDATE partenaires SET ${sets.join(',')} WHERE id=?`, vals,
+    err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── ESPACE PARTENAIRE ─────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+app.post('/api/partner/login', (req, res) => {
+  const ip = req.ip || req.connection.remoteAddress || 'unknown';
+  if (!checkRateLimit(ip)) return res.status(429).json({ error: 'Trop de tentatives. Réessayez dans 15 minutes.' });
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Email et mot de passe requis' });
+  db.get(`SELECT * FROM partenaires WHERE lower(login_email)=lower(?) AND compte_actif=1 AND actif=1`,
+    [String(email).trim()], (err, p) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!p || !verifyPassword(password, p.password_hash)) {
+        return res.status(401).json({ error: 'Identifiants incorrects' });
+      }
+      resetLoginAttempts(ip);
+      req.session.partenaireId = p.id;
+      db.run('UPDATE partenaires SET last_login=CURRENT_TIMESTAMP WHERE id=?', [p.id]);
+      res.json({ success: true, nom: p.nom });
+    });
+});
+app.post('/api/partner/logout',    (req, res) => { req.session.destroy(); res.json({ success: true }); });
+app.get('/api/partner/check-auth', (req, res) => res.json({ authenticated: !!req.session.partenaireId }));
+
+app.get('/api/partner/me', requirePartner, (req, res) => {
+  db.get('SELECT id,nom,siret,ville,email,telephone,logo_url,role_defaut,permissions,last_login FROM partenaires WHERE id=?',
+    [req.session.partenaireId], (err, p) => p ? res.json(p) : res.status(404).json({ error: 'Introuvable' }));
+});
+
+// Récupère le nom du partenaire courant pour filtrer ses dossiers
+function withPartnerName(req, res, cb) {
+  db.get('SELECT nom FROM partenaires WHERE id=? AND actif=1', [req.session.partenaireId], (err, p) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!p) return res.status(404).json({ error: 'Partenaire introuvable' });
+    cb(p.nom);
+  });
+}
+
+app.get('/api/partner/stats', requirePartner, (req, res) => {
+  withPartnerName(req, res, (nom) => {
+    db.all(`SELECT statut, COUNT(*) AS c FROM beneficiaires WHERE archived=0 AND partenaire=? GROUP BY statut`,
+      [nom], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        const byStatut = {}; (rows || []).forEach(r => byStatut[r.statut] = r.c);
+        const total = Object.values(byStatut).reduce((s, n) => s + n, 0);
+        res.json({ total, byStatut });
+      });
+  });
+});
+
+app.get('/api/partner/dossiers', requirePartner, (req, res) => {
+  withPartnerName(req, res, (nom) => {
+    db.all(`SELECT b.id,b.code,b.nom,b.prenom,b.email,b.telephone,b.raison_sociale,b.siret,b.ville,b.activite,b.statut,b.created_at,b.updated_at,
+        (SELECT COUNT(DISTINCT type) FROM documents WHERE beneficiaire_id=b.id AND uploaded_by='beneficiaire' AND type IN ('kbis_rne','liasse_fiscale','attestation_urssaf')) AS docs_count
+      FROM beneficiaires b WHERE b.archived=0 AND b.partenaire=? ORDER BY b.created_at DESC`,
+      [nom], (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows));
+  });
+});
+
+app.get('/api/partner/dossiers/:id', requirePartner, (req, res) => {
+  withPartnerName(req, res, (nom) => {
+    db.get(`SELECT id,code,nom,prenom,email,telephone,raison_sociale,siret,adresse,code_postal,ville,activite,statut,partenaire,created_at,updated_at
+      FROM beneficiaires WHERE id=? AND partenaire=? AND archived=0`,
+      [req.params.id, nom], (err, b) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!b) return res.status(404).json({ error: 'Dossier introuvable ou non rattaché à votre compte' });
+        db.all(`SELECT id,type,original_name,doc_statut,uploaded_by,created_at FROM documents WHERE beneficiaire_id=? ORDER BY created_at DESC`,
+          [b.id], (e2, docs) => {
+            db.all(`SELECT code_fiche,nom_operation,secteur,volume_kwh,prime_negociee,prime_validee,statut,date_engagement FROM cee_operations WHERE beneficiaire_id=?`,
+              [b.id], (e3, ops) => res.json({ ...b, documents: docs || [], operations: ops || [] }));
+          });
+      });
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
