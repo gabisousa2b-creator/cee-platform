@@ -195,8 +195,9 @@ function simulate(fiche, inputs, options = {}) {
       // Facteurs correctifs
       (formule_json.facteurs || []).forEach(f => {
         let fac;
-        if (f.tranche) fac = parseFloat(ctx['_' + f.tranche + '_v']);
-        else           fac = parseFloat((f.table || {})[String(ctx[f.champ] ?? '')]);
+        if (f.direct)       fac = parseFloat(inputs[f.champ]) || 0;   // multiplicateur direct (surface, quantité…)
+        else if (f.tranche) fac = parseFloat(ctx['_' + f.tranche + '_v']);
+        else                fac = parseFloat((f.table || {})[String(ctx[f.champ] ?? '')]);
         if (isNaN(fac)) fac = 1;
         kwh_base *= fac;
         facDetail.push({ nom: f.label || f.champ || f.tranche, facteur: fac });
