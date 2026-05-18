@@ -688,6 +688,19 @@ app.put('/api/admin/beneficiaires/:id/status', requireAdmin, (req, res) => {
     err => err ? res.status(500).json({error:err.message}) : res.json({success:true}));
 });
 
+// Parcours CEE du dossier : engage → controle → valide → facture
+app.put('/api/admin/beneficiaires/:id/statut-cee', requireAdmin, (req, res) => {
+  const valid = ['engage','controle','valide','facture'];
+  if (!valid.includes(req.body.statut_cee)) return res.status(400).json({ error:'Statut CEE invalide' });
+  db.run('UPDATE beneficiaires SET statut_cee=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',
+    [req.body.statut_cee, req.params.id], (err) => {
+      if (err) return res.status(500).json({ error:err.message });
+      db.run(`INSERT INTO activity_logs (beneficiaire_id,action,details,auteur) VALUES (?,?,?,?)`,
+        [req.params.id, 'statut_cee', 'Parcours CEE → ' + req.body.statut_cee, 'admin']);
+      res.json({ success:true });
+    });
+});
+
 // Archive (soft delete)
 app.put('/api/admin/beneficiaires/:id/archive', requireAdmin, (req, res) => {
   const archived = req.body.archived ? 1 : 0;
@@ -1463,6 +1476,8 @@ db.serialize(() => {
 
   // Rattachement dossier → apporteur qui l'a déposé
   db.run(`ALTER TABLE beneficiaires ADD COLUMN apporteur_id INTEGER`, () => {});
+  // Parcours CEE du dossier : engage → controle → valide → facture
+  db.run(`ALTER TABLE beneficiaires ADD COLUMN statut_cee TEXT DEFAULT 'engage'`, () => {});
 
   // Migration douce : promeut les logins partenaire existants en compte admin_partenaire
   db.run(`INSERT INTO comptes (partenaire_id, role, nom, email, password_hash, actif)
@@ -1867,7 +1882,7 @@ app.get('/api/partner/dossiers', requirePartner, (req, res) => {
     const f = dossierFilter(s);
     getPrixCee(s.partenaire_id, (prix) => {
       db.all(`SELECT b.id,b.code,b.nom,b.prenom,b.email,b.telephone,b.raison_sociale,b.siret,b.ville,
-                b.activite,b.statut,b.apporteur_id,b.created_at,b.updated_at,
+                b.activite,b.statut,b.statut_cee,b.apporteur_id,b.created_at,b.updated_at,
                 (SELECT COALESCE(SUM(volume_kwh),0) FROM cee_operations WHERE beneficiaire_id=b.id) AS volume_cumac,
                 (SELECT COUNT(DISTINCT type) FROM documents WHERE beneficiaire_id=b.id AND uploaded_by='beneficiaire' AND type IN ('kbis_rne','liasse_fiscale','attestation_urssaf')) AS docs_count,
                 (SELECT nom FROM comptes WHERE id=b.apporteur_id) AS apporteur_nom
@@ -1889,7 +1904,7 @@ app.get('/api/partner/dossiers/:id', requirePartner, (req, res) => {
     const f = dossierFilter(s);
     getPrixCee(s.partenaire_id, (prix) => {
       db.get(`SELECT b.id,b.code,b.nom,b.prenom,b.email,b.telephone,b.raison_sociale,b.siret,b.adresse,
-                b.code_postal,b.ville,b.activite,b.statut,b.partenaire,b.apporteur_id,b.created_at,b.updated_at
+                b.code_postal,b.ville,b.activite,b.statut,b.statut_cee,b.partenaire,b.apporteur_id,b.created_at,b.updated_at
               FROM beneficiaires b WHERE ${f.where} AND b.id=?`, [...f.params, req.params.id], (err, b) => {
         if (err) return res.status(500).json({ error: err.message });
         if (!b)  return res.status(404).json({ error: 'Dossier introuvable ou hors de votre périmètre' });

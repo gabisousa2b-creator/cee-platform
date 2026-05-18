@@ -326,6 +326,41 @@ option { background: var(--bg-3); color: var(--t1); }
 @keyframes ew-fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .ew-in { animation: ew-fade-up .28s ease both; }
 
+/* ═══════════ PARCOURS CEE — stepper Engagé→Contrôle→Validé→Facturé ═══════════ */
+.cee-track { display: flex; gap: 0; }
+.cee-step  { flex: 1; text-align: center; position: relative; }
+.cee-step::before {
+  content: ''; position: absolute; top: 13px; left: 50%;
+  width: 100%; height: 2px; background: var(--border-light); z-index: 0;
+}
+.cee-step:last-child::before { display: none; }
+.cee-dot {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid var(--border-light); background: var(--bg-3);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 6px; position: relative; z-index: 1;
+  font-size: .72rem; font-weight: 700; color: var(--t3); transition: all .2s;
+}
+.cee-step.done .cee-dot, .cee-step.current .cee-dot {
+  background: var(--accent); border-color: var(--accent); color: #04201B;
+}
+.cee-step.current .cee-dot { box-shadow: 0 0 14px -3px var(--accent-glow); }
+.cee-step.done::before { background: var(--accent); }
+.cee-step .cee-lbl { font-size: .66rem; font-weight: 600; color: var(--t3); }
+.cee-step.done .cee-lbl, .cee-step.current .cee-lbl { color: var(--accent); }
+.cee-step.clickable { cursor: pointer; }
+.cee-step.clickable:hover .cee-dot { border-color: var(--accent); color: var(--accent); }
+.cee-step.clickable.done:hover .cee-dot, .cee-step.clickable.current:hover .cee-dot { color: #04201B; }
+
+.cee-badge {
+  font-size: .62rem; font-weight: 700; padding: 2px 8px; border-radius: 20px;
+  text-transform: uppercase; letter-spacing: .5px; display: inline-block;
+}
+.cee-engage   { background: var(--info-dim);    color: var(--info); }
+.cee-controle { background: var(--warning-dim); color: var(--warning); }
+.cee-valide   { background: var(--success-dim); color: var(--success); }
+.cee-facture  { background: var(--accent-dim);  color: var(--accent); }
+
 /* Réduction des animations */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }

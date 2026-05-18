@@ -2274,7 +2274,7 @@ function renderBeneficiaires() {
     </td>
     <td>${docProgressHtml(b)}</td>
     <td>${scoreRingHtml(score)}</td>
-    <td>${badgeStatut(b.statut)}</td>
+    <td>${badgeStatut(b.statut)}<div style="margin-top:5px">${ceeBadge(b.statut_cee)}</div></td>
     <td onclick="event.stopPropagation()" class="text-nowrap">
       ${!b.archived
         ? `<button class="btn btn-sm btn-outline-warning me-1" onclick="archiveBenef(${b.id})" title="Archiver"><i class="fas fa-box-archive"></i></button>`
@@ -2367,6 +2367,10 @@ async function openDetail(id) {
           <option value="valide"           ${b.statut==='valide'          ?'selected':''}>Validé</option>
           <option value="refuse" ${b.statut==='refuse'?'selected':''}>Refusé</option>
         </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label fw-semibold small text-muted">PARCOURS CEE</label>
+        ${ceeStepper(b.statut_cee, 'updateStatutCee')}
       </div>
       <div class="mb-3 p-3 rounded d-flex align-items-start gap-3" style="background:var(--warning-dim);border:1px solid rgba(245,158,11,.25)">
         <div class="flex-grow-1">
@@ -3125,6 +3129,27 @@ async function markAllRead() {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function badgeStatut(s) { return `<span class="badge-statut s-${s}">${STATUT_LABELS[s]||s}</span>`; }
+const CEE_STEPS = [['engage','Engagé'],['controle','Contrôle'],['valide','Validé'],['facture','Facturé']];
+const CEE_BADGE = { engage:['Engagé','cee-engage'], controle:['Contrôle','cee-controle'], valide:['Validé','cee-valide'], facture:['Facturé','cee-facture'] };
+function ceeBadge(s) { const m = CEE_BADGE[s] || CEE_BADGE.engage; return `<span class="cee-badge ${m[1]}">${m[0]}</span>`; }
+function ceeStepper(current, onclick) {
+  const cur = CEE_STEPS.findIndex(s => s[0] === (current || 'engage'));
+  return '<div class="cee-track">' + CEE_STEPS.map(([k,l],i) => {
+    const cls = i < cur ? 'done' : i === cur ? 'current' : '';
+    return `<div class="cee-step ${cls}${onclick?' clickable':''}" ${onclick?`onclick="${onclick}('${k}')"`:''}>
+      <div class="cee-dot">${i < cur ? '<i class="fas fa-check"></i>' : (i+1)}</div>
+      <div class="cee-lbl">${l}</div>
+    </div>`;
+  }).join('') + '</div>';
+}
+async function updateStatutCee(val) {
+  await fetch(`/api/admin/beneficiaires/${currentBenefId}/statut-cee`, {
+    method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ statut_cee: val })
+  });
+  showToast('Parcours CEE mis à jour');
+  openDetail(currentBenefId);
+  loadBeneficiaires();
+}
 function formatDate(dt) { if (!dt) return '—'; return new Date(dt).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }); }
 function escHtml(s) { return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function escAttr(s) { return escHtml(s).replace(/"/g,'&quot;'); }

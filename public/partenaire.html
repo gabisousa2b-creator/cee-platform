@@ -417,7 +417,7 @@ function renderDossiers() {
       <td class="num" style="color:var(--info);font-weight:600">${fmtKwh(b.volume_cumac||0)}</td>
       <td class="num" style="color:var(--accent);font-weight:700">${fmtEur(b.subvention||0)}</td>
       <td class="num" style="color:var(--success);font-weight:700">${fmtEur(b.commission||0)}</td>
-      <td><span class="badge-statut s-${b.statut}">${STATUT_LABELS[b.statut] || b.statut}</span></td>
+      <td><span class="badge-statut s-${b.statut}">${STATUT_LABELS[b.statut] || b.statut}</span><div style="margin-top:4px">${ceeBadge(b.statut_cee)}</div></td>
       <td><i class="fas fa-chevron-right" style="color:var(--t3);font-size:.75rem"></i></td>
     </tr>`).join('');
 }
@@ -471,6 +471,8 @@ async function openDetail(id) {
       <div class="col-4"><div class="card-p" style="padding:13px 12px"><div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);font-weight:700">Subvention</div><div style="font-size:1.05rem;font-weight:800;color:var(--accent)">${fmtEur(b.subvention||0)}</div></div></div>
       <div class="col-4"><div class="card-p" style="padding:13px 12px"><div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);font-weight:700">Commission</div><div style="font-size:1.05rem;font-weight:800;color:var(--success)">${fmtEur(b.commission||0)}</div></div></div>
     </div>
+    <div class="sec-title">Parcours CEE</div>
+    ${ceeStepper(b.statut_cee)}
     <div class="sec-title">Bénéficiaire</div>
     <div class="info-grid">
       <div><div class="lbl">Contact</div><div class="val">${escH(b.prenom)} ${escH(b.nom)}</div></div>
@@ -593,6 +595,16 @@ async function toggleApporteur(id, actif) {
 }
 
 // ── Helpers ──
+const CEE_STEPS = [['engage','Engagé'],['controle','Contrôle'],['valide','Validé'],['facture','Facturé']];
+const CEE_BADGE = { engage:['Engagé','cee-engage'], controle:['Contrôle','cee-controle'], valide:['Validé','cee-valide'], facture:['Facturé','cee-facture'] };
+function ceeBadge(s) { const m = CEE_BADGE[s] || CEE_BADGE.engage; return `<span class="cee-badge ${m[1]}">${m[0]}</span>`; }
+function ceeStepper(current) {
+  const cur = CEE_STEPS.findIndex(s => s[0] === (current || 'engage'));
+  return '<div class="cee-track">' + CEE_STEPS.map(([k,l],i) => {
+    const cls = i < cur ? 'done' : i === cur ? 'current' : '';
+    return `<div class="cee-step ${cls}"><div class="cee-dot">${i < cur ? '<i class="fas fa-check"></i>' : (i+1)}</div><div class="cee-lbl">${l}</div></div>`;
+  }).join('') + '</div>';
+}
 function escH(s) { return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function fmtDate(dt) { if (!dt) return '—'; return new Date(dt).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' }); }
 function fmtKwh(v) { v = +v||0; return v >= 1e6 ? (v/1e6).toFixed(2)+' GWhc' : v >= 1000 ? (v/1000).toFixed(1)+' MWhc' : Math.round(v).toLocaleString('fr-FR')+' kWhc'; }
