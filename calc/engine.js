@@ -170,6 +170,45 @@ function simulate(fiche, inputs, options = {}) {
       break;
     }
 
+    case 'bareme': {
+      // Barème générique : kwh = montant_base[clés] × Π facteurs
+      // formule_json = { champs:[...], tranches:[...], base:{cles,table}, facteurs:[...] }
+      const ctx = Object.assign({}, inputs);
+      const facDetail = [];
+      // Tranches : valeur numérique → label de tranche (avec variantes optionnelles)
+      (formule_json.tranches || []).forEach(tr => {
+        const v = parseFloat(inputs[tr.champ]);
+        let bornes = tr.bornes;
+        if (tr.selonChamp) bornes = (tr.variantes || {})[ctx[tr.selonChamp]] || [];
+        let hit = null;
+        if (!isNaN(v)) {
+          for (const b of (bornes || [])) {
+            if (v >= b.min && (b.max == null || v < b.max)) { hit = b; break; }
+          }
+        }
+        ctx[tr.id]              = hit ? (hit.cle != null ? hit.cle : hit.val) : '';
+        ctx['_' + tr.id + '_v'] = hit && hit.val != null ? hit.val : (hit ? 1 : 0);
+      });
+      // Montant de base
+      const baseKey = (formule_json.base?.cles || []).map(c => String(ctx[c] ?? '')).join('|');
+      kwh_base = parseFloat((formule_json.base?.table || {})[baseKey]) || 0;
+      // Facteurs correctifs
+      (formule_json.facteurs || []).forEach(f => {
+        let fac;
+        if (f.tranche) fac = parseFloat(ctx['_' + f.tranche + '_v']);
+        else           fac = parseFloat((f.table || {})[String(ctx[f.champ] ?? '')]);
+        if (isNaN(fac)) fac = 1;
+        kwh_base *= fac;
+        facDetail.push({ nom: f.label || f.champ || f.tranche, facteur: fac });
+      });
+      detail = { base_key: baseKey, montant_base: parseFloat((formule_json.base?.table || {})[baseKey]) || 0, facteurs: facDetail };
+      calc_readable = `Barème ${fiche.code} — base [${baseKey}]` +
+        facDetail.map(f => ` × ${f.facteur} (${f.nom})`).join('') +
+        ` = ${Math.round(kwh_base).toLocaleString('fr-FR')} kWhc`;
+      if (kwh_base <= 0) warnings.push('Combinaison de paramètres absente du barème — vérifiez les valeurs saisies.');
+      break;
+    }
+
     case 'assistee':
     default: {
       // Mode assisté : l'utilisateur a calculé la valeur ou l'a consultée

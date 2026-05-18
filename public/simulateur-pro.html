@@ -393,6 +393,16 @@ function buildDynamicForm(f){
   } else { document.getElementById('formuleBox').style.display='none'; }
   let html='';
   if(type==='assistee')                  html+=field('kwh_manuel','Volume kWhc (calculé depuis la fiche officielle)','number','kWhc',0);
+  else if(type==='bareme'){
+    (fj.champs||[]).forEach(c=>{
+      if(c.type==='select'||c.type==='zone'){
+        const opts=c.type==='zone'?['H1','H2','H3']:(c.options||[]);
+        html+=`<div class="form-group"><div class="form-label-cee">${c.label||c.id}</div><select class="form-control-cee" id="inp-${c.id}" name="${c.id}">`+opts.map(o=>`<option value="${o}">${o}</option>`).join('')+`</select></div>`;
+      } else {
+        html+=field(c.id,c.label||c.id,'number',c.unit||'',c.default!=null?c.default:'');
+      }
+    });
+  }
   else if(type==='forfait_logement')     html+=field('n_logements','Nombre de logements','integer','logements',1);
   else if(type==='forfait_logement_zone'){html+=field('n_logements','Nombre de logements','integer','logements',1);html+=zoneSelect(fj.tables?.forfaits_zone);}
   else if(type==='surface_zone')         {html+=field('surface','Surface à isoler / traitée','number','m²',0);html+=zoneSelect(fj.tables?.eph_zone);}
