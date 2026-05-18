@@ -286,6 +286,15 @@ function getPrixCee(partenaireId, cb) {
       cb(p && p.prix_eur_mwh != null ? parseFloat(p.prix_eur_mwh) : prixGlobal));
   });
 }
+// Commission selon le mode : pct (% subvention) · eur_mwhc (€/MWhc) · fixe (€/dossier)
+function computeCommission(mode, valeur, ctx) {
+  const v = parseFloat(valeur) || 0;
+  if (v <= 0) return 0;
+  if (mode === 'pct')      return Math.round((ctx.subvention   || 0) * v / 100);
+  if (mode === 'eur_mwhc') return Math.round((ctx.volume_cumac || 0) / 1000 * v);
+  if (mode === 'fixe')     return Math.round(v);
+  return 0;
+}
 
 // ── Hash mot de passe (crypto natif, scrypt — aucune dépendance) ──────────────
 const crypto = require('crypto');
@@ -1422,7 +1431,9 @@ db.serialize(() => {
    `ALTER TABLE partenaires ADD COLUMN compte_actif INTEGER DEFAULT 0`,
    `ALTER TABLE partenaires ADD COLUMN last_login DATETIME`,
    `ALTER TABLE partenaires ADD COLUMN permissions TEXT DEFAULT '{}'`,
-   `ALTER TABLE partenaires ADD COLUMN prix_eur_mwh REAL`
+   `ALTER TABLE partenaires ADD COLUMN prix_eur_mwh REAL`,
+   `ALTER TABLE partenaires ADD COLUMN commission_mode TEXT DEFAULT 'pct'`,
+   `ALTER TABLE partenaires ADD COLUMN commission_valeur REAL DEFAULT 0`
   ].forEach(sql => db.run(sql, () => {}));
 
   // ── RBAC : comptes utilisateurs (admin_partenaire, apporteur) ────────────────
@@ -1434,9 +1445,14 @@ db.serialize(() => {
     email         TEXT NOT NULL,
     password_hash TEXT DEFAULT '',
     actif         INTEGER DEFAULT 1,
+    commission_mode   TEXT DEFAULT 'pct',
+    commission_valeur REAL DEFAULT 0,
     last_login    DATETIME,
     created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+  [`ALTER TABLE comptes ADD COLUMN commission_mode TEXT DEFAULT 'pct'`,
+   `ALTER TABLE comptes ADD COLUMN commission_valeur REAL DEFAULT 0`
+  ].forEach(sql => db.run(sql, () => {}));
 
   // ── Paramètres globaux (taux CEE, etc.) ───────────────────────────────────────
   db.run(`CREATE TABLE IF NOT EXISTS parametres (
@@ -1660,7 +1676,8 @@ app.delete('/api/admin/devis/:id', requireAdmin, (req, res) => {
 // ── Partenaires ────────────────────────────────────────────────────────────────
 app.get('/api/admin/partenaires', requireAdmin, (req, res) => {
   db.all(`SELECT p.id,p.nom,p.siret,p.adresse,p.code_postal,p.ville,p.email,p.telephone,
-            p.site_web,p.logo_url,p.texte_custom,p.role_defaut,p.actif,p.prix_eur_mwh,p.created_at,
+            p.site_web,p.logo_url,p.texte_custom,p.role_defaut,p.actif,p.prix_eur_mwh,
+            p.commission_mode,p.commission_valeur,p.created_at,
             (SELECT COUNT(*) FROM beneficiaires b WHERE b.partenaire=p.nom AND b.archived=0) AS nb_dossiers,
             (SELECT email FROM comptes c WHERE c.partenaire_id=p.id AND c.role='admin_partenaire' LIMIT 1) AS login_email,
             (SELECT actif FROM comptes c WHERE c.partenaire_id=p.id AND c.role='admin_partenaire' LIMIT 1) AS compte_actif,
@@ -1671,11 +1688,13 @@ app.get('/api/admin/partenaires', requireAdmin, (req, res) => {
 app.post('/api/admin/partenaires', requireAdmin, (req, res) => {
   const p = req.body;
   if (!p.nom) return res.status(400).json({ error: 'Nom requis' });
-  db.run(`INSERT INTO partenaires (nom,siret,adresse,code_postal,ville,email,telephone,site_web,logo_url,texte_custom,role_defaut,prix_eur_mwh)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+  const cmode = ['pct','eur_mwhc','fixe'].includes(p.commission_mode) ? p.commission_mode : 'pct';
+  db.run(`INSERT INTO partenaires (nom,siret,adresse,code_postal,ville,email,telephone,site_web,logo_url,texte_custom,role_defaut,prix_eur_mwh,commission_mode,commission_valeur)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [p.nom,p.siret||'',p.adresse||'',p.code_postal||'',p.ville||'',p.email||'',
      p.telephone||'',p.site_web||'',p.logo_url||'',p.texte_custom||'',p.role_defaut||'',
-     (p.prix_eur_mwh==='' || p.prix_eur_mwh==null) ? null : parseFloat(p.prix_eur_mwh)],
+     (p.prix_eur_mwh==='' || p.prix_eur_mwh==null) ? null : parseFloat(p.prix_eur_mwh),
+     cmode, parseFloat(p.commission_valeur) || 0],
     function(err) {
       if (err) return res.status(500).json({ error: err.message });
       db.get('SELECT * FROM partenaires WHERE id=?',[this.lastID],(e,r)=>res.json(r));
@@ -1683,11 +1702,13 @@ app.post('/api/admin/partenaires', requireAdmin, (req, res) => {
 });
 app.put('/api/admin/partenaires/:id', requireAdmin, (req, res) => {
   const p = req.body;
+  const cmode = ['pct','eur_mwhc','fixe'].includes(p.commission_mode) ? p.commission_mode : 'pct';
   db.run(`UPDATE partenaires SET nom=?,siret=?,adresse=?,code_postal=?,ville=?,email=?,telephone=?,
-    site_web=?,logo_url=?,texte_custom=?,role_defaut=?,prix_eur_mwh=?,actif=? WHERE id=?`,
+    site_web=?,logo_url=?,texte_custom=?,role_defaut=?,prix_eur_mwh=?,commission_mode=?,commission_valeur=?,actif=? WHERE id=?`,
     [p.nom,p.siret||'',p.adresse||'',p.code_postal||'',p.ville||'',p.email||'',
      p.telephone||'',p.site_web||'',p.logo_url||'',p.texte_custom||'',p.role_defaut||'',
      (p.prix_eur_mwh==='' || p.prix_eur_mwh==null) ? null : parseFloat(p.prix_eur_mwh),
+     cmode, parseFloat(p.commission_valeur) || 0,
      p.actif!==undefined?p.actif:1,req.params.id],
     err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
 });
@@ -1783,7 +1804,9 @@ app.get('/api/partner/check-auth', (req, res) => res.json({ authenticated: !!req
 // Contexte du compte connecté + garde de session
 function partnerScope(req, res, cb) {
   db.get(`SELECT c.id, c.role, c.partenaire_id, c.nom AS compte_nom,
-                 p.nom AS partenaire_nom, p.prix_eur_mwh
+                 c.commission_mode AS c_cmode, c.commission_valeur AS c_cval,
+                 p.nom AS partenaire_nom, p.prix_eur_mwh,
+                 p.commission_mode AS p_cmode, p.commission_valeur AS p_cval
           FROM comptes c JOIN partenaires p ON p.id=c.partenaire_id
           WHERE c.id=? AND c.actif=1 AND p.actif=1`,
     [req.session.compteId], (err, row) => {
@@ -1798,12 +1821,21 @@ function dossierFilter(s) {
     ? { where: 'b.archived=0 AND b.partenaire=? AND b.apporteur_id=?', params: [s.partenaire_nom, s.id] }
     : { where: 'b.archived=0 AND b.partenaire=?',                       params: [s.partenaire_nom] };
 }
+// Commission du périmètre courant : apporteur → sa commission ; admin_partenaire → celle de l'org
+function scopeCommission(s) {
+  return s.role === 'apporteur'
+    ? { mode: s.c_cmode || 'pct', valeur: s.c_cval || 0 }
+    : { mode: s.p_cmode || 'pct', valeur: s.p_cval || 0 };
+}
+const COMMISSION_MODES = ['pct', 'eur_mwhc', 'fixe'];
 
 app.get('/api/partner/me', requirePartner, (req, res) => {
   partnerScope(req, res, (s) => {
+    const cc = scopeCommission(s);
     getPrixCee(s.partenaire_id, (prix) => res.json({
       compte_nom: s.compte_nom, partenaire_nom: s.partenaire_nom,
-      role: s.role, partenaire_id: s.partenaire_id, prix_eur_mwh: prix
+      role: s.role, partenaire_id: s.partenaire_id, prix_eur_mwh: prix,
+      commission_mode: cc.mode, commission_valeur: cc.valeur
     }));
   });
 });
@@ -1818,7 +1850,13 @@ app.get('/api/partner/stats', requirePartner, (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
         const byStatut = {}; let total = 0, cumac = 0;
         (rows || []).forEach(r => { byStatut[r.statut] = r.c; total += r.c; cumac += (r.cumac || 0); });
-        res.json({ total, byStatut, volume_cumac: cumac, subvention: Math.round(cumac * prix / 1000), prix_eur_mwh: prix });
+        const subvention = Math.round(cumac * prix / 1000);
+        const cc = scopeCommission(s);
+        const commission = cc.mode === 'fixe'
+          ? Math.round((parseFloat(cc.valeur) || 0) * total)
+          : computeCommission(cc.mode, cc.valeur, { subvention, volume_cumac: cumac });
+        res.json({ total, byStatut, volume_cumac: cumac, subvention, prix_eur_mwh: prix,
+          commission, commission_mode: cc.mode, commission_valeur: cc.valeur });
       });
     });
   });
@@ -1835,7 +1873,11 @@ app.get('/api/partner/dossiers', requirePartner, (req, res) => {
                 (SELECT nom FROM comptes WHERE id=b.apporteur_id) AS apporteur_nom
               FROM beneficiaires b WHERE ${f.where} ORDER BY b.created_at DESC`, f.params, (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        (rows || []).forEach(r => r.subvention = Math.round((r.volume_cumac || 0) * prix / 1000));
+        const cc = scopeCommission(s);
+        (rows || []).forEach(r => {
+          r.subvention = Math.round((r.volume_cumac || 0) * prix / 1000);
+          r.commission = computeCommission(cc.mode, cc.valeur, { subvention: r.subvention, volume_cumac: r.volume_cumac });
+        });
         res.json(rows || []);
       });
     });
@@ -1856,8 +1898,12 @@ app.get('/api/partner/dossiers/:id', requirePartner, (req, res) => {
             db.all(`SELECT code_fiche,nom_operation,secteur,volume_kwh,prime_negociee,prime_validee,statut,date_engagement FROM cee_operations WHERE beneficiaire_id=?`,
               [b.id], (e3, ops) => {
                 const cumac = (ops || []).reduce((t, o) => t + (o.volume_kwh || 0), 0);
+                const subvention = Math.round(cumac * prix / 1000);
+                const cc = scopeCommission(s);
                 res.json({ ...b, documents: docs || [], operations: ops || [],
-                  volume_cumac: cumac, subvention: Math.round(cumac * prix / 1000), prix_eur_mwh: prix });
+                  volume_cumac: cumac, subvention, prix_eur_mwh: prix,
+                  commission: computeCommission(cc.mode, cc.valeur, { subvention, volume_cumac: cumac }),
+                  commission_mode: cc.mode });
               });
           });
       });
@@ -1890,7 +1936,8 @@ app.post('/api/partner/dossiers', requireRole('admin_partenaire','apporteur'), (
 // ── Gestion d'équipe (Admin Partenaire) ──────────────────────────────────────
 app.get('/api/partner/team', requireRole('admin_partenaire'), (req, res) => {
   partnerScope(req, res, (s) => {
-    db.all(`SELECT id,role,nom,email,actif,last_login,created_at FROM comptes WHERE partenaire_id=? ORDER BY role,nom`,
+    db.all(`SELECT id,role,nom,email,actif,commission_mode,commission_valeur,last_login,created_at
+            FROM comptes WHERE partenaire_id=? ORDER BY role,nom`,
       [s.partenaire_id], (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows || []));
   });
 });
@@ -1899,20 +1946,25 @@ app.post('/api/partner/team', requireRole('admin_partenaire'), (req, res) => {
     const { nom, email, password } = req.body;
     if (!nom || !email || !password) return res.status(400).json({ error: 'Nom, email et mot de passe requis' });
     if (String(password).length < 6)  return res.status(400).json({ error: 'Mot de passe : 6 caractères minimum' });
+    const cmode = COMMISSION_MODES.includes(req.body.commission_mode) ? req.body.commission_mode : 'pct';
+    const cval  = parseFloat(req.body.commission_valeur) || 0;
     db.get('SELECT id FROM comptes WHERE lower(email)=lower(?)', [String(email).trim()], (e, exist) => {
       if (exist) return res.status(409).json({ error: 'Cet email est déjà utilisé' });
-      db.run(`INSERT INTO comptes (partenaire_id,role,nom,email,password_hash,actif) VALUES (?,?,?,?,?,1)`,
-        [s.partenaire_id, 'apporteur', nom.trim(), String(email).trim().toLowerCase(), hashPassword(password)],
+      db.run(`INSERT INTO comptes (partenaire_id,role,nom,email,password_hash,actif,commission_mode,commission_valeur)
+              VALUES (?,?,?,?,?,1,?,?)`,
+        [s.partenaire_id, 'apporteur', nom.trim(), String(email).trim().toLowerCase(), hashPassword(password), cmode, cval],
         err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
     });
   });
 });
 app.put('/api/partner/team/:id', requireRole('admin_partenaire'), (req, res) => {
   partnerScope(req, res, (s) => {
-    const { nom, password, actif } = req.body;
+    const { nom, password, actif, commission_mode, commission_valeur } = req.body;
     const sets = [], vals = [];
     if (nom !== undefined)   { sets.push('nom=?');   vals.push(String(nom).trim()); }
     if (actif !== undefined) { sets.push('actif=?'); vals.push(actif ? 1 : 0); }
+    if (commission_mode !== undefined)  { sets.push('commission_mode=?');  vals.push(COMMISSION_MODES.includes(commission_mode) ? commission_mode : 'pct'); }
+    if (commission_valeur !== undefined){ sets.push('commission_valeur=?'); vals.push(parseFloat(commission_valeur) || 0); }
     if (password) {
       if (String(password).length < 6) return res.status(400).json({ error: 'Mot de passe : 6 caractères minimum' });
       sets.push('password_hash=?'); vals.push(hashPassword(password));

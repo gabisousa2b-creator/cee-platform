@@ -165,8 +165,8 @@
         <div class="stat-lbl mt-2"><i class="fas fa-folder-open me-1" style="color:var(--accent)"></i>Dossiers</div>
       </div></div>
       <div class="col-6 col-lg-3"><div class="card-p" style="padding:20px 22px">
-        <div class="stat-num" id="stValide" style="color:var(--success)">—</div>
-        <div class="stat-lbl mt-2"><i class="fas fa-circle-check me-1" style="color:var(--success)"></i>Validés</div>
+        <div class="stat-num" id="stComm" style="color:var(--success)">—</div>
+        <div class="stat-lbl mt-2"><i class="fas fa-percent me-1" style="color:var(--success)"></i><span id="stCommLbl">Commission</span></div>
       </div></div>
       <div class="col-6 col-lg-3"><div class="card-p" style="padding:20px 22px">
         <div class="stat-num" id="stCumac" style="color:var(--info)">—</div>
@@ -275,13 +275,23 @@
           <div class="row g-2">
             <div class="col-md-4"><input class="form-control form-control-sm" id="tNom" placeholder="Nom complet"></div>
             <div class="col-md-4"><input class="form-control form-control-sm" id="tEmail" type="email" placeholder="Email de connexion"></div>
-            <div class="col-md-3">
+            <div class="col-md-4">
               <div class="input-group input-group-sm">
                 <input class="form-control" id="tPw" placeholder="Mot de passe">
                 <button class="btn btn-outline-secondary" type="button" onclick="genTeamPw()"><i class="fas fa-dice"></i></button>
               </div>
             </div>
-            <div class="col-md-1"><button class="btn btn-sm btn-primary w-100" onclick="createApporteur()"><i class="fas fa-plus"></i></button></div>
+          </div>
+          <div class="row g-2 mt-1">
+            <div class="col-md-4">
+              <select class="form-select form-select-sm" id="tCommMode">
+                <option value="pct">Commission : % de la subvention</option>
+                <option value="eur_mwhc">Commission : € par MWhc</option>
+                <option value="fixe">Commission : € fixe / dossier</option>
+              </select>
+            </div>
+            <div class="col-md-4"><input class="form-control form-control-sm" id="tCommVal" type="number" step="0.01" min="0" placeholder="Valeur de la commission"></div>
+            <div class="col-md-4"><button class="btn btn-sm btn-primary w-100" onclick="createApporteur()"><i class="fas fa-plus me-1"></i>Ajouter l'apporteur</button></div>
           </div>
         </div>
         <div id="teamList"><div class="text-center py-4" style="color:var(--t3)"><i class="fas fa-spinner fa-spin"></i></div></div>
@@ -344,11 +354,12 @@ async function loadMe() {
     document.getElementById('heroSub').textContent = myRole === 'admin_partenaire'
       ? p.partenaire_nom + ' — dossiers de toute votre équipe'
       : 'Vos dépôts — ' + p.partenaire_nom;
+    document.getElementById('stCommLbl').textContent = myRole === 'apporteur' ? 'Mes commissions' : 'Commission org';
     // Colonnes table selon rôle
     const head = document.getElementById('dossiersHead');
     head.innerHTML = '<th>Code</th><th>Bénéficiaire</th><th>Entreprise</th>' +
       (myRole === 'admin_partenaire' ? '<th>Apporteur</th>' : '') +
-      '<th>Volume cumac</th><th>Subvention</th><th>Statut</th><th></th>';
+      '<th>Volume cumac</th><th>Subvention</th><th>Commission</th><th>Statut</th><th></th>';
   } catch(e) {}
 }
 
@@ -358,10 +369,10 @@ async function loadStats() {
     if (!r.ok) return;
     const d = await r.json();
     const by = d.byStatut || {};
-    document.getElementById('stTotal').textContent  = d.total || 0;
-    document.getElementById('stValide').textContent = by.valide || 0;
-    document.getElementById('stCumac').textContent  = fmtKwh(d.volume_cumac || 0);
-    document.getElementById('stSubv').textContent   = fmtEur(d.subvention || 0);
+    document.getElementById('stTotal').textContent = d.total || 0;
+    document.getElementById('stComm').textContent  = fmtEur(d.commission || 0);
+    document.getElementById('stCumac').textContent = fmtKwh(d.volume_cumac || 0);
+    document.getElementById('stSubv').textContent  = fmtEur(d.subvention || 0);
   } catch(e) {}
 }
 
@@ -392,7 +403,7 @@ function renderDossiers() {
   document.getElementById('dossierCount').textContent =
     `${list.length} dossier${list.length>1?'s':''}${list.length!==allDossiers.length?` / ${allDossiers.length}`:''}`;
   const tb = document.getElementById('dossiersBody');
-  const cols = myRole === 'admin_partenaire' ? 8 : 7;
+  const cols = myRole === 'admin_partenaire' ? 9 : 8;
   if (!list.length) {
     tb.innerHTML = `<tr><td colspan="${cols}" class="text-center py-5" style="color:var(--t3)"><i class="fas fa-folder-open mb-2 d-block" style="font-size:1.6rem;opacity:.4"></i>Aucun dossier ${allDossiers.length?'pour ce filtre':'— déposez votre premier dossier'}.</td></tr>`;
     return;
@@ -405,6 +416,7 @@ function renderDossiers() {
       ${myRole === 'admin_partenaire' ? `<td style="color:var(--t2)">${escH(b.apporteur_nom || '—')}</td>` : ''}
       <td class="num" style="color:var(--info);font-weight:600">${fmtKwh(b.volume_cumac||0)}</td>
       <td class="num" style="color:var(--accent);font-weight:700">${fmtEur(b.subvention||0)}</td>
+      <td class="num" style="color:var(--success);font-weight:700">${fmtEur(b.commission||0)}</td>
       <td><span class="badge-statut s-${b.statut}">${STATUT_LABELS[b.statut] || b.statut}</span></td>
       <td><i class="fas fa-chevron-right" style="color:var(--t3);font-size:.75rem"></i></td>
     </tr>`).join('');
@@ -455,8 +467,9 @@ async function openDetail(id) {
 
   document.getElementById('panelBody').innerHTML = `
     <div class="row g-2 mb-1">
-      <div class="col-6"><div class="card-p" style="padding:14px 16px"><div style="font-size:.66rem;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700">Volume cumac</div><div style="font-size:1.3rem;font-weight:800;color:var(--info)">${fmtKwh(b.volume_cumac||0)}</div></div></div>
-      <div class="col-6"><div class="card-p" style="padding:14px 16px"><div style="font-size:.66rem;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700">Subvention estimée</div><div style="font-size:1.3rem;font-weight:800;color:var(--accent)">${fmtEur(b.subvention||0)}</div></div></div>
+      <div class="col-4"><div class="card-p" style="padding:13px 12px"><div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);font-weight:700">Volume cumac</div><div style="font-size:1.05rem;font-weight:800;color:var(--info)">${fmtKwh(b.volume_cumac||0)}</div></div></div>
+      <div class="col-4"><div class="card-p" style="padding:13px 12px"><div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);font-weight:700">Subvention</div><div style="font-size:1.05rem;font-weight:800;color:var(--accent)">${fmtEur(b.subvention||0)}</div></div></div>
+      <div class="col-4"><div class="card-p" style="padding:13px 12px"><div style="font-size:.6rem;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);font-weight:700">Commission</div><div style="font-size:1.05rem;font-weight:800;color:var(--success)">${fmtEur(b.commission||0)}</div></div></div>
     </div>
     <div class="sec-title">Bénéficiaire</div>
     <div class="info-grid">
@@ -525,10 +538,20 @@ async function loadTeam() {
   const list = await r.json();
   const apporteurs = list.filter(c => c.role === 'apporteur');
   if (!apporteurs.length) { el.innerHTML = '<div class="text-center py-3" style="color:var(--t3);font-size:.85rem">Aucun apporteur. Ajoutez-en un ci-dessus.</div>'; return; }
-  el.innerHTML = `<table class="tbl-p"><thead><tr><th>Apporteur</th><th>Email</th><th>Statut</th><th></th></tr></thead><tbody>` +
+  el.innerHTML = `<table class="tbl-p"><thead><tr><th>Apporteur</th><th>Commission</th><th>Statut</th><th></th></tr></thead><tbody>` +
     apporteurs.map(c => `<tr style="cursor:default">
-      <td><strong>${escH(c.nom||'—')}</strong></td>
-      <td style="color:var(--t2)">${escH(c.email)}</td>
+      <td><strong>${escH(c.nom||'—')}</strong><div style="font-size:.72rem;color:var(--t3)">${escH(c.email)}</div></td>
+      <td>
+        <div class="d-flex gap-1 align-items-center">
+          <select class="form-select form-select-sm" id="cm-${c.id}" style="width:auto">
+            <option value="pct" ${c.commission_mode==='pct'?'selected':''}>%</option>
+            <option value="eur_mwhc" ${c.commission_mode==='eur_mwhc'?'selected':''}>€/MWhc</option>
+            <option value="fixe" ${c.commission_mode==='fixe'?'selected':''}>€ fixe</option>
+          </select>
+          <input class="form-control form-control-sm" id="cv-${c.id}" type="number" step="0.01" min="0" style="width:82px" value="${c.commission_valeur||''}">
+          <button class="btn btn-sm btn-outline-primary" onclick="saveApporteurComm(${c.id})" title="Enregistrer la commission"><i class="fas fa-save"></i></button>
+        </div>
+      </td>
       <td><span class="badge-statut ${c.actif?'s-valide':'s-refuse'}">${c.actif?'Actif':'Inactif'}</span></td>
       <td><button class="btn btn-sm btn-outline-secondary" onclick="toggleApporteur(${c.id},${c.actif?0:1})">${c.actif?'Désactiver':'Activer'}</button></td>
     </tr>`).join('') + `</tbody></table>`;
@@ -543,16 +566,25 @@ async function createApporteur() {
   const body = {
     nom: document.getElementById('tNom').value.trim(),
     email: document.getElementById('tEmail').value.trim(),
-    password: document.getElementById('tPw').value
+    password: document.getElementById('tPw').value,
+    commission_mode: document.getElementById('tCommMode').value,
+    commission_valeur: document.getElementById('tCommVal').value
   };
   if (!body.nom || !body.email || !body.password) { err.textContent = 'Nom, email et mot de passe requis'; err.classList.remove('d-none'); return; }
   const r = await fetch('/api/partner/team', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
   const d = await r.json();
   if (r.ok && d.success) {
     showToast('Apporteur créé — identifiants : ' + body.email);
-    ['tNom','tEmail','tPw'].forEach(id => document.getElementById(id).value = '');
+    ['tNom','tEmail','tPw','tCommVal'].forEach(id => document.getElementById(id).value = '');
     loadTeam();
   } else { err.textContent = d.error || 'Erreur'; err.classList.remove('d-none'); }
+}
+async function saveApporteurComm(id) {
+  const mode = document.getElementById('cm-'+id).value;
+  const val  = document.getElementById('cv-'+id).value;
+  const r = await fetch(`/api/partner/team/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ commission_mode:mode, commission_valeur:val }) });
+  if (r.ok) showToast('Commission mise à jour');
+  else showToast('Erreur', 'danger');
 }
 async function toggleApporteur(id, actif) {
   const r = await fetch(`/api/partner/team/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ actif:!!actif }) });
