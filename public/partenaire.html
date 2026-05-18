@@ -29,11 +29,13 @@
       -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
       border-bottom:1px solid var(--border);
       padding:13px 26px; display:flex; align-items:center; justify-content:space-between;
-      position:sticky; top:0; z-index:200;
+      position:sticky; top:0; z-index:200; gap:14px; flex-wrap:wrap;
     }
     .brand-p { font-weight:700; color:var(--t1); font-size:1.02rem; letter-spacing:-.02em; }
     .brand-p span { color:var(--accent); }
-    .main-p { max-width:1180px; margin:0 auto; padding:28px 26px 64px; }
+    .role-badge { font-size:.62rem; font-weight:700; text-transform:uppercase; letter-spacing:.7px;
+      padding:3px 9px; border-radius:20px; background:var(--accent-dim); color:var(--accent); border:1px solid var(--accent-line); }
+    .main-p { max-width:1240px; margin:0 auto; padding:28px 26px 64px; }
 
     .hero-p {
       background:linear-gradient(135deg, rgba(31,227,194,.07), rgba(91,140,255,.05) 60%, rgba(255,255,255,.014));
@@ -50,16 +52,17 @@
       border:1px solid var(--border); border-radius:var(--r-lg);
       box-shadow:var(--shadow-md), inset 0 1px 0 rgba(255,255,255,.045);
     }
-    .stat-num { font-size:2rem; font-weight:800; letter-spacing:-.5px; line-height:1; }
-    .stat-lbl { font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.6px; color:var(--t2); }
+    .stat-num { font-size:1.85rem; font-weight:800; letter-spacing:-.5px; line-height:1.1; }
+    .stat-lbl { font-size:.7rem; font-weight:600; text-transform:uppercase; letter-spacing:.6px; color:var(--t2); }
 
     table.tbl-p { width:100%; border-collapse:collapse; }
-    table.tbl-p thead th { background:var(--glass-2); font-size:.72rem; font-weight:600;
+    table.tbl-p thead th { background:var(--glass-2); font-size:.7rem; font-weight:600;
       text-transform:uppercase; letter-spacing:.6px; color:var(--t2);
-      padding:12px 16px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap; }
-    table.tbl-p tbody td { padding:12px 16px; font-size:.875rem; border-bottom:1px solid var(--hair); color:var(--t1); }
+      padding:11px 14px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap; }
+    table.tbl-p tbody td { padding:11px 14px; font-size:.86rem; border-bottom:1px solid var(--hair); color:var(--t1); }
     table.tbl-p tbody tr { transition:background .12s; cursor:pointer; }
     table.tbl-p tbody tr:hover td { background:var(--glass-1); }
+    .num { font-variant-numeric:tabular-nums; white-space:nowrap; }
 
     .badge-statut { padding:3px 10px; border-radius:20px; font-size:.7rem; font-weight:700; white-space:nowrap; }
     .s-en_attente      { background:var(--warning-dim); color:var(--warning); border:1px solid rgba(255,178,62,.3); }
@@ -70,22 +73,16 @@
     .s-refuse          { background:var(--danger-dim);  color:var(--danger);  border:1px solid rgba(255,107,107,.3); }
 
     .ds { padding:2px 9px; border-radius:14px; font-size:.68rem; font-weight:700; }
-    .ds-recu     { background:var(--info-dim);    color:var(--info); }
-    .ds-valide   { background:var(--success-dim); color:var(--success); }
-    .ds-refuse   { background:var(--danger-dim);  color:var(--danger); }
+    .ds-recu { background:var(--info-dim); color:var(--info); }
+    .ds-valide { background:var(--success-dim); color:var(--success); }
+    .ds-refuse { background:var(--danger-dim); color:var(--danger); }
     .ds-manquant { background:var(--warning-dim); color:var(--warning); }
 
-    .doc-dot { display:inline-block; width:9px; height:9px; border-radius:50%; }
-    .doc-dot.ok { background:var(--success); box-shadow:0 0 7px rgba(43,217,138,.6); }
-    .doc-dot.ko { background:var(--bg-4); border:1px solid var(--border-light); }
-
-    .pill-f { display:flex; flex-wrap:wrap; gap:6px; }
     .fpill { padding:5px 13px; border-radius:20px; font-size:.76rem; font-weight:600; cursor:pointer;
       border:1px solid var(--border-light); color:var(--t2); background:var(--bg-3); transition:all .12s; user-select:none; }
     .fpill:hover { color:var(--t1); border-color:var(--accent-line); }
     .fpill.active { background:var(--accent-dim); color:var(--accent); border-color:var(--accent-line); }
 
-    /* Detail panel */
     .overlay { position:fixed; inset:0; background:rgba(0,0,0,.62); z-index:150; display:none; backdrop-filter:blur(2px); }
     .overlay.show { display:block; }
     .detail-panel {
@@ -118,7 +115,7 @@
   <div class="login-card">
     <div class="login-logo"><i class="fas fa-handshake"></i></div>
     <h4 class="text-center fw-bold mb-1">Espace Partenaire</h4>
-    <p class="text-center mb-4" style="color:var(--t2);font-size:.9rem">Accédez au suivi de vos dossiers CEE</p>
+    <p class="text-center mb-4" style="color:var(--t2);font-size:.9rem">Suivi de vos dossiers CEE</p>
     <div id="loginError" class="alert alert-danger d-none py-2"></div>
     <form id="loginForm">
       <label class="form-label">Email</label>
@@ -146,17 +143,19 @@
         <div style="font-size:.62rem;color:var(--t3);font-weight:600;letter-spacing:.5px">Espace Partenaire</div>
       </div>
     </div>
-    <div class="d-flex align-items-center gap-3">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <span class="role-badge" id="roleBadge"></span>
       <span style="color:var(--t2);font-size:.86rem" id="partnerName"></span>
-      <button class="btn btn-sm btn-outline-secondary" onclick="logout()"><i class="fas fa-right-from-bracket me-2"></i>Déconnexion</button>
+      <button class="btn btn-sm btn-outline-secondary d-none" id="btnTeam" onclick="openTeam()"><i class="fas fa-users me-1"></i>Mon équipe</button>
+      <button class="btn btn-sm btn-primary" onclick="openDeposit()"><i class="fas fa-plus me-1"></i>Déposer un dossier</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="logout()"><i class="fas fa-right-from-bracket me-1"></i>Déconnexion</button>
     </div>
   </div>
 
   <div class="main-p">
-    <!-- Hero -->
     <div class="hero-p">
       <div style="font-size:1.5rem;font-weight:700;letter-spacing:-.02em" id="heroTitle">Vos dossiers CEE</div>
-      <div style="color:var(--t2);font-size:.88rem;margin-top:3px" id="heroSub">Suivi de l'avancement et de la validation</div>
+      <div style="color:var(--t2);font-size:.88rem;margin-top:3px" id="heroSub">Suivi de l'avancement, du volume cumac et de la subvention</div>
     </div>
 
     <!-- Compteurs -->
@@ -170,12 +169,12 @@
         <div class="stat-lbl mt-2"><i class="fas fa-circle-check me-1" style="color:var(--success)"></i>Validés</div>
       </div></div>
       <div class="col-6 col-lg-3"><div class="card-p" style="padding:20px 22px">
-        <div class="stat-num" id="stCours" style="color:var(--info)">—</div>
-        <div class="stat-lbl mt-2"><i class="fas fa-spinner me-1" style="color:var(--info)"></i>En cours</div>
+        <div class="stat-num" id="stCumac" style="color:var(--info)">—</div>
+        <div class="stat-lbl mt-2"><i class="fas fa-bolt me-1" style="color:var(--info)"></i>Volume cumac</div>
       </div></div>
       <div class="col-6 col-lg-3"><div class="card-p" style="padding:20px 22px">
-        <div class="stat-num" id="stAttente" style="color:var(--warning)">—</div>
-        <div class="stat-lbl mt-2"><i class="fas fa-hourglass-half me-1" style="color:var(--warning)"></i>En attente</div>
+        <div class="stat-num" id="stSubv" style="color:var(--accent)">—</div>
+        <div class="stat-lbl mt-2"><i class="fas fa-sack-dollar me-1" style="color:var(--accent)"></i>Subvention estimée</div>
       </div></div>
     </div>
 
@@ -183,11 +182,11 @@
     <div class="card-p">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 p-3 border-bottom" style="border-color:var(--border)!important">
         <div class="d-flex align-items-center gap-3 flex-wrap">
-          <h6 class="fw-bold mb-0"><i class="fas fa-list-check me-2" style="color:var(--accent)"></i>Dossiers rattachés</h6>
+          <h6 class="fw-bold mb-0"><i class="fas fa-list-check me-2" style="color:var(--accent)"></i>Dossiers</h6>
           <span style="color:var(--t3);font-size:.8rem" id="dossierCount"></span>
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
-          <div class="pill-f" id="statutPills">
+          <div class="d-flex flex-wrap gap-1" id="statutPills">
             <span class="fpill active" data-s="" onclick="setFilter('',this)">Tous</span>
             <span class="fpill" data-s="en_attente" onclick="setFilter('en_attente',this)">En attente</span>
             <span class="fpill" data-s="en_cours" onclick="setFilter('en_cours',this)">En cours</span>
@@ -198,19 +197,20 @@
       </div>
       <div class="table-responsive">
         <table class="tbl-p">
-          <thead>
-            <tr><th>Code</th><th>Bénéficiaire</th><th>Entreprise</th><th>Ville</th><th>Documents</th><th>Statut</th><th></th></tr>
-          </thead>
+          <thead><tr id="dossiersHead"></tr></thead>
           <tbody id="dossiersBody">
             <tr><td colspan="7" class="text-center py-5" style="color:var(--t3)"><i class="fas fa-spinner fa-spin"></i></td></tr>
           </tbody>
         </table>
       </div>
     </div>
+    <div style="color:var(--t3);font-size:.76rem;margin-top:10px">
+      <i class="fas fa-circle-info me-1"></i>Subvention estimée = volume kWh cumac × taux <span id="tauxInfo"></span>. Valeur indicative, sous réserve de validation du dossier.
+    </div>
   </div>
 </div>
 
-<!-- ══ DETAIL ══ -->
+<!-- ══ DÉTAIL DOSSIER ══ -->
 <div class="overlay" id="overlay" onclick="closeDetail()"></div>
 <div class="detail-panel" id="detailPanel">
   <div class="panel-hd">
@@ -221,6 +221,73 @@
     <button class="btn btn-sm btn-outline-secondary" onclick="closeDetail()"><i class="fas fa-times"></i></button>
   </div>
   <div class="p-4" id="panelBody"><div class="text-center py-5" style="color:var(--t3)"><i class="fas fa-spinner fa-spin"></i></div></div>
+</div>
+
+<!-- ══ MODAL DÉPÔT ══ -->
+<div class="modal fade" id="depositModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-0 rounded-4">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fw-bold"><i class="fas fa-plus me-2" style="color:var(--accent)"></i>Déposer un dossier</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="depositForm">
+        <div class="modal-body p-4">
+          <div id="depositError" class="alert alert-danger d-none"></div>
+          <h6 class="fw-semibold mb-3" style="color:var(--t2)"><i class="fas fa-user me-2"></i>Bénéficiaire</h6>
+          <div class="row g-3 mb-3">
+            <div class="col-md-6"><label class="form-label">Nom <span class="text-danger">*</span></label><input class="form-control" id="dNom" required></div>
+            <div class="col-md-6"><label class="form-label">Prénom <span class="text-danger">*</span></label><input class="form-control" id="dPrenom" required></div>
+            <div class="col-md-6"><label class="form-label">Email</label><input type="email" class="form-control" id="dEmail"></div>
+            <div class="col-md-6"><label class="form-label">Téléphone</label><input class="form-control" id="dTel"></div>
+          </div>
+          <h6 class="fw-semibold mb-3" style="color:var(--t2)"><i class="fas fa-building me-2"></i>Entreprise</h6>
+          <div class="row g-3">
+            <div class="col-md-7"><label class="form-label">Raison sociale</label><input class="form-control" id="dSociete"></div>
+            <div class="col-md-5"><label class="form-label">SIRET</label><input class="form-control" id="dSiret"></div>
+            <div class="col-12"><label class="form-label">Adresse</label><input class="form-control" id="dAdresse"></div>
+            <div class="col-md-3"><label class="form-label">Code postal</label><input class="form-control" id="dCp"></div>
+            <div class="col-md-5"><label class="form-label">Ville</label><input class="form-control" id="dVille"></div>
+            <div class="col-md-4"><label class="form-label">Activité</label><input class="form-control" id="dActivite"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+          <button type="submit" class="btn btn-primary px-4"><i class="fas fa-paper-plane me-2"></i>Déposer le dossier</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL ÉQUIPE ══ -->
+<div class="modal fade" id="teamModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-0 rounded-4">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fw-bold"><i class="fas fa-users me-2" style="color:var(--accent)"></i>Mon équipe</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div class="card-p mb-3" style="padding:16px">
+          <div class="fw-semibold mb-3"><i class="fas fa-user-plus me-2" style="color:var(--accent)"></i>Ajouter un apporteur d'affaires</div>
+          <div id="teamError" class="alert alert-danger d-none py-2"></div>
+          <div class="row g-2">
+            <div class="col-md-4"><input class="form-control form-control-sm" id="tNom" placeholder="Nom complet"></div>
+            <div class="col-md-4"><input class="form-control form-control-sm" id="tEmail" type="email" placeholder="Email de connexion"></div>
+            <div class="col-md-3">
+              <div class="input-group input-group-sm">
+                <input class="form-control" id="tPw" placeholder="Mot de passe">
+                <button class="btn btn-outline-secondary" type="button" onclick="genTeamPw()"><i class="fas fa-dice"></i></button>
+              </div>
+            </div>
+            <div class="col-md-1"><button class="btn btn-sm btn-primary w-100" onclick="createApporteur()"><i class="fas fa-plus"></i></button></div>
+          </div>
+        </div>
+        <div id="teamList"><div class="text-center py-4" style="color:var(--t3)"><i class="fas fa-spinner fa-spin"></i></div></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="toast-box" id="toastBox"></div>
@@ -235,9 +302,8 @@ const DOC_TYPES = [
 ];
 const DOC_STATUT = { recu:'Reçu', valide:'Validé', refuse:'Refusé', manquant:'Manquant' };
 const OP_STATUT  = { en_attente:'En attente', en_cours:'En cours', valide:'Validé', refuse:'Refusé', annule:'Annulé' };
-let allDossiers = [], filterStatut = '';
+let allDossiers = [], filterStatut = '', myRole = '', myPrix = 0;
 
-// ── Init ──
 document.addEventListener('DOMContentLoaded', async () => {
   const r = await fetch('/api/partner/check-auth');
   const d = await r.json();
@@ -248,8 +314,7 @@ document.getElementById('loginForm').addEventListener('submit', async e => {
   e.preventDefault();
   const email = document.getElementById('loginEmail').value.trim();
   const password = document.getElementById('loginPassword').value;
-  const err = document.getElementById('loginError');
-  err.classList.add('d-none');
+  const err = document.getElementById('loginError'); err.classList.add('d-none');
   const r = await fetch('/api/partner/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ email, password }) });
   const d = await r.json();
   if (r.ok && d.success) showApp();
@@ -261,7 +326,9 @@ async function logout() { await fetch('/api/partner/logout', { method:'POST' });
 async function showApp() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appScreen').style.display = 'block';
-  loadMe(); loadStats(); loadDossiers();
+  await loadMe();
+  loadStats();
+  loadDossiers();
 }
 
 async function loadMe() {
@@ -269,8 +336,19 @@ async function loadMe() {
     const r = await fetch('/api/partner/me');
     if (!r.ok) return;
     const p = await r.json();
-    document.getElementById('partnerName').textContent = p.nom || '';
-    document.getElementById('heroSub').textContent = `${p.nom} — suivi de l'avancement et de la validation`;
+    myRole = p.role; myPrix = p.prix_eur_mwh || 0;
+    document.getElementById('partnerName').textContent = p.partenaire_nom + (p.compte_nom && p.compte_nom !== p.partenaire_nom ? ' · ' + p.compte_nom : '');
+    document.getElementById('roleBadge').textContent = myRole === 'admin_partenaire' ? 'Admin Partenaire' : 'Apporteur';
+    document.getElementById('tauxInfo').textContent = '(' + myPrix.toLocaleString('fr-FR') + ' €/MWh)';
+    document.getElementById('btnTeam').classList.toggle('d-none', myRole !== 'admin_partenaire');
+    document.getElementById('heroSub').textContent = myRole === 'admin_partenaire'
+      ? p.partenaire_nom + ' — dossiers de toute votre équipe'
+      : 'Vos dépôts — ' + p.partenaire_nom;
+    // Colonnes table selon rôle
+    const head = document.getElementById('dossiersHead');
+    head.innerHTML = '<th>Code</th><th>Bénéficiaire</th><th>Entreprise</th>' +
+      (myRole === 'admin_partenaire' ? '<th>Apporteur</th>' : '') +
+      '<th>Volume cumac</th><th>Subvention</th><th>Statut</th><th></th>';
   } catch(e) {}
 }
 
@@ -280,11 +358,10 @@ async function loadStats() {
     if (!r.ok) return;
     const d = await r.json();
     const by = d.byStatut || {};
-    const set = (id,v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-    set('stTotal', d.total || 0);
-    set('stValide', by.valide || 0);
-    set('stCours', (by.en_cours || 0) + (by.documents_recus || 0) + (by.dossier_complet || 0));
-    set('stAttente', by.en_attente || 0);
+    document.getElementById('stTotal').textContent  = d.total || 0;
+    document.getElementById('stValide').textContent = by.valide || 0;
+    document.getElementById('stCumac').textContent  = fmtKwh(d.volume_cumac || 0);
+    document.getElementById('stSubv').textContent   = fmtEur(d.subvention || 0);
   } catch(e) {}
 }
 
@@ -302,13 +379,6 @@ function setFilter(s, el) {
   renderDossiers();
 }
 
-function docDots(b) {
-  const n = b.docs_count || 0;
-  let dots = '';
-  for (let i = 0; i < 3; i++) dots += `<span class="doc-dot ${i < n ? 'ok' : 'ko'}"></span>`;
-  return `<div class="d-flex align-items-center gap-1">${dots}<span style="font-size:.74rem;color:${n===3?'var(--success)':'var(--t3)'};font-weight:600;margin-left:5px">${n}/3</span></div>`;
-}
-
 function renderDossiers() {
   const q = (document.getElementById('searchInput').value || '').toLowerCase();
   let list = allDossiers.filter(b => {
@@ -322,17 +392,19 @@ function renderDossiers() {
   document.getElementById('dossierCount').textContent =
     `${list.length} dossier${list.length>1?'s':''}${list.length!==allDossiers.length?` / ${allDossiers.length}`:''}`;
   const tb = document.getElementById('dossiersBody');
+  const cols = myRole === 'admin_partenaire' ? 8 : 7;
   if (!list.length) {
-    tb.innerHTML = `<tr><td colspan="7" class="text-center py-5" style="color:var(--t3)"><i class="fas fa-folder-open mb-2 d-block" style="font-size:1.6rem;opacity:.4"></i>Aucun dossier ${allDossiers.length?'pour ce filtre':'rattaché à votre compte'}.</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="${cols}" class="text-center py-5" style="color:var(--t3)"><i class="fas fa-folder-open mb-2 d-block" style="font-size:1.6rem;opacity:.4"></i>Aucun dossier ${allDossiers.length?'pour ce filtre':'— déposez votre premier dossier'}.</td></tr>`;
     return;
   }
   tb.innerHTML = list.map(b => `
     <tr onclick="openDetail(${b.id})">
-      <td><span class="mono" style="color:var(--accent);font-weight:700;font-size:.82rem">${escH(b.code)}</span></td>
+      <td><span class="mono" style="color:var(--accent);font-weight:700;font-size:.8rem">${escH(b.code)}</span></td>
       <td><strong>${escH(b.prenom)} ${escH(b.nom)}</strong></td>
       <td style="color:var(--t2)">${escH(b.raison_sociale || '—')}</td>
-      <td style="color:var(--t2)">${escH(b.ville || '—')}</td>
-      <td>${docDots(b)}</td>
+      ${myRole === 'admin_partenaire' ? `<td style="color:var(--t2)">${escH(b.apporteur_nom || '—')}</td>` : ''}
+      <td class="num" style="color:var(--info);font-weight:600">${fmtKwh(b.volume_cumac||0)}</td>
+      <td class="num" style="color:var(--accent);font-weight:700">${fmtEur(b.subvention||0)}</td>
       <td><span class="badge-statut s-${b.statut}">${STATUT_LABELS[b.statut] || b.statut}</span></td>
       <td><i class="fas fa-chevron-right" style="color:var(--t3);font-size:.75rem"></i></td>
     </tr>`).join('');
@@ -343,10 +415,7 @@ async function openDetail(id) {
   document.getElementById('overlay').classList.add('show');
   document.getElementById('panelBody').innerHTML = '<div class="text-center py-5" style="color:var(--t3)"><i class="fas fa-spinner fa-spin"></i></div>';
   const r = await fetch(`/api/partner/dossiers/${id}`);
-  if (!r.ok) {
-    document.getElementById('panelBody').innerHTML = '<div class="alert alert-danger">Dossier inaccessible.</div>';
-    return;
-  }
+  if (!r.ok) { document.getElementById('panelBody').innerHTML = '<div class="alert alert-danger">Dossier inaccessible.</div>'; return; }
   const b = await r.json();
   document.getElementById('panelTitle').textContent = `${b.prenom} ${b.nom}`;
   document.getElementById('panelCode').innerHTML =
@@ -371,17 +440,6 @@ async function openDetail(id) {
     return `<div style="margin-bottom:14px">${head}${rows || '<div style="font-size:.8rem;color:var(--t3);font-style:italic">Aucun document déposé.</div>'}</div>`;
   }).join('');
 
-  const otherDocs = (b.documents || []).filter(d => d.type === 'admin' || d.type === 'autre');
-  const otherHtml = otherDocs.length ? `<div class="sec-title">Documents complémentaires</div>` + otherDocs.map(d => `
-      <div class="doc-row">
-        <div class="doc-ic" style="background:var(--info-dim);color:var(--info)"><i class="fas fa-file"></i></div>
-        <div class="flex-grow-1" style="min-width:0">
-          <div style="font-size:.84rem;font-weight:600">${escH(d.original_name)}</div>
-          <div style="font-size:.72rem;color:var(--t3)">${fmtDate(d.created_at)}</div>
-        </div>
-        <a href="/api/documents/${d.id}/download" class="btn btn-sm btn-outline-primary"><i class="fas fa-download"></i></a>
-      </div>`).join('') : '';
-
   const ops = b.operations || [];
   const opsHtml = ops.length ? `<div class="sec-title">Opérations CEE</div>` + ops.map(o => `
       <div class="doc-row" style="cursor:default">
@@ -391,15 +449,16 @@ async function openDetail(id) {
             <span class="ds ds-${o.statut==='valide'?'valide':o.statut==='refuse'?'refuse':'recu'}">${OP_STATUT[o.statut]||o.statut}</span>
           </div>
           <div style="font-size:.82rem;font-weight:600;margin-top:3px">${escH(o.nom_operation)}</div>
-          <div style="font-size:.74rem;color:var(--t3);margin-top:2px">
-            ${o.volume_kwh ? fmtKwh(o.volume_kwh) : '—'}
-            ${o.prime_validee ? ' · Prime validée : ' + fmtEur(o.prime_validee) : (o.prime_negociee ? ' · Prime estimée : ' + fmtEur(o.prime_negociee) : '')}
-          </div>
+          <div style="font-size:.74rem;color:var(--t3);margin-top:2px">${o.volume_kwh ? fmtKwh(o.volume_kwh) : '—'}</div>
         </div>
       </div>`).join('') : '';
 
   document.getElementById('panelBody').innerHTML = `
-    <div class="sec-title" style="margin-top:0">Bénéficiaire</div>
+    <div class="row g-2 mb-1">
+      <div class="col-6"><div class="card-p" style="padding:14px 16px"><div style="font-size:.66rem;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700">Volume cumac</div><div style="font-size:1.3rem;font-weight:800;color:var(--info)">${fmtKwh(b.volume_cumac||0)}</div></div></div>
+      <div class="col-6"><div class="card-p" style="padding:14px 16px"><div style="font-size:.66rem;text-transform:uppercase;letter-spacing:.6px;color:var(--t3);font-weight:700">Subvention estimée</div><div style="font-size:1.3rem;font-weight:800;color:var(--accent)">${fmtEur(b.subvention||0)}</div></div></div>
+    </div>
+    <div class="sec-title">Bénéficiaire</div>
     <div class="info-grid">
       <div><div class="lbl">Contact</div><div class="val">${escH(b.prenom)} ${escH(b.nom)}</div></div>
       <div><div class="lbl">Entreprise</div><div class="val">${escH(b.raison_sociale || '—')}</div></div>
@@ -410,23 +469,110 @@ async function openDetail(id) {
     </div>
     <div class="sec-title">Pièces justificatives</div>
     ${docsHtml}
-    ${otherHtml}
     ${opsHtml}
     <div class="alert alert-light mt-3 mb-0" style="font-size:.78rem">
-      <i class="fas fa-circle-info me-1"></i>Vue en lecture seule. Pour toute action sur ce dossier, contactez votre interlocuteur EchoWAI.
+      <i class="fas fa-circle-info me-1"></i>Vue en lecture seule. Pour toute action, contactez votre interlocuteur EchoWAI.
     </div>`;
 }
-
 function closeDetail() {
   document.getElementById('detailPanel').classList.remove('open');
   document.getElementById('overlay').classList.remove('show');
 }
 
+// ── Dépôt de dossier ──
+function openDeposit() {
+  document.getElementById('depositForm').reset();
+  document.getElementById('depositError').classList.add('d-none');
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('depositModal')).show();
+}
+document.getElementById('depositForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const err = document.getElementById('depositError'); err.classList.add('d-none');
+  const body = {
+    nom: document.getElementById('dNom').value.trim(),
+    prenom: document.getElementById('dPrenom').value.trim(),
+    email: document.getElementById('dEmail').value.trim(),
+    telephone: document.getElementById('dTel').value.trim(),
+    raison_sociale: document.getElementById('dSociete').value.trim(),
+    siret: document.getElementById('dSiret').value.trim(),
+    adresse: document.getElementById('dAdresse').value.trim(),
+    code_postal: document.getElementById('dCp').value.trim(),
+    ville: document.getElementById('dVille').value.trim(),
+    activite: document.getElementById('dActivite').value.trim()
+  };
+  if (!body.nom || !body.prenom) { err.textContent = 'Nom et prénom requis'; err.classList.remove('d-none'); return; }
+  const r = await fetch('/api/partner/dossiers', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  const d = await r.json();
+  if (r.ok && d.success) {
+    bootstrap.Modal.getInstance(document.getElementById('depositModal')).hide();
+    showToast('Dossier déposé — code ' + d.code);
+    loadDossiers(); loadStats();
+  } else { err.textContent = d.error || 'Erreur'; err.classList.remove('d-none'); }
+});
+
+// ── Équipe (Admin Partenaire) ──
+function openTeam() {
+  document.getElementById('teamError').classList.add('d-none');
+  ['tNom','tEmail','tPw'].forEach(id => document.getElementById(id).value = '');
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('teamModal')).show();
+  loadTeam();
+}
+async function loadTeam() {
+  const el = document.getElementById('teamList');
+  el.innerHTML = '<div class="text-center py-4" style="color:var(--t3)"><i class="fas fa-spinner fa-spin"></i></div>';
+  const r = await fetch('/api/partner/team');
+  if (!r.ok) { el.innerHTML = '<div class="alert alert-danger">Accès refusé.</div>'; return; }
+  const list = await r.json();
+  const apporteurs = list.filter(c => c.role === 'apporteur');
+  if (!apporteurs.length) { el.innerHTML = '<div class="text-center py-3" style="color:var(--t3);font-size:.85rem">Aucun apporteur. Ajoutez-en un ci-dessus.</div>'; return; }
+  el.innerHTML = `<table class="tbl-p"><thead><tr><th>Apporteur</th><th>Email</th><th>Statut</th><th></th></tr></thead><tbody>` +
+    apporteurs.map(c => `<tr style="cursor:default">
+      <td><strong>${escH(c.nom||'—')}</strong></td>
+      <td style="color:var(--t2)">${escH(c.email)}</td>
+      <td><span class="badge-statut ${c.actif?'s-valide':'s-refuse'}">${c.actif?'Actif':'Inactif'}</span></td>
+      <td><button class="btn btn-sm btn-outline-secondary" onclick="toggleApporteur(${c.id},${c.actif?0:1})">${c.actif?'Désactiver':'Activer'}</button></td>
+    </tr>`).join('') + `</tbody></table>`;
+}
+function genTeamPw() {
+  const c = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  let pw = ''; for (let i=0;i<10;i++) pw += c[Math.floor(Math.random()*c.length)];
+  document.getElementById('tPw').value = pw;
+}
+async function createApporteur() {
+  const err = document.getElementById('teamError'); err.classList.add('d-none');
+  const body = {
+    nom: document.getElementById('tNom').value.trim(),
+    email: document.getElementById('tEmail').value.trim(),
+    password: document.getElementById('tPw').value
+  };
+  if (!body.nom || !body.email || !body.password) { err.textContent = 'Nom, email et mot de passe requis'; err.classList.remove('d-none'); return; }
+  const r = await fetch('/api/partner/team', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  const d = await r.json();
+  if (r.ok && d.success) {
+    showToast('Apporteur créé — identifiants : ' + body.email);
+    ['tNom','tEmail','tPw'].forEach(id => document.getElementById(id).value = '');
+    loadTeam();
+  } else { err.textContent = d.error || 'Erreur'; err.classList.remove('d-none'); }
+}
+async function toggleApporteur(id, actif) {
+  const r = await fetch(`/api/partner/team/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ actif:!!actif }) });
+  if (r.ok) { showToast('Apporteur mis à jour'); loadTeam(); }
+  else showToast('Erreur', 'danger');
+}
+
 // ── Helpers ──
 function escH(s) { return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function fmtDate(dt) { if (!dt) return '—'; return new Date(dt).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' }); }
-function fmtKwh(v) { if (!v) return '0 kWhc'; return v >= 1e6 ? (v/1e6).toFixed(1)+' GWhc' : v >= 1000 ? (v/1000).toFixed(1)+' MWhc' : Math.round(v)+' kWhc'; }
-function fmtEur(v) { if (!v) return '0 €'; return v >= 1000 ? (v/1000).toFixed(1)+' k€' : Math.round(v).toLocaleString('fr-FR')+' €'; }
+function fmtKwh(v) { v = +v||0; return v >= 1e6 ? (v/1e6).toFixed(2)+' GWhc' : v >= 1000 ? (v/1000).toFixed(1)+' MWhc' : Math.round(v).toLocaleString('fr-FR')+' kWhc'; }
+function fmtEur(v) { v = +v||0; return v >= 1000 ? (v/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})+' k€' : Math.round(v).toLocaleString('fr-FR')+' €'; }
+function showToast(msg, type='success') {
+  const box = document.getElementById('toastBox');
+  const t = document.createElement('div');
+  t.className = 'echowai-toast ' + type;
+  t.innerHTML = `<i class="fas fa-${type==='danger'?'circle-exclamation':'circle-check'}" style="color:var(--${type==='danger'?'danger':'success'})"></i><span>${escH(msg)}</span>`;
+  box.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
 </script>
 </body>
 </html>

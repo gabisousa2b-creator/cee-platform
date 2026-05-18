@@ -1337,6 +1337,17 @@
         </div>
         <button class="btn btn-primary" onclick="openPartenaireModal()"><i class="fas fa-plus me-2"></i>Nouveau partenaire</button>
       </div>
+      <div class="table-card p-3 mb-3">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+          <div class="fw-semibold"><i class="fas fa-sliders me-2" style="color:var(--accent)"></i>Taux CEE global</div>
+          <div class="input-group" style="width:auto">
+            <input type="number" step="0.1" min="0" class="form-control form-control-sm" id="tauxGlobal" style="width:110px">
+            <span class="input-group-text">€/MWh</span>
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="saveTauxGlobal()"><i class="fas fa-save me-1"></i>Enregistrer</button>
+          <span class="text-muted small">Prix de valorisation par défaut — surchargé par le prix propre à un partenaire si défini.</span>
+        </div>
+      </div>
       <div class="table-card">
         <div class="table-responsive">
           <table class="table mb-0">
@@ -1635,8 +1646,9 @@
             <div class="col-12"><label class="form-label">Adresse</label><input class="form-control" id="pAdresse"></div>
             <div class="col-md-4"><label class="form-label">Code postal</label><input class="form-control" id="pCp"></div>
             <div class="col-md-8"><label class="form-label">Ville</label><input class="form-control" id="pVille"></div>
-            <div class="col-md-6"><label class="form-label">Site web</label><input class="form-control" id="pSite"></div>
-            <div class="col-md-6"><label class="form-label">Rôle / type</label><input class="form-control" id="pRole" placeholder="Ex : Mandataire CEE, Apporteur…"></div>
+            <div class="col-md-4"><label class="form-label">Site web</label><input class="form-control" id="pSite"></div>
+            <div class="col-md-4"><label class="form-label">Rôle / type</label><input class="form-control" id="pRole" placeholder="Ex : Mandataire CEE"></div>
+            <div class="col-md-4"><label class="form-label">Prix CEE €/MWh</label><input type="number" step="0.1" min="0" class="form-control" id="pPrix" placeholder="Taux global"></div>
           </div>
         </div>
         <div class="modal-footer">
@@ -3585,6 +3597,7 @@ let allPartenaires = [];
 let partenaireNames = [];
 
 async function loadPartenaires() {
+  loadParametres();
   try {
     const r = await fetch('/api/admin/partenaires');
     allPartenaires = await r.json();
@@ -3614,11 +3627,11 @@ async function loadPartenaires() {
     else if (p.compte_actif) compte = `<span class="badge bg-success">Actif</span> <span class="text-muted small">${escHtml(p.login_email)}</span>`;
     else                     compte = `<span class="badge bg-warning text-dark">Inactif</span> <span class="text-muted small">${escHtml(p.login_email)}</span>`;
     return `<tr>
-      <td><strong>${escHtml(p.nom)}</strong>${p.siret?`<div class="text-muted" style="font-size:.72rem">SIRET ${escHtml(p.siret)}</div>`:''}</td>
+      <td><strong>${escHtml(p.nom)}</strong>${p.siret?`<div class="text-muted" style="font-size:.72rem">SIRET ${escHtml(p.siret)}</div>`:''}<div style="font-size:.72rem;color:var(--accent)"><i class="fas fa-tag me-1"></i>${p.prix_eur_mwh!=null?escHtml(p.prix_eur_mwh)+' €/MWh':'Taux global'}</div></td>
       <td class="small">${escHtml(p.email||'—')}${p.telephone?`<div class="text-muted" style="font-size:.72rem">${escHtml(p.telephone)}</div>`:''}</td>
       <td class="text-muted small">${escHtml(p.ville||'—')}</td>
       <td><span class="badge bg-primary">${p.nb_dossiers||0}</span></td>
-      <td>${compte}</td>
+      <td>${compte}${p.nb_apporteurs?` <span class="badge bg-light text-muted ms-1">${p.nb_apporteurs} apporteur(s)</span>`:''}</td>
       <td class="text-nowrap">
         <button class="btn btn-sm btn-outline-primary me-1" onclick="openCompteModal(${p.id})" title="Compte d'accès"><i class="fas fa-key"></i></button>
         <button class="btn btn-sm btn-outline-secondary me-1" onclick="openPartenaireModal(${p.id})" title="Modifier"><i class="fas fa-pen"></i></button>
@@ -3650,6 +3663,7 @@ function openPartenaireModal(id) {
   g('pVille').value = p?.ville || '';
   g('pSite').value = p?.site_web || '';
   g('pRole').value = p?.role_defaut || '';
+  g('pPrix').value = (p && p.prix_eur_mwh != null) ? p.prix_eur_mwh : '';
   bootstrap.Modal.getOrCreateInstance(document.getElementById('partenaireModal')).show();
 }
 
@@ -3665,7 +3679,8 @@ document.getElementById('partenaireForm').addEventListener('submit', async e => 
     code_postal: document.getElementById('pCp').value.trim(),
     ville:       document.getElementById('pVille').value.trim(),
     site_web:    document.getElementById('pSite').value.trim(),
-    role_defaut: document.getElementById('pRole').value.trim()
+    role_defaut: document.getElementById('pRole').value.trim(),
+    prix_eur_mwh: document.getElementById('pPrix').value
   };
   const errEl = document.getElementById('partenaireError');
   if (!body.nom) { errEl.textContent = 'Le nom est requis'; errEl.classList.remove('d-none'); return; }
@@ -3726,6 +3741,23 @@ async function deletePartenaire(id) {
   const r = await fetch(`/api/admin/partenaires/${id}`, { method: 'DELETE' });
   if (r.ok) { showToast('Partenaire supprimé'); loadPartenaires(); }
   else showToast('Erreur lors de la suppression', 'danger');
+}
+
+async function loadParametres() {
+  try {
+    const r = await fetch('/api/admin/parametres');
+    if (!r.ok) return;
+    const d = await r.json();
+    const el = document.getElementById('tauxGlobal');
+    if (el && d.prix_cee_eur_mwh != null) el.value = d.prix_cee_eur_mwh;
+  } catch(e) {}
+}
+async function saveTauxGlobal() {
+  const v = document.getElementById('tauxGlobal').value;
+  if (!v || parseFloat(v) <= 0) { showToast('Taux invalide', 'danger'); return; }
+  const r = await fetch('/api/admin/parametres', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ prix_cee_eur_mwh: v }) });
+  if (r.ok) showToast('Taux CEE global enregistré');
+  else showToast('Erreur', 'danger');
 }
 
 // Drag-drop import
