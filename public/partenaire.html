@@ -105,6 +105,17 @@
       color:var(--accent); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
     .sec-title { font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px;
       color:var(--t3); margin:22px 0 10px; }
+    /* Catalogue d'opérations */
+    .op-card { background:var(--bg-3); border:1px solid var(--border); border-radius:var(--r-sm); padding:10px 12px; margin-bottom:7px; }
+    .op-pick { cursor:pointer; transition:transform .14s, border-color .14s; }
+    .op-pick:hover { border-color:var(--accent-line); transform:translateY(-2px); }
+    .sec-code { font-family:ui-monospace,monospace; font-size:.7rem; font-weight:700; padding:2px 7px; border-radius:5px; display:inline-block; }
+    .sc-BAR{background:rgba(91,140,255,.15);color:var(--BAR)} .sc-BAT{background:rgba(169,139,255,.15);color:var(--BAT)}
+    .sc-IND{background:rgba(255,178,62,.15);color:var(--IND)} .sc-AGRI{background:rgba(43,217,138,.15);color:var(--AGRI)}
+    .sc-RES{background:rgba(31,227,194,.15);color:var(--RES)} .sc-TRA{background:rgba(255,107,107,.15);color:var(--TRA)}
+    .op-chip { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:.71rem; font-weight:600; cursor:pointer; border:1px solid var(--border-light); background:var(--bg-3); color:var(--t2); transition:all .12s; user-select:none; }
+    .op-chip:hover { border-color:var(--accent-line); color:var(--t1); }
+    .op-chip.on { background:var(--accent-dim); color:var(--accent); border-color:var(--accent-line); }
     .toast-box { position:fixed; bottom:24px; right:24px; z-index:9999; display:flex; flex-direction:column; gap:8px; }
   </style>
 </head>
@@ -146,8 +157,10 @@
     <div class="d-flex align-items-center gap-2 flex-wrap">
       <span class="role-badge" id="roleBadge"></span>
       <span style="color:var(--t2);font-size:.86rem" id="partnerName"></span>
+      <button class="btn btn-sm btn-outline-secondary d-none" id="btnCatalogue" onclick="openCatalogue()"><i class="fas fa-layer-group me-1"></i>Catalogue</button>
       <button class="btn btn-sm btn-outline-secondary d-none" id="btnTeam" onclick="openTeam()"><i class="fas fa-users me-1"></i>Mon équipe</button>
       <button class="btn btn-sm btn-primary" onclick="openDeposit()"><i class="fas fa-plus me-1"></i>Déposer un dossier</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="openPwModal()" title="Changer mon mot de passe"><i class="fas fa-key me-1"></i>Mot de passe</button>
       <button class="btn btn-sm btn-outline-secondary" onclick="logout()"><i class="fas fa-right-from-bracket me-1"></i>Déconnexion</button>
     </div>
   </div>
@@ -234,6 +247,11 @@
       <form id="depositForm">
         <div class="modal-body p-4">
           <div id="depositError" class="alert alert-danger d-none"></div>
+          <h6 class="fw-semibold mb-2" style="color:var(--t2)"><i class="fas fa-bolt me-2"></i>Opération CEE</h6>
+          <div class="mb-3">
+            <select class="form-select" id="dOperation"><option value="">— Aucune opération —</option></select>
+            <div class="form-text small" id="dOperationHint"></div>
+          </div>
           <h6 class="fw-semibold mb-3" style="color:var(--t2)"><i class="fas fa-user me-2"></i>Bénéficiaire</h6>
           <div class="row g-3 mb-3">
             <div class="col-md-6"><label class="form-label">Nom <span class="text-danger">*</span></label><input class="form-control" id="dNom" required></div>
@@ -256,6 +274,35 @@
           <button type="submit" class="btn btn-primary px-4"><i class="fas fa-paper-plane me-2"></i>Déposer le dossier</button>
         </div>
       </form>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL CATALOGUE ══ -->
+<div class="modal fade" id="catalogueModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content border-0 rounded-4">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fw-bold"><i class="fas fa-layer-group me-2" style="color:var(--accent)"></i>Catalogue d'opérations</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div class="row g-4">
+          <div class="col-lg-6">
+            <div class="fw-semibold mb-2"><i class="fas fa-circle-plus me-2" style="color:var(--accent)"></i>Ajouter une opération</div>
+            <input type="text" class="form-control form-control-sm mb-2" id="catSearch" placeholder="Rechercher : code ou nom de fiche…" oninput="renderFichePicker()">
+            <div class="d-flex flex-wrap gap-1 mb-2" id="catSectors"></div>
+            <div id="fichePicker" style="max-height:360px;overflow-y:auto"><div class="text-center py-4" style="color:var(--t3)"><i class="fas fa-spinner fa-spin"></i></div></div>
+          </div>
+          <div class="col-lg-6">
+            <div class="fw-semibold mb-2"><i class="fas fa-list-check me-2" style="color:var(--accent)"></i>Mon catalogue <span id="catCount" style="color:var(--t3);font-weight:400"></span></div>
+            <div id="catalogueList" style="max-height:402px;overflow-y:auto"></div>
+          </div>
+        </div>
+        <div class="alert alert-light border small mt-3 mb-0">
+          <i class="fas fa-circle-info me-1"></i>Fixe une commission par opération, puis affecte les opérations à tes apporteurs depuis « Mon équipe ».
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -300,6 +347,36 @@
   </div>
 </div>
 
+<!-- ══ MODAL MOT DE PASSE ══ -->
+<div class="modal fade" id="pwModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 rounded-4">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fw-bold"><i class="fas fa-key me-2" style="color:var(--accent)"></i>Changer mon mot de passe</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div id="pwError" class="alert alert-danger d-none py-2"></div>
+        <form id="pwForm">
+          <div class="mb-3">
+            <label class="form-label">Mot de passe actuel</label>
+            <input class="form-control" type="password" id="pwCurrent" autocomplete="current-password" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Nouveau mot de passe <span style="font-size:.76rem;color:var(--t3)">— 6 caractères minimum</span></label>
+            <input class="form-control" type="password" id="pwNew" autocomplete="new-password" minlength="6" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Confirmer le nouveau mot de passe</label>
+            <input class="form-control" type="password" id="pwConfirm" autocomplete="new-password" minlength="6" required>
+          </div>
+          <button class="btn btn-primary w-100" type="submit"><i class="fas fa-check me-1"></i>Enregistrer</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast-box" id="toastBox"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -313,6 +390,7 @@ const DOC_TYPES = [
 const DOC_STATUT = { recu:'Reçu', valide:'Validé', refuse:'Refusé', manquant:'Manquant' };
 const OP_STATUT  = { en_attente:'En attente', en_cours:'En cours', valide:'Validé', refuse:'Refusé', annule:'Annulé' };
 let allDossiers = [], filterStatut = '', myRole = '', myPrix = 0;
+let teamData = [], catalogueData = [], fichesAll = [], catSecteur = '';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const r = await fetch('/api/partner/check-auth');
@@ -351,6 +429,7 @@ async function loadMe() {
     document.getElementById('roleBadge').textContent = myRole === 'admin_partenaire' ? 'Admin Partenaire' : 'Apporteur';
     document.getElementById('tauxInfo').textContent = '(' + myPrix.toLocaleString('fr-FR') + ' €/MWh)';
     document.getElementById('btnTeam').classList.toggle('d-none', myRole !== 'admin_partenaire');
+    document.getElementById('btnCatalogue').classList.toggle('d-none', myRole !== 'admin_partenaire');
     document.getElementById('heroSub').textContent = myRole === 'admin_partenaire'
       ? p.partenaire_nom + ' — dossiers de toute votre équipe'
       : 'Vos dépôts — ' + p.partenaire_nom;
@@ -495,9 +574,25 @@ function closeDetail() {
 }
 
 // ── Dépôt de dossier ──
-function openDeposit() {
+async function openDeposit() {
   document.getElementById('depositForm').reset();
   document.getElementById('depositError').classList.add('d-none');
+  const sel = document.getElementById('dOperation');
+  sel.innerHTML = '<option value="">— Aucune opération —</option>';
+  const hint = document.getElementById('dOperationHint');
+  hint.textContent = '';
+  try {
+    const ops = await (await fetch('/api/partner/my-operations')).json();
+    (ops || []).forEach(o => {
+      const opt = document.createElement('option');
+      opt.value = o.id; opt.textContent = o.code_fiche + ' — ' + o.nom;
+      sel.appendChild(opt);
+    });
+    if (!ops || !ops.length) hint.textContent = myRole === 'apporteur'
+      ? 'Aucune opération affectée — contacte ton partenaire.'
+      : 'Catalogue vide — ajoute des opérations.';
+    else if (ops.length === 1) sel.value = ops[0].id;
+  } catch(e) {}
   bootstrap.Modal.getOrCreateInstance(document.getElementById('depositModal')).show();
 }
 document.getElementById('depositForm').addEventListener('submit', async e => {
@@ -513,7 +608,8 @@ document.getElementById('depositForm').addEventListener('submit', async e => {
     adresse: document.getElementById('dAdresse').value.trim(),
     code_postal: document.getElementById('dCp').value.trim(),
     ville: document.getElementById('dVille').value.trim(),
-    activite: document.getElementById('dActivite').value.trim()
+    activite: document.getElementById('dActivite').value.trim(),
+    operation_id: document.getElementById('dOperation').value || null
   };
   if (!body.nom || !body.prenom) { err.textContent = 'Nom et prénom requis'; err.classList.remove('d-none'); return; }
   const r = await fetch('/api/partner/dossiers', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
@@ -535,28 +631,52 @@ function openTeam() {
 async function loadTeam() {
   const el = document.getElementById('teamList');
   el.innerHTML = '<div class="text-center py-4" style="color:var(--t3)"><i class="fas fa-spinner fa-spin"></i></div>';
-  const r = await fetch('/api/partner/team');
-  if (!r.ok) { el.innerHTML = '<div class="alert alert-danger">Accès refusé.</div>'; return; }
-  const list = await r.json();
-  const apporteurs = list.filter(c => c.role === 'apporteur');
+  let team, ops;
+  try {
+    [team, ops] = await Promise.all([
+      fetch('/api/partner/team').then(r => r.ok ? r.json() : Promise.reject()),
+      fetch('/api/partner/operations').then(r => r.ok ? r.json() : [])
+    ]);
+  } catch(e) { el.innerHTML = '<div class="alert alert-danger">Accès refusé.</div>'; return; }
+  teamData = team; catalogueData = ops;
+  const apporteurs = team.filter(c => c.role === 'apporteur');
   if (!apporteurs.length) { el.innerHTML = '<div class="text-center py-3" style="color:var(--t3);font-size:.85rem">Aucun apporteur. Ajoutez-en un ci-dessus.</div>'; return; }
-  el.innerHTML = `<table class="tbl-p"><thead><tr><th>Apporteur</th><th>Commission</th><th>Statut</th><th></th></tr></thead><tbody>` +
-    apporteurs.map(c => `<tr style="cursor:default">
-      <td><strong>${escH(c.nom||'—')}</strong><div style="font-size:.72rem;color:var(--t3)">${escH(c.email)}</div></td>
-      <td>
-        <div class="d-flex gap-1 align-items-center">
-          <select class="form-select form-select-sm" id="cm-${c.id}" style="width:auto">
-            <option value="pct" ${c.commission_mode==='pct'?'selected':''}>%</option>
-            <option value="eur_mwhc" ${c.commission_mode==='eur_mwhc'?'selected':''}>€/MWhc</option>
-            <option value="fixe" ${c.commission_mode==='fixe'?'selected':''}>€ fixe</option>
-          </select>
-          <input class="form-control form-control-sm" id="cv-${c.id}" type="number" step="0.01" min="0" style="width:82px" value="${c.commission_valeur||''}">
-          <button class="btn btn-sm btn-outline-primary" onclick="saveApporteurComm(${c.id})" title="Enregistrer la commission"><i class="fas fa-save"></i></button>
+  const activeOps = ops.filter(o => o.actif);
+  el.innerHTML = apporteurs.map(c => {
+    let assigned = []; try { assigned = JSON.parse(c.operations || '[]'); } catch(e) {}
+    const chips = activeOps.length
+      ? activeOps.map(o => `<span class="op-chip ${assigned.includes(o.id)?'on':''}" onclick="toggleOpForApporteur(${c.id},${o.id})">
+          <span class="sec-code sc-${escH(o.secteur)}">${escH(o.code_fiche)}</span>${escH(clip(o.nom,26))}
+          <i class="fas fa-${assigned.includes(o.id)?'check':'plus'}" style="font-size:.62rem;opacity:.7"></i></span>`).join('')
+      : '<span style="font-size:.74rem;color:var(--t3)">Catalogue vide — ajoute des opérations via le bouton « Catalogue ».</span>';
+    return `<div class="op-card">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+          <strong>${escH(c.nom||'—')}</strong>
+          <span class="badge-statut ${c.actif?'s-valide':'s-refuse'} ms-2">${c.actif?'Actif':'Inactif'}</span>
+          <div style="font-size:.72rem;color:var(--t3)">${escH(c.email)}</div>
         </div>
-      </td>
-      <td><span class="badge-statut ${c.actif?'s-valide':'s-refuse'}">${c.actif?'Actif':'Inactif'}</span></td>
-      <td><button class="btn btn-sm btn-outline-secondary" onclick="toggleApporteur(${c.id},${c.actif?0:1})">${c.actif?'Désactiver':'Activer'}</button></td>
-    </tr>`).join('') + `</tbody></table>`;
+        <div class="d-flex gap-1">
+          <button class="btn btn-sm btn-outline-secondary" onclick="resetApporteurPw(${c.id})" title="Réinitialiser le mot de passe"><i class="fas fa-key"></i></button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="toggleApporteur(${c.id},${c.actif?0:1})">${c.actif?'Désactiver':'Activer'}</button>
+        </div>
+      </div>
+      <div class="d-flex gap-1 align-items-center mt-2 flex-wrap">
+        <span style="font-size:.72rem;color:var(--t3);min-width:108px"><i class="fas fa-percent me-1" style="color:var(--accent)"></i>Commission défaut</span>
+        <select class="form-select form-select-sm" id="cm-${c.id}" style="width:auto">
+          <option value="pct" ${c.commission_mode==='pct'?'selected':''}>%</option>
+          <option value="eur_mwhc" ${c.commission_mode==='eur_mwhc'?'selected':''}>€/MWhc</option>
+          <option value="fixe" ${c.commission_mode==='fixe'?'selected':''}>€ fixe</option>
+        </select>
+        <input class="form-control form-control-sm" id="cv-${c.id}" type="number" step="0.01" min="0" style="width:82px" value="${c.commission_valeur||''}">
+        <button class="btn btn-sm btn-outline-primary" onclick="saveApporteurComm(${c.id})" title="Enregistrer"><i class="fas fa-save"></i></button>
+      </div>
+      <div class="mt-2">
+        <div style="font-size:.72rem;color:var(--t3);margin-bottom:6px"><i class="fas fa-layer-group me-1" style="color:var(--accent)"></i>Opérations affectées <span style="color:var(--t2)">— clique pour activer/retirer</span></div>
+        <div class="d-flex flex-wrap gap-1">${chips}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 function genTeamPw() {
   const c = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
@@ -593,6 +713,149 @@ async function toggleApporteur(id, actif) {
   if (r.ok) { showToast('Apporteur mis à jour'); loadTeam(); }
   else showToast('Erreur', 'danger');
 }
+async function resetApporteurPw(id) {
+  const c = teamData.find(x => x.id === id);
+  const pw = prompt(`Nouveau mot de passe pour ${c ? c.nom : "l'apporteur"} (6 caractères minimum) :`);
+  if (pw === null) return;
+  if (pw.length < 6) { showToast('Mot de passe : 6 caractères minimum', 'danger'); return; }
+  const r = await fetch(`/api/partner/team/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ password: pw }) });
+  if (r.ok) showToast("Mot de passe réinitialisé — communique-le à l'apporteur");
+  else showToast('Erreur', 'danger');
+}
+async function toggleOpForApporteur(apporteurId, opId) {
+  const c = teamData.find(x => x.id === apporteurId);
+  if (!c) return;
+  let ops = []; try { ops = JSON.parse(c.operations || '[]'); } catch(e) {}
+  const on = ops.includes(opId);
+  ops = on ? ops.filter(x => x !== opId) : ops.concat(opId);
+  const r = await fetch(`/api/partner/team/${apporteurId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ operations: ops }) });
+  if (r.ok) { c.operations = JSON.stringify(ops); showToast(on ? 'Opération retirée' : 'Opération affectée'); loadTeam(); }
+  else showToast('Erreur', 'danger');
+}
+
+// ── Catalogue d'opérations (Admin Partenaire) ──
+const SECTORS = [['','Tous'],['BAR','Résidentiel'],['BAT','Tertiaire'],['IND','Industrie'],['AGRI','Agriculture'],['RES','Réseaux'],['TRA','Transport']];
+async function openCatalogue() {
+  catSecteur = '';
+  document.getElementById('catSearch').value = '';
+  document.getElementById('catSectors').innerHTML = SECTORS.map(([k,l],i) =>
+    `<span class="fpill ${i===0?'active':''}" onclick="setCatSector('${k}',this)">${l}</span>`).join('');
+  document.getElementById('fichePicker').innerHTML = '<div class="text-center py-4" style="color:var(--t3)"><i class="fas fa-spinner fa-spin"></i></div>';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('catalogueModal')).show();
+  try {
+    const [fiches] = await Promise.all([
+      fetch('/api/fiches?actif=1').then(r => r.ok ? r.json() : []),
+      loadCatalogue()
+    ]);
+    fichesAll = Array.isArray(fiches) ? fiches : [];
+  } catch(e) { fichesAll = []; }
+  renderFichePicker();
+}
+function setCatSector(s, el) {
+  catSecteur = s;
+  document.querySelectorAll('#catSectors .fpill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  renderFichePicker();
+}
+function renderFichePicker() {
+  const box = document.getElementById('fichePicker');
+  const q = (document.getElementById('catSearch').value || '').toLowerCase().trim();
+  const inCat = new Set(catalogueData.map(o => o.code_fiche));
+  let list = fichesAll.filter(f => !inCat.has(f.code));
+  if (catSecteur) list = list.filter(f => f.secteur === catSecteur);
+  if (q) list = list.filter(f => (f.code + ' ' + (f.nom||'')).toLowerCase().includes(q));
+  if (!list.length) { box.innerHTML = '<div class="text-center py-4" style="color:var(--t3);font-size:.82rem">Aucune fiche disponible.</div>'; return; }
+  box.innerHTML = list.slice(0,120).map(f => `
+    <div class="op-card op-pick" onclick="addOperationToCatalogue('${escH(f.code)}')">
+      <div class="d-flex justify-content-between align-items-center gap-2">
+        <div style="min-width:0">
+          <span class="sec-code sc-${escH(f.secteur)}">${escH(f.code)}</span>
+          <div style="font-size:.79rem;font-weight:600;margin-top:3px">${escH(f.nom)}</div>
+        </div>
+        <i class="fas fa-circle-plus" style="color:var(--accent);font-size:1.05rem"></i>
+      </div>
+    </div>`).join('') +
+    (list.length > 120 ? `<div class="text-center py-2" style="color:var(--t3);font-size:.74rem">+${list.length-120} autres — affine ta recherche</div>` : '');
+}
+async function addOperationToCatalogue(code) {
+  const f = fichesAll.find(x => x.code === code);
+  if (!f) return;
+  const r = await fetch('/api/partner/operations', { method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ code_fiche:f.code, nom:f.nom, secteur:f.secteur }) });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok && d.success) { showToast('Opération ajoutée au catalogue'); await loadCatalogue(); renderFichePicker(); }
+  else showToast(d.error || 'Erreur', 'danger');
+}
+async function loadCatalogue() {
+  const r = await fetch('/api/partner/operations');
+  catalogueData = r.ok ? await r.json() : [];
+  renderCatalogue();
+}
+function renderCatalogue() {
+  const box = document.getElementById('catalogueList');
+  document.getElementById('catCount').textContent = catalogueData.length ? `(${catalogueData.length})` : '';
+  if (!catalogueData.length) { box.innerHTML = '<div class="text-center py-4" style="color:var(--t3);font-size:.82rem">Catalogue vide.<br>Ajoute des opérations depuis la liste de gauche.</div>'; return; }
+  box.innerHTML = catalogueData.map(o => `
+    <div class="op-card" style="${o.actif?'':'opacity:.5'}">
+      <div class="d-flex justify-content-between align-items-center gap-2">
+        <div style="min-width:0">
+          <span class="sec-code sc-${escH(o.secteur)}">${escH(o.code_fiche)}</span>
+          <div style="font-size:.78rem;font-weight:600;margin-top:2px">${escH(o.nom)}</div>
+        </div>
+        <button class="btn btn-sm btn-link p-0" style="color:var(--danger)" onclick="deleteOperation(${o.id})" title="Retirer du catalogue"><i class="fas fa-trash"></i></button>
+      </div>
+      <div class="d-flex gap-1 align-items-center mt-2 flex-wrap">
+        <span style="font-size:.7rem;color:var(--t3)"><i class="fas fa-coins me-1" style="color:var(--accent)"></i>Commission</span>
+        <select class="form-select form-select-sm" id="ocm-${o.id}" style="width:auto" onchange="updateOperation(${o.id})">
+          <option value="pct" ${o.commission_mode==='pct'?'selected':''}>%</option>
+          <option value="eur_mwhc" ${o.commission_mode==='eur_mwhc'?'selected':''}>€/MWhc</option>
+          <option value="fixe" ${o.commission_mode==='fixe'?'selected':''}>€ fixe</option>
+        </select>
+        <input class="form-control form-control-sm" id="ocv-${o.id}" type="number" step="0.01" min="0" style="width:80px" value="${o.commission_valeur||''}" onchange="updateOperation(${o.id})">
+        <label class="ms-auto d-flex align-items-center gap-1" style="font-size:.7rem;color:var(--t3);cursor:pointer">
+          <input type="checkbox" id="oac-${o.id}" ${o.actif?'checked':''} onchange="updateOperation(${o.id})"> Active
+        </label>
+      </div>
+    </div>`).join('');
+}
+async function updateOperation(id) {
+  const body = {
+    commission_mode: document.getElementById('ocm-'+id).value,
+    commission_valeur: document.getElementById('ocv-'+id).value,
+    actif: document.getElementById('oac-'+id).checked
+  };
+  const r = await fetch('/api/partner/operations/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (r.ok) { showToast('Opération mise à jour'); await loadCatalogue(); }
+  else showToast('Erreur', 'danger');
+}
+async function deleteOperation(id) {
+  const r = await fetch('/api/partner/operations/'+id, { method:'DELETE' });
+  if (r.ok) { showToast('Opération retirée'); await loadCatalogue(); renderFichePicker(); }
+  else showToast('Erreur', 'danger');
+}
+
+// ── Mon mot de passe ──
+function openPwModal() {
+  document.getElementById('pwForm').reset();
+  document.getElementById('pwError').classList.add('d-none');
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('pwModal')).show();
+}
+document.getElementById('pwForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const err = document.getElementById('pwError'); err.classList.add('d-none');
+  const cur = document.getElementById('pwCurrent').value;
+  const nw  = document.getElementById('pwNew').value;
+  const cf  = document.getElementById('pwConfirm').value;
+  if (nw.length < 6) { err.textContent = 'Nouveau mot de passe : 6 caractères minimum'; err.classList.remove('d-none'); return; }
+  if (nw !== cf)     { err.textContent = 'Les deux mots de passe ne correspondent pas'; err.classList.remove('d-none'); return; }
+  const r = await fetch('/api/partner/change-password', { method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ current_password:cur, new_password:nw }) });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok && d.success) {
+    bootstrap.Modal.getInstance(document.getElementById('pwModal')).hide();
+    showToast('Mot de passe mis à jour');
+  } else { err.textContent = d.error || 'Erreur'; err.classList.remove('d-none'); }
+});
 
 // ── Helpers ──
 const CEE_STEPS = [['engage','Engagé'],['controle','Contrôle'],['valide','Validé'],['facture','Facturé']];
@@ -606,6 +869,7 @@ function ceeStepper(current) {
   }).join('') + '</div>';
 }
 function escH(s) { return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function clip(s, n) { s = (s==null?'':String(s)); return s.length > n ? s.slice(0,n-1)+'…' : s; }
 function fmtDate(dt) { if (!dt) return '—'; return new Date(dt).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' }); }
 function fmtKwh(v) { v = +v||0; return v >= 1e6 ? (v/1e6).toFixed(2)+' GWhc' : v >= 1000 ? (v/1000).toFixed(1)+' MWhc' : Math.round(v).toLocaleString('fr-FR')+' kWhc'; }
 function fmtEur(v) { v = +v||0; return v >= 1000 ? (v/1000).toLocaleString('fr-FR',{maximumFractionDigits:1})+' k€' : Math.round(v).toLocaleString('fr-FR')+' €'; }

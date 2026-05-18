@@ -1464,8 +1464,24 @@ db.serialize(() => {
     created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
   [`ALTER TABLE comptes ADD COLUMN commission_mode TEXT DEFAULT 'pct'`,
-   `ALTER TABLE comptes ADD COLUMN commission_valeur REAL DEFAULT 0`
+   `ALTER TABLE comptes ADD COLUMN commission_valeur REAL DEFAULT 0`,
+   `ALTER TABLE comptes ADD COLUMN operations TEXT DEFAULT '[]'`
   ].forEach(sql => db.run(sql, () => {}));
+
+  // Catalogue d'opérations par partenaire (fiches CEE proposées + commission)
+  db.run(`CREATE TABLE IF NOT EXISTS partenaire_operations (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    partenaire_id     INTEGER NOT NULL,
+    code_fiche        TEXT NOT NULL,
+    nom               TEXT DEFAULT '',
+    secteur           TEXT DEFAULT '',
+    commission_mode   TEXT DEFAULT 'pct',
+    commission_valeur REAL DEFAULT 0,
+    actif             INTEGER DEFAULT 1,
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  // Opération choisie au dépôt d'un dossier (id partenaire_operations)
+  db.run(`ALTER TABLE beneficiaires ADD COLUMN operation_id INTEGER`, () => {});
 
   // ── Paramètres globaux (taux CEE, etc.) ───────────────────────────────────────
   db.run(`CREATE TABLE IF NOT EXISTS parametres (
@@ -1816,9 +1832,26 @@ app.post('/api/partner/login', (req, res) => {
 app.post('/api/partner/logout',    (req, res) => { req.session.destroy(); res.json({ success: true }); });
 app.get('/api/partner/check-auth', (req, res) => res.json({ authenticated: !!req.session.compteId, role: sessionRole(req) }));
 
+// Changement de mot de passe en self-service (admin_partenaire ou apporteur)
+app.post('/api/partner/change-password', requirePartner, (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password)
+    return res.status(400).json({ error: 'Mot de passe actuel et nouveau requis' });
+  if (String(new_password).length < 6)
+    return res.status(400).json({ error: 'Nouveau mot de passe : 6 caractères minimum' });
+  db.get('SELECT password_hash FROM comptes WHERE id=? AND actif=1', [req.session.compteId], (err, c) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!c)  return res.status(401).json({ error: 'Session invalide' });
+    if (!verifyPassword(current_password, c.password_hash))
+      return res.status(403).json({ error: 'Mot de passe actuel incorrect' });
+    db.run('UPDATE comptes SET password_hash=? WHERE id=?', [hashPassword(new_password), req.session.compteId],
+      e => e ? res.status(500).json({ error: e.message }) : res.json({ success: true }));
+  });
+});
+
 // Contexte du compte connecté + garde de session
 function partnerScope(req, res, cb) {
-  db.get(`SELECT c.id, c.role, c.partenaire_id, c.nom AS compte_nom,
+  db.get(`SELECT c.id, c.role, c.partenaire_id, c.nom AS compte_nom, c.operations,
                  c.commission_mode AS c_cmode, c.commission_valeur AS c_cval,
                  p.nom AS partenaire_nom, p.prix_eur_mwh,
                  p.commission_mode AS p_cmode, p.commission_valeur AS p_cval
@@ -1859,19 +1892,23 @@ app.get('/api/partner/stats', requirePartner, (req, res) => {
   partnerScope(req, res, (s) => {
     const f = dossierFilter(s);
     getPrixCee(s.partenaire_id, (prix) => {
-      db.all(`SELECT b.statut, COUNT(*) AS c,
-                COALESCE(SUM((SELECT COALESCE(SUM(volume_kwh),0) FROM cee_operations WHERE beneficiaire_id=b.id)),0) AS cumac
-              FROM beneficiaires b WHERE ${f.where} GROUP BY b.statut`, f.params, (err, rows) => {
+      const cc = scopeCommission(s);
+      db.all(`SELECT b.statut, po.commission_mode AS op_cmode, po.commission_valeur AS op_cval,
+                (SELECT COALESCE(SUM(volume_kwh),0) FROM cee_operations WHERE beneficiaire_id=b.id) AS cumac
+              FROM beneficiaires b LEFT JOIN partenaire_operations po ON po.id=b.operation_id
+              WHERE ${f.where}`, f.params, (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        const byStatut = {}; let total = 0, cumac = 0;
-        (rows || []).forEach(r => { byStatut[r.statut] = r.c; total += r.c; cumac += (r.cumac || 0); });
-        const subvention = Math.round(cumac * prix / 1000);
-        const cc = scopeCommission(s);
-        const commission = cc.mode === 'fixe'
-          ? Math.round((parseFloat(cc.valeur) || 0) * total)
-          : computeCommission(cc.mode, cc.valeur, { subvention, volume_cumac: cumac });
-        res.json({ total, byStatut, volume_cumac: cumac, subvention, prix_eur_mwh: prix,
-          commission, commission_mode: cc.mode, commission_valeur: cc.valeur });
+        const byStatut = {}; let total = 0, cumac = 0, commission = 0;
+        (rows || []).forEach(r => {
+          byStatut[r.statut] = (byStatut[r.statut] || 0) + 1;
+          total++; cumac += (r.cumac || 0);
+          const subv = Math.round((r.cumac || 0) * prix / 1000);
+          const cm = r.op_cmode || cc.mode;
+          const cv = r.op_cmode != null ? r.op_cval : cc.valeur;
+          commission += computeCommission(cm, cv, { subvention: subv, volume_cumac: r.cumac || 0 });
+        });
+        res.json({ total, byStatut, volume_cumac: cumac,
+          subvention: Math.round(cumac * prix / 1000), prix_eur_mwh: prix, commission });
       });
     });
   });
@@ -1882,16 +1919,21 @@ app.get('/api/partner/dossiers', requirePartner, (req, res) => {
     const f = dossierFilter(s);
     getPrixCee(s.partenaire_id, (prix) => {
       db.all(`SELECT b.id,b.code,b.nom,b.prenom,b.email,b.telephone,b.raison_sociale,b.siret,b.ville,
-                b.activite,b.statut,b.statut_cee,b.apporteur_id,b.created_at,b.updated_at,
+                b.activite,b.statut,b.statut_cee,b.apporteur_id,b.operation_id,b.created_at,b.updated_at,
                 (SELECT COALESCE(SUM(volume_kwh),0) FROM cee_operations WHERE beneficiaire_id=b.id) AS volume_cumac,
                 (SELECT COUNT(DISTINCT type) FROM documents WHERE beneficiaire_id=b.id AND uploaded_by='beneficiaire' AND type IN ('kbis_rne','liasse_fiscale','attestation_urssaf')) AS docs_count,
-                (SELECT nom FROM comptes WHERE id=b.apporteur_id) AS apporteur_nom
-              FROM beneficiaires b WHERE ${f.where} ORDER BY b.created_at DESC`, f.params, (err, rows) => {
+                (SELECT nom FROM comptes WHERE id=b.apporteur_id) AS apporteur_nom,
+                po.code_fiche AS operation_code, po.nom AS operation_nom,
+                po.commission_mode AS op_cmode, po.commission_valeur AS op_cval
+              FROM beneficiaires b LEFT JOIN partenaire_operations po ON po.id=b.operation_id
+              WHERE ${f.where} ORDER BY b.created_at DESC`, f.params, (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         const cc = scopeCommission(s);
         (rows || []).forEach(r => {
           r.subvention = Math.round((r.volume_cumac || 0) * prix / 1000);
-          r.commission = computeCommission(cc.mode, cc.valeur, { subvention: r.subvention, volume_cumac: r.volume_cumac });
+          const cm = r.op_cmode || cc.mode;
+          const cv = r.op_cmode != null ? r.op_cval : cc.valeur;
+          r.commission = computeCommission(cm, cv, { subvention: r.subvention, volume_cumac: r.volume_cumac });
         });
         res.json(rows || []);
       });
@@ -1904,8 +1946,11 @@ app.get('/api/partner/dossiers/:id', requirePartner, (req, res) => {
     const f = dossierFilter(s);
     getPrixCee(s.partenaire_id, (prix) => {
       db.get(`SELECT b.id,b.code,b.nom,b.prenom,b.email,b.telephone,b.raison_sociale,b.siret,b.adresse,
-                b.code_postal,b.ville,b.activite,b.statut,b.statut_cee,b.partenaire,b.apporteur_id,b.created_at,b.updated_at
-              FROM beneficiaires b WHERE ${f.where} AND b.id=?`, [...f.params, req.params.id], (err, b) => {
+                b.code_postal,b.ville,b.activite,b.statut,b.statut_cee,b.partenaire,b.apporteur_id,b.operation_id,b.created_at,b.updated_at,
+                po.code_fiche AS operation_code, po.nom AS operation_nom,
+                po.commission_mode AS op_cmode, po.commission_valeur AS op_cval
+              FROM beneficiaires b LEFT JOIN partenaire_operations po ON po.id=b.operation_id
+              WHERE ${f.where} AND b.id=?`, [...f.params, req.params.id], (err, b) => {
         if (err) return res.status(500).json({ error: err.message });
         if (!b)  return res.status(404).json({ error: 'Dossier introuvable ou hors de votre périmètre' });
         db.all(`SELECT id,type,original_name,doc_statut,uploaded_by,created_at FROM documents WHERE beneficiaire_id=? ORDER BY created_at DESC`,
@@ -1915,10 +1960,12 @@ app.get('/api/partner/dossiers/:id', requirePartner, (req, res) => {
                 const cumac = (ops || []).reduce((t, o) => t + (o.volume_kwh || 0), 0);
                 const subvention = Math.round(cumac * prix / 1000);
                 const cc = scopeCommission(s);
+                const cm = b.op_cmode || cc.mode;
+                const cv = b.op_cmode != null ? b.op_cval : cc.valeur;
                 res.json({ ...b, documents: docs || [], operations: ops || [],
                   volume_cumac: cumac, subvention, prix_eur_mwh: prix,
-                  commission: computeCommission(cc.mode, cc.valeur, { subvention, volume_cumac: cumac }),
-                  commission_mode: cc.mode });
+                  commission: computeCommission(cm, cv, { subvention, volume_cumac: cumac }),
+                  commission_mode: cm });
               });
           });
       });
@@ -1934,10 +1981,15 @@ app.post('/api/partner/dossiers', requireRole('admin_partenaire','apporteur'), (
       if (!b.nom || !b.nom.trim() || !b.prenom || !b.prenom.trim())
         return res.status(400).json({ error: 'Nom et prénom requis' });
       const code = await generateUniqueCode();
-      db.run(`INSERT INTO beneficiaires (code,nom,prenom,email,telephone,raison_sociale,siret,adresse,code_postal,ville,activite,partenaire,apporteur_id)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      let opId = parseInt(b.operation_id) || null;
+      if (opId && s.role === 'apporteur') {
+        let ids = []; try { ids = JSON.parse(s.operations || '[]'); } catch(e) {}
+        if (!ids.includes(opId)) opId = null;
+      }
+      db.run(`INSERT INTO beneficiaires (code,nom,prenom,email,telephone,raison_sociale,siret,adresse,code_postal,ville,activite,partenaire,apporteur_id,operation_id)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [code, b.nom.trim(), b.prenom.trim(), b.email||'', b.telephone||'', b.raison_sociale||'', b.siret||'',
-         b.adresse||'', b.code_postal||'', b.ville||'', b.activite||'', s.partenaire_nom, s.id],
+         b.adresse||'', b.code_postal||'', b.ville||'', b.activite||'', s.partenaire_nom, s.id, opId],
         function(err) {
           if (err) return res.status(500).json({ error: err.message });
           db.run(`INSERT INTO activity_logs (beneficiaire_id,action,details,auteur) VALUES (?,?,?,?)`,
@@ -1951,7 +2003,7 @@ app.post('/api/partner/dossiers', requireRole('admin_partenaire','apporteur'), (
 // ── Gestion d'équipe (Admin Partenaire) ──────────────────────────────────────
 app.get('/api/partner/team', requireRole('admin_partenaire'), (req, res) => {
   partnerScope(req, res, (s) => {
-    db.all(`SELECT id,role,nom,email,actif,commission_mode,commission_valeur,last_login,created_at
+    db.all(`SELECT id,role,nom,email,actif,commission_mode,commission_valeur,operations,last_login,created_at
             FROM comptes WHERE partenaire_id=? ORDER BY role,nom`,
       [s.partenaire_id], (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows || []));
   });
@@ -1980,6 +2032,10 @@ app.put('/api/partner/team/:id', requireRole('admin_partenaire'), (req, res) => 
     if (actif !== undefined) { sets.push('actif=?'); vals.push(actif ? 1 : 0); }
     if (commission_mode !== undefined)  { sets.push('commission_mode=?');  vals.push(COMMISSION_MODES.includes(commission_mode) ? commission_mode : 'pct'); }
     if (commission_valeur !== undefined){ sets.push('commission_valeur=?'); vals.push(parseFloat(commission_valeur) || 0); }
+    if (req.body.operations !== undefined) {
+      const ids = Array.isArray(req.body.operations) ? req.body.operations.map(Number).filter(n => n > 0) : [];
+      sets.push('operations=?'); vals.push(JSON.stringify(ids));
+    }
     if (password) {
       if (String(password).length < 6) return res.status(400).json({ error: 'Mot de passe : 6 caractères minimum' });
       sets.push('password_hash=?'); vals.push(hashPassword(password));
@@ -1988,6 +2044,64 @@ app.put('/api/partner/team/:id', requireRole('admin_partenaire'), (req, res) => 
     vals.push(req.params.id, s.partenaire_id);
     db.run(`UPDATE comptes SET ${sets.join(',')} WHERE id=? AND partenaire_id=? AND role='apporteur'`, vals,
       err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+  });
+});
+
+// ── Catalogue d'opérations (Admin Partenaire) ────────────────────────────────
+app.get('/api/partner/operations', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    db.all(`SELECT id,code_fiche,nom,secteur,commission_mode,commission_valeur,actif
+            FROM partenaire_operations WHERE partenaire_id=? ORDER BY secteur,code_fiche`,
+      [s.partenaire_id], (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows || []));
+  });
+});
+app.post('/api/partner/operations', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    const { code_fiche, nom, secteur } = req.body;
+    if (!code_fiche) return res.status(400).json({ error: 'Code fiche requis' });
+    db.get('SELECT id FROM partenaire_operations WHERE partenaire_id=? AND code_fiche=?',
+      [s.partenaire_id, code_fiche], (e, exist) => {
+        if (exist) return res.status(409).json({ error: 'Opération déjà dans votre catalogue' });
+        const cmode = COMMISSION_MODES.includes(req.body.commission_mode) ? req.body.commission_mode : 'pct';
+        db.run(`INSERT INTO partenaire_operations (partenaire_id,code_fiche,nom,secteur,commission_mode,commission_valeur,actif)
+                VALUES (?,?,?,?,?,?,1)`,
+          [s.partenaire_id, String(code_fiche).toUpperCase(), nom || '', secteur || '', cmode, parseFloat(req.body.commission_valeur) || 0],
+          function(err) { err ? res.status(500).json({ error: err.message }) : res.json({ success: true, id: this.lastID }); });
+      });
+  });
+});
+app.put('/api/partner/operations/:id', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    const sets = [], vals = [];
+    if (req.body.commission_mode !== undefined)  { sets.push('commission_mode=?');  vals.push(COMMISSION_MODES.includes(req.body.commission_mode) ? req.body.commission_mode : 'pct'); }
+    if (req.body.commission_valeur !== undefined){ sets.push('commission_valeur=?'); vals.push(parseFloat(req.body.commission_valeur) || 0); }
+    if (req.body.actif !== undefined)            { sets.push('actif=?'); vals.push(req.body.actif ? 1 : 0); }
+    if (!sets.length) return res.status(400).json({ error: 'Aucune modification' });
+    vals.push(req.params.id, s.partenaire_id);
+    db.run(`UPDATE partenaire_operations SET ${sets.join(',')} WHERE id=? AND partenaire_id=?`, vals,
+      err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+  });
+});
+app.delete('/api/partner/operations/:id', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    db.run('DELETE FROM partenaire_operations WHERE id=? AND partenaire_id=?', [req.params.id, s.partenaire_id],
+      err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+  });
+});
+// Opérations disponibles au dépôt — apporteur : les siennes ; admin_partenaire : catalogue actif
+app.get('/api/partner/my-operations', requirePartner, (req, res) => {
+  partnerScope(req, res, (s) => {
+    db.all(`SELECT id,code_fiche,nom,secteur,commission_mode,commission_valeur
+            FROM partenaire_operations WHERE partenaire_id=? AND actif=1 ORDER BY secteur,code_fiche`,
+      [s.partenaire_id], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        rows = rows || [];
+        if (s.role === 'apporteur') {
+          let ids = []; try { ids = JSON.parse(s.operations || '[]'); } catch(e) {}
+          rows = rows.filter(o => ids.includes(o.id));
+        }
+        res.json(rows);
+      });
   });
 });
 
