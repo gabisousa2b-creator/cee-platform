@@ -361,6 +361,63 @@ option { background: var(--bg-3); color: var(--t1); }
 .cee-valide   { background: var(--success-dim); color: var(--success); }
 .cee-facture  { background: var(--accent-dim);  color: var(--accent); }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOTION — rendu d'avant-garde · couche d'animations propagée aux 7 pages
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Fond ambiant : dérive lente des halos lumineux */
+@keyframes ew-drift {
+  0%, 100% { background-position: 0 0, 0 0, 8% -8%, 104% 4%, 50% 118%; }
+  50%      { background-position: 0 0, 0 0, 15% 0%, 95% 11%, 55% 110%; }
+}
+body { animation: ew-drift 40s ease-in-out infinite; }
+
+/* Entrée des panneaux */
+@keyframes ew-rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+.stat-card, .kpi-card, .table-card, .hero-card, .card-p, .card-d, .sim-card,
+.catalog-panel, .fiche-preview, .access-card, .login-card, .result-hero, .doc-card {
+  animation: ew-rise .5s cubic-bezier(.2,.7,.2,1) both;
+}
+/* Cascade dans les grilles Bootstrap */
+.row > [class*="col-"]:nth-child(2) > * { animation-delay: .06s; }
+.row > [class*="col-"]:nth-child(3) > * { animation-delay: .12s; }
+.row > [class*="col-"]:nth-child(4) > * { animation-delay: .18s; }
+.row > [class*="col-"]:nth-child(5) > * { animation-delay: .24s; }
+.row > [class*="col-"]:nth-child(6) > * { animation-delay: .30s; }
+
+/* Survol des cartes : élévation + halo accent */
+.stat-card, .kpi-card, .card-p, .card-d {
+  transition: transform .2s cubic-bezier(.2,.7,.2,1), border-color .2s, box-shadow .2s;
+}
+.stat-card:hover, .kpi-card:hover, .card-p:hover, .card-d:hover {
+  transform: translateY(-3px);
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-lg), 0 0 28px -14px var(--accent-glow);
+}
+
+/* Boutons : pression tactile */
+.btn, .btn-cee, .btn-d { transition: all .15s cubic-bezier(.2,.7,.2,1); }
+.btn:active, .btn-cee:active, .btn-d:active { transform: translateY(1px) scale(.985); }
+
+/* Modales : entrée en échelle */
+.modal.fade .modal-dialog { transition: transform .32s cubic-bezier(.2,.8,.2,1), opacity .25s; transform: scale(.95) translateY(12px); }
+.modal.show .modal-dialog { transform: scale(1) translateY(0); }
+@keyframes ew-modal-in { from { opacity: 0; transform: scale(.95) translateY(12px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+.modal-box { animation: ew-modal-in .3s cubic-bezier(.2,.8,.2,1); }
+
+/* Pulsation de l'étape courante (steppers) */
+@keyframes ew-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
+  50%      { box-shadow: 0 0 0 7px rgba(31,227,194,0); }
+}
+.cee-step.current .cee-dot,
+.step.current .step-circle,
+.step-item.active .step-num { animation: ew-pulse 2.6s ease-in-out infinite; }
+
+/* Focus accessible */
+:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 2px; }
+a { transition: color .14s; }
+
 /* Réduction des animations */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
