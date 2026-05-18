@@ -6,87 +6,11 @@
   <title>Admin — Plateforme CEE</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/echowai.css">
   <style>
     /* ═══════════════════════════════════════════════════════════════
-       ECHOWAI DESIGN SYSTEM v2.0 — DARK MODE PREMIUM
-       Inspiré de Linear · Attio · Stripe · Arc · Raycast
+       ADMIN CRM — styles spécifiques · design system → /css/echowai.css
     ═══════════════════════════════════════════════════════════════ */
-    :root {
-      /* ── Backgrounds ── */
-      --bg-0:    #060A12;
-      --bg-1:    #0B0F1A;
-      --bg-2:    #111827;
-      --bg-3:    #1A2235;
-      --bg-4:    #1E2A3B;
-      --bg-hover:#232F42;
-
-      /* ── Borders ── */
-      --border:       rgba(255,255,255,.07);
-      --border-light: rgba(255,255,255,.12);
-      --border-focus: rgba(0,212,170,.5);
-
-      /* ── Text ── */
-      --t1: #E8EEFF;
-      --t2: #8B95A8;
-      --t3: #4A5568;
-
-      /* ── Brand accent — teal énergie ── */
-      --accent:     #00D4AA;
-      --accent-dim: rgba(0,212,170,.12);
-      --accent-glow:rgba(0,212,170,.25);
-
-      /* ── Semantic ── */
-      --success:      #22C55E;
-      --success-dim:  rgba(34,197,94,.12);
-      --warning:      #F59E0B;
-      --warning-dim:  rgba(245,158,11,.12);
-      --danger:       #F87171;
-      --danger-dim:   rgba(248,113,113,.12);
-      --info:         #60A5FA;
-      --info-dim:     rgba(96,165,250,.12);
-      --purple:       #A78BFA;
-      --purple-dim:   rgba(167,139,250,.12);
-
-      /* ── Legacy aliases ── */
-      --primary: var(--accent);
-      --green:   var(--success);
-      --sidebar: var(--bg-1);
-
-      /* ── Sidebar ── */
-      --sidebar-width: 252px;
-
-      /* ── Shadows ── */
-      --shadow-sm:  0 1px 3px rgba(0,0,0,.6);
-      --shadow-md:  0 4px 20px rgba(0,0,0,.5);
-      --shadow-lg:  0 12px 48px rgba(0,0,0,.6);
-      --shadow-glow:0 0 30px rgba(0,212,170,.08);
-
-      /* ── Radius ── */
-      --r-sm: 8px;
-      --r-md: 12px;
-      --r-lg: 16px;
-      --r-xl: 20px;
-
-      /* Bootstrap 5 overrides */
-      --bs-body-bg: var(--bg-1);
-      --bs-body-color: var(--t1);
-      --bs-border-color: var(--border);
-      --bs-secondary-color: var(--t2);
-      --bs-tertiary-color: var(--t3);
-      --bs-emphasis-color: var(--t1);
-      --bs-link-color: var(--accent);
-      --bs-link-hover-color: #00FFCC;
-      --bs-primary-rgb: 0,212,170;
-    }
-
-    *, *::before, *::after { box-sizing:border-box; }
-    html { scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
-    body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var(--bg-1); color:var(--t1); margin:0; -webkit-font-smoothing:antialiased; }
-
-    /* ── Scrollbar ── */
-    ::-webkit-scrollbar { width:5px; height:5px; }
-    ::-webkit-scrollbar-track { background:transparent; }
-    ::-webkit-scrollbar-thumb { background:var(--border-light); border-radius:10px; }
 
     /* ══════════════ LOGIN ══════════════ */
     #loginScreen {
@@ -124,14 +48,14 @@
     .sidebar {
       width:var(--sidebar-width);
       min-height:100vh;
-      background:var(--bg-0);
+      background:linear-gradient(180deg, rgba(255,255,255,.04) 0%, rgba(255,255,255,.008) 100%);
+      -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
       border-right:1px solid var(--border);
       position:fixed; top:0; left:0; z-index:100;
       display:flex; flex-direction:column;
-      transition:width .2s;
     }
     .sidebar-logo {
-      padding:20px 18px 16px;
+      padding:22px 18px 18px;
       border-bottom:1px solid var(--border);
     }
     .sidebar-logo .brand { color:var(--t1); font-weight:800; font-size:1.05rem; letter-spacing:-.3px; }
@@ -156,6 +80,7 @@
     .nav-item-s.active {
       background:var(--accent-dim);
       color:var(--accent);
+      box-shadow:inset 2px 0 0 var(--accent);
     }
     .nav-item-s.active .fa-fw { color:var(--accent); }
 
@@ -163,9 +88,9 @@
 
     .main {
       margin-left:var(--sidebar-width);
-      padding:28px 32px;
+      padding:30px 34px;
       min-height:100vh;
-      background:var(--bg-1);
+      position:relative;
     }
 
     /* ── Topbar ── */
@@ -177,24 +102,18 @@
 
     /* ══════════════ CARDS ══════════════ */
     .stat-card, .table-card, .kpi-card {
-      background:var(--bg-2);
+      background:var(--glass-fill);
+      -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
       border:1px solid var(--border);
       border-radius:var(--r-lg);
-      box-shadow:var(--shadow-sm);
-      transition:border-color .2s;
+      box-shadow:var(--shadow-md), inset 0 1px 0 rgba(255,255,255,.05);
+      transition:border-color .18s, transform .18s;
     }
     .stat-card { padding:20px 22px; }
-    .stat-card:hover { border-color:var(--border-light); }
+    .stat-card:hover, .table-card:hover { border-color:var(--border-light); }
     .stat-icon { width:42px; height:42px; border-radius:var(--r-sm); display:flex; align-items:center; justify-content:center; font-size:1.1rem; }
 
-    /* ── KPI card glow variants ── */
-    .kpi-card { padding:20px 22px; position:relative; overflow:hidden; }
-    .kpi-card::before {
-      content:''; position:absolute; bottom:-30px; right:-30px;
-      width:100px; height:100px; border-radius:50%;
-      background:currentColor; opacity:.04;
-      pointer-events:none;
-    }
+    .kpi-card { padding:20px 22px; position:relative; }
     .kpi-card.kwh   { color:var(--success); }
     .kpi-card.prime { color:var(--info); }
     .kpi-card.alert { color:var(--danger); }
@@ -505,20 +424,19 @@
 
     /* ══════════════ HERO DASHBOARD ══════════════ */
     .hero-card {
-      background:linear-gradient(135deg, rgba(0,212,170,.08) 0%, rgba(96,165,250,.05) 50%, rgba(167,139,250,.05) 100%);
+      background:linear-gradient(135deg, rgba(31,227,194,.07) 0%, rgba(91,140,255,.05) 55%, rgba(255,255,255,.014) 100%);
+      -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
       border:1px solid var(--border-light);
       border-radius:var(--r-xl);
-      padding:24px 28px;
+      padding:26px 30px;
       position:relative; overflow:hidden;
+      box-shadow:var(--shadow-md), inset 0 1px 0 rgba(255,255,255,.06);
     }
     .hero-card::before {
-      content:'';
-      position:absolute; top:-40px; right:-40px;
-      width:200px; height:200px; border-radius:50%;
-      background:radial-gradient(circle, rgba(0,212,170,.08) 0%, transparent 70%);
-      pointer-events:none;
+      content:''; position:absolute; top:0; left:0; right:0; height:1px;
+      background:linear-gradient(90deg, transparent, var(--accent-line), transparent);
     }
-    .hero-greeting { font-size:1.5rem; font-weight:800; color:var(--t1); letter-spacing:-.4px; }
+    .hero-greeting { font-size:1.55rem; font-weight:700; color:var(--t1); letter-spacing:-.02em; }
     .hero-sub { color:var(--t2); font-size:.875rem; margin-top:4px; }
 
     .dash-action-card {
@@ -654,111 +572,54 @@
     <!-- Dashboard -->
     <div id="sectionDashboard">
 
-      <!-- ── Hero Card ── -->
-      <div class="hero-card mb-4">
-        <div class="row align-items-center g-4">
-          <div class="col-lg-7">
-            <div class="hero-greeting" id="heroGreeting">Bonjour 👋</div>
-            <div class="hero-sub" id="heroSub">Voici un résumé de votre plateforme CEE</div>
-            <!-- Quick action cards -->
-            <div class="d-flex flex-wrap gap-2 mt-4">
-              <div class="dash-action-card" onclick="showSection('beneficiaires');setTimeout(openCreate,200)">
-                <div class="dash-action-icon" style="background:var(--accent-dim);color:var(--accent)"><i class="fas fa-user-plus"></i></div>
-                <div><div class="fw-semibold small">Nouveau bénéficiaire</div><div style="font-size:.7rem;color:var(--t3)">Créer un dossier</div></div>
-              </div>
-              <div class="dash-action-card" onclick="showSection('operations');setTimeout(openCreateOperation,200)">
-                <div class="dash-action-icon" style="background:var(--success-dim);color:var(--success)"><i class="fas fa-bolt"></i></div>
-                <div><div class="fw-semibold small">Nouvelle opération</div><div style="font-size:.7rem;color:var(--t3)">Saisir un dossier CEE</div></div>
-              </div>
-              <div class="dash-action-card" onclick="showSection('taches');setTimeout(openCreateTache,200)">
-                <div class="dash-action-icon" style="background:var(--warning-dim);color:var(--warning)"><i class="fas fa-list-check"></i></div>
-                <div><div class="fw-semibold small">Créer une tâche</div><div style="font-size:.7rem;color:var(--t3)">Rappel ou action</div></div>
-              </div>
-              <div class="dash-action-card" onclick="window.location='/simulateur-pro.html'">
-                <div class="dash-action-icon" style="background:var(--purple-dim);color:var(--purple)"><i class="fas fa-calculator"></i></div>
-                <div><div class="fw-semibold small">Simulateur Pro</div><div style="font-size:.7rem;color:var(--t3)">190+ fiches CEE</div></div>
-              </div>
-            </div>
+      <!-- ── Hero ── -->
+      <div class="hero-card mb-3">
+        <div class="hero-greeting" id="heroGreeting">Bonjour</div>
+        <div class="hero-sub" id="heroSub">Pilotage de votre plateforme CEE</div>
+        <div class="d-flex flex-wrap gap-2 mt-4">
+          <div class="dash-action-card" onclick="showSection('beneficiaires');setTimeout(openCreate,200)">
+            <div class="dash-action-icon" style="background:var(--accent-dim);color:var(--accent)"><i class="fas fa-user-plus"></i></div>
+            <div><div class="fw-semibold small">Nouveau bénéficiaire</div><div style="font-size:.7rem;color:var(--t3)">Créer un dossier</div></div>
           </div>
-          <div class="col-lg-5">
-            <div class="d-flex align-items-center justify-content-lg-end gap-4">
-              <!-- Health ring -->
-              <div style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:96px;height:96px;flex-shrink:0">
-                <svg width="96" height="96" viewBox="0 0 96 96" style="transform:rotate(-90deg);position:absolute">
-                  <circle cx="48" cy="48" r="40" fill="none" stroke="var(--bg-4)" stroke-width="5"/>
-                  <circle id="healthArc" cx="48" cy="48" r="40" fill="none" stroke="var(--accent)" stroke-width="5" stroke-dasharray="0 251" stroke-linecap="round" style="transition:stroke-dasharray 1s ease"/>
-                </svg>
-                <div style="text-align:center;position:relative;z-index:1">
-                  <div id="healthPct" style="font-size:1.35rem;font-weight:800;color:var(--accent);line-height:1">—</div>
-                  <div style="font-size:.55rem;color:var(--t2);font-weight:700;text-transform:uppercase;letter-spacing:.8px">Santé CRM</div>
-                </div>
-              </div>
-              <!-- Mini KPI grid -->
-              <div class="d-flex flex-column gap-3">
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 20px">
-                  <div>
-                    <div class="stat-number" id="statTotal" style="font-size:1.6rem">—</div>
-                    <div class="stat-label">Dossiers</div>
-                  </div>
-                  <div>
-                    <div class="stat-number" id="statValide" style="font-size:1.6rem;color:var(--success)">—</div>
-                    <div class="stat-label">Validés</div>
-                  </div>
-                  <div>
-                    <div class="stat-number" id="statAttente" style="font-size:1.6rem;color:var(--warning)">—</div>
-                    <div class="stat-label">En attente</div>
-                  </div>
-                  <div>
-                    <div class="stat-number" id="statDocs" style="font-size:1.6rem;color:var(--info)">—</div>
-                    <div class="stat-label">Docs reçus</div>
-                  </div>
-                </div>
-                <div class="text-muted" style="font-size:.7rem" id="dashLastUpdate"></div>
-              </div>
-            </div>
+          <div class="dash-action-card" onclick="showSection('operations');setTimeout(openCreateOperation,200)">
+            <div class="dash-action-icon" style="background:var(--success-dim);color:var(--success)"><i class="fas fa-bolt"></i></div>
+            <div><div class="fw-semibold small">Nouvelle opération</div><div style="font-size:.7rem;color:var(--t3)">Saisir un dossier CEE</div></div>
+          </div>
+          <div class="dash-action-card" onclick="showSection('taches');setTimeout(openCreateTache,200)">
+            <div class="dash-action-icon" style="background:var(--warning-dim);color:var(--warning)"><i class="fas fa-list-check"></i></div>
+            <div><div class="fw-semibold small">Créer une tâche</div><div style="font-size:.7rem;color:var(--t3)">Rappel ou action</div></div>
+          </div>
+          <div class="dash-action-card" onclick="window.location='/simulateur-pro.html'">
+            <div class="dash-action-icon" style="background:var(--purple-dim);color:var(--purple)"><i class="fas fa-calculator"></i></div>
+            <div><div class="fw-semibold small">Simulateur Pro</div><div style="font-size:.7rem;color:var(--t3)">Bibliothèque de fiches CEE</div></div>
           </div>
         </div>
       </div>
 
-      <!-- ── KPIs CEE ── -->
+      <!-- ── Compteurs dossiers ── -->
       <div class="row g-3 mb-4">
-        <div class="col-md-4">
-          <div class="kpi-card kwh">
-            <div class="d-flex align-items-start justify-content-between mb-2">
-              <div>
-                <div class="stat-label mb-1"><i class="fas fa-bolt me-1"></i>Volume kWhc total</div>
-                <div class="stat-number" id="statKwh" style="color:var(--success)">—</div>
-              </div>
-              <div class="stat-icon" style="background:var(--success-dim);color:var(--success);flex-shrink:0"><i class="fas fa-gauge"></i></div>
-            </div>
-            <div class="prog-bar mt-2"><div class="prog-fill success" id="kwhProgressBar" style="width:0%"></div></div>
-            <div class="text-muted small mt-2" id="statOpsCount">— opérations</div>
+        <div class="col-6 col-lg-3">
+          <div class="stat-card">
+            <div class="stat-number" id="statTotal">—</div>
+            <div class="stat-label mt-2"><i class="fas fa-folder-open me-1" style="color:var(--accent)"></i>Dossiers</div>
           </div>
         </div>
-        <div class="col-md-4">
-          <div class="kpi-card prime">
-            <div class="d-flex align-items-start justify-content-between mb-2">
-              <div>
-                <div class="stat-label mb-1"><i class="fas fa-euro-sign me-1"></i>Prime négociée totale</div>
-                <div class="stat-number" id="statPrime" style="color:var(--info)">—</div>
-              </div>
-              <div class="stat-icon" style="background:var(--info-dim);color:var(--info);flex-shrink:0"><i class="fas fa-coins"></i></div>
-            </div>
-            <div class="prog-bar mt-2"><div class="prog-fill info" id="primeProgressBar" style="width:0%"></div></div>
-            <div class="text-muted small mt-2">Validée : <span id="statPrimeValidee" class="fw-semibold" style="color:var(--accent)">—</span></div>
+        <div class="col-6 col-lg-3">
+          <div class="stat-card">
+            <div class="stat-number" id="statValide" style="color:var(--success)">—</div>
+            <div class="stat-label mt-2"><i class="fas fa-circle-check me-1" style="color:var(--success)"></i>Validés</div>
           </div>
         </div>
-        <div class="col-md-4">
-          <div class="kpi-card alert" id="alertCard">
-            <div class="d-flex align-items-start justify-content-between mb-2">
-              <div>
-                <div class="stat-label mb-1"><i class="fas fa-triangle-exclamation me-1"></i>Dossiers en alerte</div>
-                <div class="stat-number" id="statAlertes" style="color:var(--danger)">—</div>
-              </div>
-              <div class="stat-icon" style="background:var(--danger-dim);color:var(--danger);flex-shrink:0"><i class="fas fa-bell"></i></div>
-            </div>
-            <div class="prog-bar mt-2"><div class="prog-fill danger" id="alertProgressBar" style="width:0%"></div></div>
-            <div class="text-muted small mt-2">Sans activité depuis +30 jours</div>
+        <div class="col-6 col-lg-3">
+          <div class="stat-card">
+            <div class="stat-number" id="statAttente" style="color:var(--warning)">—</div>
+            <div class="stat-label mt-2"><i class="fas fa-hourglass-half me-1" style="color:var(--warning)"></i>En attente</div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-3">
+          <div class="stat-card">
+            <div class="stat-number" id="statDocs" style="color:var(--info)">—</div>
+            <div class="stat-label mt-2"><i class="fas fa-file-arrow-up me-1" style="color:var(--info)"></i>Docs reçus</div>
           </div>
         </div>
       </div>
@@ -1832,56 +1693,17 @@ async function loadStats() {
   if (!r.ok) return;
   const d = await r.json();
 
-  // Hero greeting
   const hour = new Date().getHours();
-  const greet = hour < 12 ? 'Bonjour ☀️' : hour < 18 ? 'Bon après-midi ⚡' : 'Bonsoir 🌙';
+  const greet = hour < 12 ? 'Bonjour' : hour < 18 ? 'Bon après-midi' : 'Bonsoir';
   const greetEl = document.getElementById('heroGreeting');
   if (greetEl) greetEl.textContent = greet;
 
-  // Mini stats
-  document.getElementById('statTotal').textContent = d.total;
-  document.getElementById('statDocs').textContent  = d.totalDocuments;
   const byS = {}; (d.byStatut || []).forEach(s => byS[s.statut] = s.count);
-  document.getElementById('statAttente').textContent = byS.en_attente || 0;
-  document.getElementById('statValide').textContent  = byS.valide || 0;
-
-  // CRM Health ring — based on % dossiers validés ou dossier_complet vs total
-  const healthy = (byS.valide || 0) + (byS.dossier_complet || 0);
-  const healthPct = d.total > 0 ? Math.round(healthy / d.total * 100) : 0;
-  const arc = document.getElementById('healthArc');
-  const pctEl = document.getElementById('healthPct');
-  if (arc) {
-    const circ = 2 * Math.PI * 40; // r=40
-    arc.setAttribute('stroke-dasharray', `${(healthPct/100*circ).toFixed(1)} ${circ.toFixed(1)}`);
-    const color = healthPct >= 70 ? 'var(--success)' : healthPct >= 40 ? 'var(--warning)' : 'var(--danger)';
-    arc.setAttribute('stroke', color);
-  }
-  if (pctEl) { pctEl.textContent = healthPct + '%'; }
-
-  // KPIs CEE
-  document.getElementById('statKwh').textContent          = fmtKwh(d.totalKwh);
-  document.getElementById('statOpsCount').textContent     = `${d.totalOperations || 0} opération(s)`;
-  document.getElementById('statPrime').textContent        = fmtEuro(d.totalPrimeNegociee);
-  document.getElementById('statPrimeValidee').textContent = fmtEuro(d.totalPrimeValidee);
-  document.getElementById('statAlertes').textContent      = d.alertes || 0;
-
-  // Progress bars animation
-  const kwhTarget = d.totalKwh > 0 ? Math.min(100, (d.totalKwh / 1e6) * 100) : 0;
-  const primeTarget = d.totalPrimeNegociee > 0 ? Math.min(100, (d.totalPrimeNegociee / 100000) * 100) : 0;
-  const alertTarget = d.alertes > 0 ? Math.min(100, (d.alertes / (d.total || 1)) * 100) : 0;
-  setTimeout(() => {
-    const kp = document.getElementById('kwhProgressBar');   if (kp) kp.style.width = kwhTarget + '%';
-    const pp = document.getElementById('primeProgressBar'); if (pp) pp.style.width = primeTarget + '%';
-    const ap = document.getElementById('alertProgressBar'); if (ap) ap.style.width = alertTarget + '%';
-  }, 300);
-
-  // Alertes visuelles
-  const alertCard = document.getElementById('alertCard');
-  if (alertCard) alertCard.style.borderLeft = d.alertes > 0 ? '3px solid var(--danger)' : '';
-
-  const now = new Date();
-  const el = document.getElementById('dashLastUpdate');
-  if (el) el.textContent = `Mis à jour à ${now.toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'})}`;
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('statTotal',   d.total);
+  set('statValide',  byS.valide || 0);
+  set('statAttente', byS.en_attente || 0);
+  set('statDocs',    d.totalDocuments);
 }
 
 // ── Activity Feed ─────────────────────────────────────────────────────────────
