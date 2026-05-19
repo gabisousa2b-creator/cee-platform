@@ -1412,7 +1412,7 @@ async function loadMaterielSection() {
   document.getElementById('matOp').innerHTML = '<option value="">— Opération —</option>' + opOpts;
   document.getElementById('masseOp').innerHTML = '<option value="">Opération…</option>' + opOpts;
   const isAdmin = myRole === 'admin_partenaire';
-  document.getElementById('matAddRow').classList.toggle('d-none', !isAdmin);
+  document.getElementById('matAddRow').classList.add('d-none');
   document.getElementById('masseRow').classList.toggle('d-none', !isAdmin);
   document.getElementById('masseTitle').classList.toggle('d-none', !isAdmin);
   await loadMateriel();
@@ -1424,18 +1424,18 @@ async function loadMateriel() {
 }
 function renderMateriel() {
   const fop = document.getElementById('matOpFilter').value;
-  const list = fop ? materielData.filter(m => String(m.operation_id) === fop) : materielData;
-  const isAdmin = myRole === 'admin_partenaire';
+  const fiche = fop ? ((dashOps.find(o => String(o.id) === fop) || {}).code_fiche || '') : '';
+  const list = fiche ? materielData.filter(m => m.code_fiche === fiche) : materielData;
   const box = document.getElementById('matList');
   box.innerHTML = list.length
-    ? `<table class="tbl-p"><thead><tr><th>Matériel</th><th>Référence</th><th>Opération</th>${isAdmin?'<th></th>':''}</tr></thead><tbody>` +
+    ? `<table class="tbl-p"><thead><tr><th>Matériel</th><th>Référence</th><th>Fiche</th><th>Prix vente HT</th></tr></thead><tbody>` +
       list.map(m => `<tr>
         <td><strong>${escH(m.nom)}</strong>${m.marque||m.categorie?`<div style="font-size:.7rem;color:var(--t3)">${escH([m.marque,m.categorie].filter(Boolean).join(' · '))}</div>`:''}</td>
         <td style="color:var(--t2)">${escH(m.reference||'—')}</td>
-        <td>${m.operation_code?`<span class="op-chip">${escH(m.operation_code)}</span>`:'<span style="color:var(--t3);font-size:.74rem">Toutes</span>'}</td>
-        ${isAdmin?`<td><button class="btn btn-sm btn-link p-0" style="color:var(--danger)" onclick="deleteMateriel(${m.id})" title="Retirer"><i class="fas fa-trash"></i></button></td>`:''}
+        <td>${m.code_fiche?`<span class="op-chip">${escH(m.code_fiche)}</span>`:'<span style="color:var(--t3);font-size:.74rem">Toutes</span>'}</td>
+        <td>${m.prix_vente?fmtEur(m.prix_vente):'<span style="color:var(--t3)">—</span>'}</td>
       </tr>`).join('') + '</tbody></table>'
-    : '<div style="color:var(--t3);font-size:.82rem;padding:8px">Aucun matériel au catalogue.</div>';
+    : '<div style="color:var(--t3);font-size:.82rem;padding:8px">Aucun matériel au catalogue central.</div>';
   const mm = document.getElementById('masseMat');
   if (mm) mm.innerHTML = '<option value="">Matériel…</option>' + materielData.map(m => `<option value="${m.id}">${escH(m.nom)}</option>`).join('');
 }

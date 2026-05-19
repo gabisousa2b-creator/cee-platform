@@ -548,6 +548,7 @@
       <div class="nav-item-s" data-section="beneficiaires" onclick="showSection('beneficiaires')"><i class="fas fa-users fa-fw"></i> Bénéficiaires</div>
       <div class="nav-item-s" data-section="partenaires" onclick="showSection('partenaires')"><i class="fas fa-handshake fa-fw"></i> Partenaires</div>
       <div class="nav-item-s" data-section="operations" onclick="showSection('operations')"><i class="fas fa-bolt fa-fw"></i> Opérations CEE</div>
+      <div class="nav-item-s" data-section="materiel" onclick="showSection('materiel')"><i class="fas fa-boxes-stacked fa-fw"></i> Catalogue matériel</div>
       <div class="nav-item-s" data-section="taches" onclick="showSection('taches')">
         <i class="fas fa-check-square fa-fw"></i> Tâches
         <span class="notif-badge d-none" id="tachesBadge">0</span>
@@ -752,6 +753,64 @@
     </div>
 
     <!-- ══ OPÉRATIONS CEE ══ -->
+    <div id="sectionMateriel" style="display:none">
+      <div class="topbar">
+        <div>
+          <h4 class="fw-bold mb-0"><i class="fas fa-boxes-stacked me-2"></i>Catalogue matériel</h4>
+          <div class="text-muted small mt-1">Catalogue central partagé — prix, TVA, fiche technique, stock</div>
+        </div>
+        <button class="btn btn-primary" onclick="openMaterielForm()"><i class="fas fa-plus me-2"></i>Nouveau matériel</button>
+      </div>
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead><tr>
+                <th>Matériel</th><th>Fiche</th><th>Réf.</th>
+                <th class="text-end">Achat HT</th><th class="text-end">Vente HT</th>
+                <th class="text-end">TVA</th><th class="text-end">Stock</th><th></th>
+              </tr></thead>
+              <tbody id="materielBody"><tr><td colspan="8" class="text-center text-muted py-4">Chargement…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="materielModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title fw-bold" id="materielModalTitle">Nouveau matériel</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div id="materielError" class="alert alert-danger d-none py-2"></div>
+            <input type="hidden" id="matfId">
+            <div class="row g-3">
+              <div class="col-md-7"><label class="form-label">Nom du matériel <span class="text-danger">*</span></label><input class="form-control" id="matfNom"></div>
+              <div class="col-md-5"><label class="form-label">Code fiche CEE</label><input class="form-control" id="matfFiche" placeholder="ex. BAR-EN-101 (vide = toutes)"></div>
+              <div class="col-md-4"><label class="form-label">Référence</label><input class="form-control" id="matfRef"></div>
+              <div class="col-md-4"><label class="form-label">Marque</label><input class="form-control" id="matfMarque"></div>
+              <div class="col-md-4"><label class="form-label">Catégorie</label><input class="form-control" id="matfCat"></div>
+              <div class="col-md-3"><label class="form-label">Prix d'achat HT (€)</label><input class="form-control" id="matfAchat" type="number" step="0.01" min="0"></div>
+              <div class="col-md-3"><label class="form-label">Prix de vente HT (€)</label><input class="form-control" id="matfVente" type="number" step="0.01" min="0"></div>
+              <div class="col-md-3"><label class="form-label">TVA (%)</label><input class="form-control" id="matfTva" type="number" step="0.1" min="0" value="20"></div>
+              <div class="col-md-3"><label class="form-label">Unité</label><input class="form-control" id="matfUnite" placeholder="unité"></div>
+              <div class="col-md-3"><label class="form-label">Stock</label><input class="form-control" id="matfStock" type="number" step="1" min="0"></div>
+              <div class="col-md-3"><label class="form-label">Seuil d'alerte</label><input class="form-control" id="matfSeuil" type="number" step="1" min="0"></div>
+              <div class="col-md-6"><label class="form-label">Photo produit (URL)</label><input class="form-control" id="matfImage" placeholder="https://"></div>
+              <div class="col-12"><label class="form-label">Fiche technique / caractéristiques</label><textarea class="form-control" id="matfSpecs" rows="4" placeholder="Puissance, dimensions, certifications…"></textarea></div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+            <button class="btn btn-primary" onclick="saveMaterielAdmin()"><i class="fas fa-save me-2"></i>Enregistrer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="sectionOperations" style="display:none">
       <div class="topbar">
         <div>
@@ -1729,6 +1788,66 @@ const DOC_TYPES = [
 ];
 const DOC_LABELS = { kbis_rne:'KBIS / RNE', liasse_fiscale:'Liasse fiscale 2024', attestation_urssaf:'Attestation URSSAF 2024', admin:'Document admin', autre:'Autre' };
 
+// ── Catalogue matériel central (super-admin) ──
+let materielCat = [];
+async function loadMaterielAdmin() {
+  const tb = document.getElementById('materielBody');
+  tb.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Chargement…</td></tr>';
+  try { materielCat = await (await fetch('/api/admin/materiel')).json(); if (!Array.isArray(materielCat)) materielCat = []; }
+  catch(e) { materielCat = []; }
+  renderMaterielAdmin();
+}
+function renderMaterielAdmin() {
+  const tb = document.getElementById('materielBody');
+  if (!materielCat.length) { tb.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Aucun matériel — créez-en un.</td></tr>'; return; }
+  const e = s => (s==null?'':String(s)).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const eur = n => (Math.round((+n||0)*100)/100).toLocaleString('fr-FR');
+  tb.innerHTML = materielCat.map(m => `<tr style="${m.actif?'':'opacity:.5'}">
+    <td><strong>${e(m.nom)}</strong>${(m.marque||m.categorie)?`<div class="small text-muted">${e([m.marque,m.categorie].filter(Boolean).join(' · '))}</div>`:''}</td>
+    <td>${m.code_fiche?`<span class="badge bg-primary bg-opacity-10 text-primary">${e(m.code_fiche)}</span>`:'<span class="text-muted small">Toutes</span>'}</td>
+    <td class="text-muted small">${e(m.reference||'—')}</td>
+    <td class="text-end">${eur(m.prix_achat)} €</td>
+    <td class="text-end fw-semibold">${eur(m.prix_vente)} €</td>
+    <td class="text-end">${(+m.tva||0)} %</td>
+    <td class="text-end">${(+m.stock||0)}${(+m.seuil_alerte>0 && +m.stock<=+m.seuil_alerte)?' <i class="fas fa-triangle-exclamation text-warning" title="Stock bas"></i>':''}</td>
+    <td class="text-end text-nowrap">
+      <button class="btn btn-sm btn-outline-secondary" onclick="openMaterielForm(${m.id})"><i class="fas fa-pen"></i></button>
+      <button class="btn btn-sm btn-outline-danger" onclick="deleteMaterielAdmin(${m.id})"><i class="fas fa-trash"></i></button>
+    </td></tr>`).join('');
+}
+function openMaterielForm(id) {
+  const m = id ? materielCat.find(x => x.id === id) : null;
+  document.getElementById('materielError').classList.add('d-none');
+  document.getElementById('materielModalTitle').textContent = m ? 'Modifier le matériel' : 'Nouveau matériel';
+  const set = (f, v) => document.getElementById(f).value = (v == null ? '' : v);
+  set('matfId', m?m.id:''); set('matfNom', m?m.nom:''); set('matfFiche', m?m.code_fiche:'');
+  set('matfRef', m?m.reference:''); set('matfMarque', m?m.marque:''); set('matfCat', m?m.categorie:'');
+  set('matfAchat', m?m.prix_achat:''); set('matfVente', m?m.prix_vente:''); set('matfTva', m?(m.tva!=null?m.tva:20):20);
+  set('matfUnite', m?m.unite:''); set('matfStock', m?m.stock:''); set('matfSeuil', m?m.seuil_alerte:'');
+  set('matfImage', m?m.image_url:''); set('matfSpecs', m?m.specs:'');
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('materielModal')).show();
+}
+async function saveMaterielAdmin() {
+  const g = f => document.getElementById(f).value;
+  const id = g('matfId');
+  const body = {
+    nom: g('matfNom').trim(), code_fiche: g('matfFiche').trim().toUpperCase(), reference: g('matfRef').trim(),
+    marque: g('matfMarque').trim(), categorie: g('matfCat').trim(), unite: g('matfUnite').trim() || 'unité',
+    prix_achat: g('matfAchat'), prix_vente: g('matfVente'), tva: g('matfTva'),
+    stock: g('matfStock'), seuil_alerte: g('matfSeuil'), image_url: g('matfImage').trim(), specs: g('matfSpecs')
+  };
+  if (!body.nom) { const el = document.getElementById('materielError'); el.textContent = 'Le nom du matériel est requis'; el.classList.remove('d-none'); return; }
+  const r = await fetch('/api/admin/materiel' + (id ? '/' + id : ''), { method: id ? 'PUT' : 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok && d.success) { bootstrap.Modal.getInstance(document.getElementById('materielModal')).hide(); loadMaterielAdmin(); }
+  else { const el = document.getElementById('materielError'); el.textContent = d.error || 'Erreur'; el.classList.remove('d-none'); }
+}
+async function deleteMaterielAdmin(id) {
+  if (!confirm('Supprimer ce matériel du catalogue ?')) return;
+  const r = await fetch('/api/admin/materiel/' + id, { method: 'DELETE' });
+  if (r.ok) loadMaterielAdmin();
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   const r = await fetch('/api/admin/check-auth');
@@ -1770,7 +1889,7 @@ async function loadActivites() {
 function showSection(name) {
   document.querySelectorAll('[data-section]').forEach(el => el.classList.remove('active'));
   document.querySelector(`[data-section="${name}"]`)?.classList.add('active');
-  const sections = ['dashboard','beneficiaires','partenaires','operations','taches','emails','notifications','biblio_fiches','veille','devis'];
+  const sections = ['dashboard','beneficiaires','partenaires','operations','materiel','taches','emails','notifications','biblio_fiches','veille','devis'];
   sections.forEach(s => {
     const key = s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
     const domKey = key.charAt(0).toUpperCase() + key.slice(1);
@@ -1780,6 +1899,7 @@ function showSection(name) {
   if (name === 'beneficiaires')  loadBeneficiaires();
   if (name === 'dashboard')    { loadStats(); loadRecentBeneficiaires(); loadActivityFeed(); }
   if (name === 'operations')     loadOperations();
+  if (name === 'materiel')       loadMaterielAdmin();
   if (name === 'taches')         loadTaches();
   if (name === 'emails')         loadRecipients();
   if (name === 'notifications') {

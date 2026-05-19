@@ -1699,6 +1699,16 @@ db.serialize(() => {
     actif         INTEGER DEFAULT 1,
     created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+  // Catalogue central : champs prix, TVA, fiche technique, photo, stock
+  [`ALTER TABLE materiel ADD COLUMN prix_achat REAL DEFAULT 0`,
+   `ALTER TABLE materiel ADD COLUMN prix_vente REAL DEFAULT 0`,
+   `ALTER TABLE materiel ADD COLUMN tva REAL DEFAULT 20`,
+   `ALTER TABLE materiel ADD COLUMN specs TEXT DEFAULT ''`,
+   `ALTER TABLE materiel ADD COLUMN image_url TEXT DEFAULT ''`,
+   `ALTER TABLE materiel ADD COLUMN stock REAL DEFAULT 0`,
+   `ALTER TABLE materiel ADD COLUMN seuil_alerte REAL DEFAULT 0`,
+   `ALTER TABLE materiel ADD COLUMN code_fiche TEXT DEFAULT ''`
+  ].forEach(sql => db.run(sql, () => {}));
   // Matériel sélectionné pour un dossier (commande à venir — stock/paiement ultérieurs)
   db.run(`CREATE TABLE IF NOT EXISTS dossier_materiel (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2750,6 +2760,43 @@ app.delete('/api/admin/annonces/:id', requireAdmin, (req, res) => {
     err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
 });
 
+// ── Catalogue matériel central — géré par le super-admin ─────────────────────
+app.get('/api/admin/materiel', requireAdmin, (req, res) => {
+  db.all(`SELECT id,code_fiche,nom,reference,marque,categorie,unite,prix_achat,prix_vente,tva,
+            specs,image_url,stock,seuil_alerte,actif
+          FROM materiel ORDER BY code_fiche, nom COLLATE NOCASE`, [],
+    (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows || []));
+});
+app.post('/api/admin/materiel', requireAdmin, (req, res) => {
+  const m = req.body;
+  if (!m.nom || !String(m.nom).trim()) return res.status(400).json({ error: 'Nom du matériel requis' });
+  db.run(`INSERT INTO materiel (partenaire_id,nom,reference,marque,categorie,unite,code_fiche,
+            prix_achat,prix_vente,tva,specs,image_url,stock,seuil_alerte,actif)
+          VALUES (0,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`,
+    [String(m.nom).trim(), m.reference||'', m.marque||'', m.categorie||'', m.unite||'unité', m.code_fiche||'',
+     parseFloat(m.prix_achat)||0, parseFloat(m.prix_vente)||0, m.tva===undefined?20:(parseFloat(m.tva)||0),
+     m.specs||'', m.image_url||'', parseFloat(m.stock)||0, parseFloat(m.seuil_alerte)||0],
+    function(err) { err ? res.status(500).json({ error: err.message }) : res.json({ success: true, id: this.lastID }); });
+});
+app.put('/api/admin/materiel/:id', requireAdmin, (req, res) => {
+  const m = req.body, sets = [], vals = [];
+  ['nom','reference','marque','categorie','unite','code_fiche','specs','image_url'].forEach(k => {
+    if (m[k] !== undefined) { sets.push(k + '=?'); vals.push(String(m[k] || '')); }
+  });
+  ['prix_achat','prix_vente','tva','stock','seuil_alerte'].forEach(k => {
+    if (m[k] !== undefined) { sets.push(k + '=?'); vals.push(parseFloat(m[k]) || 0); }
+  });
+  if (m.actif !== undefined) { sets.push('actif=?'); vals.push(m.actif ? 1 : 0); }
+  if (!sets.length) return res.status(400).json({ error: 'Aucune modification' });
+  vals.push(req.params.id);
+  db.run(`UPDATE materiel SET ${sets.join(',')} WHERE id=?`, vals,
+    err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+});
+app.delete('/api/admin/materiel/:id', requireAdmin, (req, res) => {
+  db.run('DELETE FROM materiel WHERE id=?', [req.params.id],
+    err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+});
+
 // Dépôt d'un dossier par un partenaire / apporteur
 app.post('/api/partner/dossiers', requireRole('admin_partenaire','apporteur'), (req, res) => {
   partnerScope(req, res, async (s) => {
@@ -2978,16 +3025,12 @@ app.delete('/api/partner/cdc', requireRole('admin_partenaire'), (req, res) => {
 
 // ── Catalogue matériel + sélection par dossier ───────────────────────────────
 app.get('/api/partner/materiel', requirePartner, (req, res) => {
-  partnerScope(req, res, (s) => {
-    const opId = parseInt(req.query.operation_id) || null;
-    let where = 'm.partenaire_id=?'; const params = [s.partenaire_id];
-    if (opId) { where += ' AND m.operation_id=?'; params.push(opId); }
-    db.all(`SELECT m.id,m.operation_id,m.nom,m.reference,m.marque,m.categorie,m.unite,m.actif,
-              po.code_fiche AS operation_code, po.nom AS operation_nom
-            FROM materiel m LEFT JOIN partenaire_operations po ON po.id=m.operation_id
-            WHERE ${where} ORDER BY po.code_fiche, m.nom COLLATE NOCASE`, params,
-      (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows || []));
-  });
+  const cf = (req.query.code_fiche || '').trim();
+  let where = 'actif=1'; const params = [];
+  if (cf) { where += ' AND code_fiche=?'; params.push(cf); }
+  db.all(`SELECT id,code_fiche,nom,reference,marque,categorie,unite,prix_vente,tva,specs,image_url
+          FROM materiel WHERE ${where} ORDER BY code_fiche, nom COLLATE NOCASE`, params,
+    (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows || []));
 });
 app.post('/api/partner/materiel', requireRole('admin_partenaire'), (req, res) => {
   partnerScope(req, res, (s) => {
@@ -3024,16 +3067,18 @@ app.delete('/api/partner/materiel/:id', requireRole('admin_partenaire'), (req, r
 app.get('/api/partner/dossiers/:id/materiel', requirePartner, (req, res) => {
   partnerScope(req, res, (s) => {
     const f = dossierFilter(s);
-    db.get(`SELECT b.id,b.operation_id FROM beneficiaires b WHERE ${f.where} AND b.id=?`,
+    db.get(`SELECT b.id, po.code_fiche AS fiche FROM beneficiaires b
+            LEFT JOIN partenaire_operations po ON po.id=b.operation_id
+            WHERE ${f.where} AND b.id=?`,
       [...f.params, req.params.id], (e, b) => {
         if (e)  return res.status(500).json({ error: e.message });
         if (!b) return res.status(404).json({ error: 'Dossier hors de votre périmètre' });
-        db.all(`SELECT m.id,m.nom,m.reference,m.marque,m.categorie,m.unite,
+        db.all(`SELECT m.id,m.nom,m.reference,m.marque,m.categorie,m.unite,m.prix_vente,m.image_url,
                   (SELECT quantite FROM dossier_materiel WHERE beneficiaire_id=? AND materiel_id=m.id) AS quantite
                 FROM materiel m
-                WHERE m.partenaire_id=? AND m.actif=1 AND (m.operation_id=? OR m.operation_id IS NULL)
+                WHERE m.actif=1 AND (m.code_fiche=? OR m.code_fiche='' OR m.code_fiche IS NULL)
                 ORDER BY m.nom COLLATE NOCASE`,
-          [b.id, s.partenaire_id, b.operation_id], (e2, rows) =>
+          [b.id, b.fiche || ''], (e2, rows) =>
             e2 ? res.status(500).json({ error: e2.message }) : res.json(rows || []));
       });
   });
