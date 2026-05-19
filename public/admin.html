@@ -768,10 +768,68 @@
               <thead><tr>
                 <th>Matériel</th><th>Fiche</th><th>Réf.</th>
                 <th class="text-end">Achat HT</th><th class="text-end">Vente HT</th>
-                <th class="text-end">TVA</th><th class="text-end">Stock</th><th></th>
+                <th class="text-end">TVA</th><th class="text-end">Stock</th>
+                <th class="text-end">Engagé</th><th class="text-end">Projeté</th><th></th>
               </tr></thead>
-              <tbody id="materielBody"><tr><td colspan="8" class="text-center text-muted py-4">Chargement…</td></tr></tbody>
+              <tbody id="materielBody"><tr><td colspan="10" class="text-center text-muted py-4">Chargement…</td></tr></tbody>
             </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex align-items-center justify-content-between mt-4 mb-2">
+        <h5 class="fw-bold mb-0"><i class="fas fa-right-left me-2"></i>Mouvements de stock</h5>
+        <button class="btn btn-sm btn-outline-primary" onclick="openMouvementForm()"><i class="fas fa-plus me-2"></i>Ajustement manuel</button>
+      </div>
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead><tr>
+                <th>Date</th><th>Matériel</th><th>Type</th>
+                <th class="text-end">Quantité</th><th>Motif</th>
+              </tr></thead>
+              <tbody id="mouvementsBody"><tr><td colspan="5" class="text-center text-muted py-4">Chargement…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="mouvementModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title fw-bold">Ajustement de stock</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div id="mouvementError" class="alert alert-danger d-none"></div>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Matériel</label>
+              <select class="form-select" id="movMateriel"></select>
+            </div>
+            <div class="row g-3">
+              <div class="col-6">
+                <label class="form-label small fw-semibold">Type</label>
+                <select class="form-select" id="movType">
+                  <option value="entree">Entrée (réapprovisionnement)</option>
+                  <option value="sortie">Sortie (casse, perte…)</option>
+                </select>
+              </div>
+              <div class="col-6">
+                <label class="form-label small fw-semibold">Quantité</label>
+                <input type="number" min="0" step="any" class="form-control" id="movQte" />
+              </div>
+            </div>
+            <div class="mt-3">
+              <label class="form-label small fw-semibold">Motif</label>
+              <input type="text" class="form-control" id="movMotif" placeholder="Ex. Livraison fournisseur, inventaire…" />
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-light" data-bs-dismiss="modal">Annuler</button>
+            <button class="btn btn-primary" onclick="saveMouvement()">Enregistrer</button>
           </div>
         </div>
       </div>
@@ -1792,28 +1850,73 @@ const DOC_LABELS = { kbis_rne:'KBIS / RNE', liasse_fiscale:'Liasse fiscale 2024'
 let materielCat = [];
 async function loadMaterielAdmin() {
   const tb = document.getElementById('materielBody');
-  tb.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Chargement…</td></tr>';
+  tb.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">Chargement…</td></tr>';
   try { materielCat = await (await fetch('/api/admin/materiel')).json(); if (!Array.isArray(materielCat)) materielCat = []; }
   catch(e) { materielCat = []; }
   renderMaterielAdmin();
+  loadMouvements();
 }
 function renderMaterielAdmin() {
   const tb = document.getElementById('materielBody');
-  if (!materielCat.length) { tb.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Aucun matériel — créez-en un.</td></tr>'; return; }
+  if (!materielCat.length) { tb.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">Aucun matériel — créez-en un.</td></tr>'; return; }
   const e = s => (s==null?'':String(s)).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const eur = n => (Math.round((+n||0)*100)/100).toLocaleString('fr-FR');
-  tb.innerHTML = materielCat.map(m => `<tr style="${m.actif?'':'opacity:.5'}">
+  tb.innerHTML = materielCat.map(m => {
+    const stock = +m.stock||0, engage = +m.engage||0, proj = stock - engage, seuil = +m.seuil_alerte||0;
+    const bas = seuil>0 && proj<=seuil;
+    return `<tr style="${m.actif?'':'opacity:.5'}">
     <td><strong>${e(m.nom)}</strong>${(m.marque||m.categorie)?`<div class="small text-muted">${e([m.marque,m.categorie].filter(Boolean).join(' · '))}</div>`:''}</td>
     <td>${m.code_fiche?`<span class="badge bg-primary bg-opacity-10 text-primary">${e(m.code_fiche)}</span>`:'<span class="text-muted small">Toutes</span>'}</td>
     <td class="text-muted small">${e(m.reference||'—')}</td>
     <td class="text-end">${eur(m.prix_achat)} €</td>
     <td class="text-end fw-semibold">${eur(m.prix_vente)} €</td>
     <td class="text-end">${(+m.tva||0)} %</td>
-    <td class="text-end">${(+m.stock||0)}${(+m.seuil_alerte>0 && +m.stock<=+m.seuil_alerte)?' <i class="fas fa-triangle-exclamation text-warning" title="Stock bas"></i>':''}</td>
+    <td class="text-end">${stock}</td>
+    <td class="text-end text-muted">${engage?'−'+engage:'—'}</td>
+    <td class="text-end fw-semibold ${bas?'text-danger':''}">${proj}${bas?' <i class="fas fa-triangle-exclamation" title="Stock projeté bas"></i>':''}</td>
     <td class="text-end text-nowrap">
       <button class="btn btn-sm btn-outline-secondary" onclick="openMaterielForm(${m.id})"><i class="fas fa-pen"></i></button>
       <button class="btn btn-sm btn-outline-danger" onclick="deleteMaterielAdmin(${m.id})"><i class="fas fa-trash"></i></button>
-    </td></tr>`).join('');
+    </td></tr>`;
+  }).join('');
+}
+let mouvements = [];
+async function loadMouvements() {
+  const tb = document.getElementById('mouvementsBody');
+  if (!tb) return;
+  try { mouvements = await (await fetch('/api/admin/stock-mouvements')).json(); if (!Array.isArray(mouvements)) mouvements = []; }
+  catch(e) { mouvements = []; }
+  const e = s => (s==null?'':String(s)).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  if (!mouvements.length) { tb.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Aucun mouvement de stock.</td></tr>'; return; }
+  tb.innerHTML = mouvements.map(v => {
+    const q = +v.quantite||0, sortie = q<0 || v.type==='sortie';
+    return `<tr>
+    <td class="text-muted small text-nowrap">${e((v.created_at||'').replace('T',' ').slice(0,16))}</td>
+    <td><strong>${e(v.materiel_nom||'—')}</strong>${v.code_fiche?` <span class="badge bg-light text-muted">${e(v.code_fiche)}</span>`:''}</td>
+    <td><span class="badge ${sortie?'bg-danger':'bg-success'} bg-opacity-10 ${sortie?'text-danger':'text-success'}">${sortie?'Sortie':'Entrée'}</span></td>
+    <td class="text-end fw-semibold ${sortie?'text-danger':'text-success'}">${q>0?'+':''}${q}</td>
+    <td class="text-muted small">${e(v.motif||'—')}</td></tr>`;
+  }).join('');
+}
+function openMouvementForm() {
+  document.getElementById('mouvementError').classList.add('d-none');
+  const sel = document.getElementById('movMateriel');
+  sel.innerHTML = materielCat.map(m => `<option value="${m.id}">${(m.nom||'').replace(/</g,'&lt;')}</option>`).join('');
+  document.getElementById('movType').value = 'entree';
+  document.getElementById('movQte').value = '';
+  document.getElementById('movMotif').value = '';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('mouvementModal')).show();
+}
+async function saveMouvement() {
+  const g = f => document.getElementById(f).value;
+  const body = { materiel_id: g('movMateriel'), type: g('movType'), quantite: g('movQte'), motif: g('movMotif').trim() };
+  if (!body.materiel_id || !(parseFloat(body.quantite)>0)) {
+    const el = document.getElementById('mouvementError'); el.textContent = 'Matériel et quantité (> 0) requis'; el.classList.remove('d-none'); return;
+  }
+  const r = await fetch('/api/admin/stock-mouvements', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok && d.success) { bootstrap.Modal.getInstance(document.getElementById('mouvementModal')).hide(); loadMaterielAdmin(); }
+  else { const el = document.getElementById('mouvementError'); el.textContent = d.error || 'Erreur'; el.classList.remove('d-none'); }
 }
 function openMaterielForm(id) {
   const m = id ? materielCat.find(x => x.id === id) : null;

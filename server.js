@@ -1742,6 +1742,16 @@ db.serialize(() => {
     tva             REAL DEFAULT 20
   )`);
   db.run(`ALTER TABLE commandes ADD COLUMN reste_a_charge REAL DEFAULT 0`, () => {});
+  // Mouvements de stock — journal des entrées / sorties
+  db.run(`CREATE TABLE IF NOT EXISTS stock_mouvements (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    materiel_id INTEGER NOT NULL,
+    type        TEXT DEFAULT 'sortie',
+    quantite    REAL DEFAULT 0,
+    motif       TEXT DEFAULT '',
+    commande_id INTEGER,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
   // Cahier des charges : preuve d'achat du matériel (ajout après seed initial)
   db.get("SELECT id FROM cdc_pieces WHERE partenaire_id IS NULL AND nom LIKE '%matériel%'", (e, r) => {
     if (e || r) return;
@@ -2806,7 +2816,10 @@ app.delete('/api/admin/annonces/:id', requireAdmin, (req, res) => {
 // ── Catalogue matériel central — géré par le super-admin ─────────────────────
 app.get('/api/admin/materiel', requireAdmin, (req, res) => {
   db.all(`SELECT id,code_fiche,nom,reference,marque,categorie,unite,prix_achat,prix_vente,tva,
-            specs,image_url,stock,seuil_alerte,actif
+            specs,image_url,stock,seuil_alerte,actif,
+            (SELECT COALESCE(SUM(cl.quantite),0) FROM commande_lignes cl
+               JOIN commandes co ON co.id=cl.commande_id
+               WHERE cl.materiel_id=materiel.id AND co.statut='preparee') AS engage
           FROM materiel ORDER BY code_fiche, nom COLLATE NOCASE`, [],
     (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows || []));
 });
@@ -2838,6 +2851,30 @@ app.put('/api/admin/materiel/:id', requireAdmin, (req, res) => {
 app.delete('/api/admin/materiel/:id', requireAdmin, (req, res) => {
   db.run('DELETE FROM materiel WHERE id=?', [req.params.id],
     err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+});
+// Suivi de stock — mouvements
+app.get('/api/admin/stock-mouvements', requireAdmin, (req, res) => {
+  const where = [], vals = [];
+  if (req.query.materiel_id) { where.push('sm.materiel_id=?'); vals.push(req.query.materiel_id); }
+  db.all(`SELECT sm.id,sm.materiel_id,sm.type,sm.quantite,sm.motif,sm.commande_id,sm.created_at,
+            m.nom AS materiel_nom, m.code_fiche
+          FROM stock_mouvements sm LEFT JOIN materiel m ON m.id=sm.materiel_id
+          ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+          ORDER BY sm.created_at DESC, sm.id DESC LIMIT 100`, vals,
+    (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows || []));
+});
+app.post('/api/admin/stock-mouvements', requireAdmin, (req, res) => {
+  const b = req.body, mid = parseInt(b.materiel_id);
+  const q = Math.abs(parseFloat(b.quantite) || 0);
+  if (!mid || !q) return res.status(400).json({ error: 'Matériel et quantité requis' });
+  const type = b.type === 'sortie' ? 'sortie' : 'entree';
+  const delta = type === 'sortie' ? -q : q;
+  db.run('UPDATE materiel SET stock=stock+? WHERE id=?', [delta, mid], err => {
+    if (err) return res.status(500).json({ error: err.message });
+    db.run('INSERT INTO stock_mouvements (materiel_id,type,quantite,motif) VALUES (?,?,?,?)',
+      [mid, type, delta, String(b.motif || 'Ajustement manuel')],
+      e => e ? res.status(500).json({ error: e.message }) : res.json({ success: true }));
+  });
 });
 
 // Dépôt d'un dossier par un partenaire / apporteur
@@ -3222,10 +3259,37 @@ app.get('/api/partner/commandes/:id', requireRole('admin_partenaire'), (req, res
 });
 app.put('/api/partner/commandes/:id/statut', requireRole('admin_partenaire'), (req, res) => {
   partnerScope(req, res, (s) => {
-    if (!CMD_STATUTS.includes(req.body.statut)) return res.status(400).json({ error: 'Statut invalide' });
-    db.run('UPDATE commandes SET statut=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND partenaire_id=?',
-      [req.body.statut, req.params.id, s.partenaire_id],
-      err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+    const neu = req.body.statut;
+    if (!CMD_STATUTS.includes(neu)) return res.status(400).json({ error: 'Statut invalide' });
+    db.get('SELECT statut,reference FROM commandes WHERE id=? AND partenaire_id=?', [req.params.id, s.partenaire_id], (e, c) => {
+      if (e)  return res.status(500).json({ error: e.message });
+      if (!c) return res.status(404).json({ error: 'Commande introuvable' });
+      const consumes  = st => ['commandee','expediee','livree'].includes(st);
+      const wasOut    = consumes(c.statut);
+      const willOut   = consumes(neu);
+      db.run('UPDATE commandes SET statut=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND partenaire_id=?',
+        [neu, req.params.id, s.partenaire_id], err => {
+          if (err) return res.status(500).json({ error: err.message });
+          if (wasOut === willOut) return res.json({ success: true });
+          // wasOut=false,willOut=true -> sortie ; wasOut=true,willOut=false -> entree
+          const isSortie = willOut;
+          db.all('SELECT materiel_id,quantite FROM commande_lignes WHERE commande_id=?', [req.params.id], (e2, ls) => {
+            if (e2 || !ls) return res.json({ success: true });
+            ls.forEach(l => {
+              if (!l.materiel_id) return;
+              const q = +l.quantite || 0;
+              if (!q) return;
+              const delta = isSortie ? -q : q;
+              db.run('UPDATE materiel SET stock=stock+? WHERE id=?', [delta, l.materiel_id]);
+              db.run(`INSERT INTO stock_mouvements (materiel_id,type,quantite,motif,commande_id)
+                      VALUES (?,?,?,?,?)`,
+                [l.materiel_id, isSortie ? 'sortie' : 'entree', delta,
+                 (isSortie ? 'Commande ' : 'Annulation ') + (c.reference || '#' + req.params.id), req.params.id]);
+            });
+            res.json({ success: true });
+          });
+        });
+    });
   });
 });
 app.put('/api/partner/commandes/:id', requireRole('admin_partenaire'), (req, res) => {
