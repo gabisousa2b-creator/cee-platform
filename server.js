@@ -2275,82 +2275,128 @@ app.put('/api/partner/dossiers/:id/pieces', requirePartner, (req, res) => {
 
 // ── Génération de documents PDF — devis, facture, AH, attestation de convention ──
 function renderDocPdf(res, ctx) {
-  const { b, org, deleg, titre, type, prix, cumac, subvention } = ctx;
-  const DARK = '#15233b', GREY = '#5b6472', ACCENT = '#0c8f7d', LINE = '#dde3ea';
-  const fmtE = n => (Math.round(n) || 0).toLocaleString('fr-FR') + ' €';
+  const { b, org, deleg, type, prix, cumac, subvention } = ctx;
+  const INK = '#181c24', SOFT = '#5c6470', RULE = '#cdd2db', BAND = '#1f2632';
+  const eur = n => (Math.round(n) || 0).toLocaleString('fr-FR') + ' €';
   const today = new Date().toLocaleDateString('fr-FR');
   const nomComplet = ((b.prenom||'') + ' ' + (b.nom||'')).trim() || '—';
   const villeBenef = [b.code_postal, b.ville].filter(Boolean).join(' ');
-  const opLabel = (b.op_code ? b.op_code + ' — ' : '') + (b.op_nom || 'Opération CEE');
-  const delegNom = deleg && deleg.deleg_nom ? deleg.deleg_nom : null;
+  const opLabel = (b.op_code ? b.op_code + ' — ' : '') + (b.op_nom || "Opération d'économies d'énergie");
+  const delegNom = (deleg && deleg.deleg_nom) ? deleg.deleg_nom : null;
+  const TITRE = { devis:'DEVIS', facture:'FACTURE', ah:"ATTESTATION SUR L'HONNEUR", convention:'ATTESTATION DE CONVENTION' };
+  const REF   = { devis:'DEV', facture:'FAC', ah:'AH', convention:'CONV' };
+  const M = 56;
 
-  const doc = new PDFDocument({ size: 'A4', margin: 50 });
+  const doc = new PDFDocument({ size:'A4', margin:M, info:{ Title: TITRE[type] + ' ' + b.code, Author: org.nom || '' } });
   doc.pipe(res);
+  const W = doc.page.width - 2 * M;
+  const R = M + W;
 
-  doc.fontSize(17).fillColor(ACCENT).text(org.nom || 'Partenaire CEE');
-  doc.fontSize(9).fillColor(GREY);
+  // En-tête — identité de l'émetteur
+  doc.font('Helvetica-Bold').fontSize(13).fillColor(INK).text(org.nom || 'Émetteur', M, M, { width: W * 0.56 });
+  doc.font('Helvetica').fontSize(8.5).fillColor(SOFT);
   [org.adresse, [org.code_postal, org.ville].filter(Boolean).join(' '),
-   org.siret && ('SIRET ' + org.siret), org.telephone, org.site_web].filter(Boolean).forEach(l => doc.text(l));
-  doc.moveDown(.5);
-  doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor(LINE).stroke();
-  doc.moveDown(1.2);
+   org.siret && ('SIRET ' + org.siret),
+   [org.telephone, org.site_web].filter(Boolean).join('   ·   ')]
+   .filter(Boolean).forEach(l => doc.text(l, { width: W * 0.56 }));
+  const leftBottom = doc.y;
 
-  doc.fontSize(21).fillColor(DARK).text(titre.toUpperCase());
-  doc.fontSize(10).fillColor(GREY).text('Dossier ' + b.code + '   ·   ' + today);
-  doc.moveDown(1.1);
+  // En-tête — intitulé et référence du document
+  doc.font('Helvetica-Bold').fontSize(18).fillColor(INK).text(TITRE[type], M, M, { width: W, align:'right' });
+  doc.font('Helvetica').fontSize(9).fillColor(SOFT);
+  doc.text('Référence  ' + REF[type] + '-' + b.code, { width: W, align:'right' });
+  doc.text("Date d'émission  " + today, { width: W, align:'right' });
+  if (type === 'devis') doc.text('Validité  30 jours', { width: W, align:'right' });
 
-  doc.fontSize(8).fillColor(ACCENT).text('BÉNÉFICIAIRE');
-  if (b.raison_sociale && b.raison_sociale.trim()) doc.fontSize(11).fillColor(DARK).text(b.raison_sociale);
-  doc.fontSize(10).fillColor(DARK).text(nomComplet);
-  doc.fontSize(9).fillColor(GREY);
-  [b.adresse, villeBenef, b.siret && ('SIRET ' + b.siret), b.email, b.telephone].filter(Boolean).forEach(l => doc.text(l));
-  doc.moveDown(1.3);
+  let y = Math.max(leftBottom, doc.y) + 18;
+  doc.moveTo(M, y).lineWidth(1).strokeColor(RULE).lineTo(R, y).stroke();
+  y += 20;
 
-  const para = t => { doc.fontSize(10).fillColor(DARK).text(t, { align:'justify', lineGap:3 }); doc.moveDown(.7); };
-  const field = (label, val) => doc.fontSize(9).fillColor(GREY).text(label + '  ', { continued:true }).fillColor(DARK).text(String(val));
-  const signatures = (gauche, droite) => {
-    doc.moveDown(2);
-    const y = doc.y;
-    doc.fontSize(9).fillColor(GREY).text(gauche, 50, y);
-    doc.text(droite, 320, y);
-    doc.rect(50, y + 16, 200, 64).strokeColor(LINE).stroke();
-    doc.rect(320, y + 16, 200, 64).strokeColor(LINE).stroke();
+  const lab = type === 'ah' ? 'DÉCLARANT' : (type === 'convention' ? 'OBJET' : 'CLIENT');
+  doc.font('Helvetica-Bold').fontSize(8).fillColor(SOFT).text(lab, M, y);
+  y = doc.y + 3;
+  if (type === 'convention') {
+    doc.font('Helvetica').fontSize(9.5).fillColor(INK).text('Dossier CEE n° ' + b.code, M, y, { width: W }); y = doc.y + 18;
+  } else {
+    if (b.raison_sociale && b.raison_sociale.trim()) { doc.font('Helvetica-Bold').fontSize(10.5).fillColor(INK).text(b.raison_sociale, M, y, { width: W }); y = doc.y; }
+    doc.font('Helvetica').fontSize(9.5).fillColor(INK).text(nomComplet, M, y, { width: W }); y = doc.y;
+    doc.fontSize(8.5).fillColor(SOFT);
+    [b.adresse, villeBenef, b.siret && ('SIRET ' + b.siret)].filter(Boolean).forEach(l => { doc.text(l, M, y, { width: W }); y = doc.y; });
+    y += 20;
+  }
+
+  const para = (t) => { doc.font('Helvetica').fontSize(9.5).fillColor(INK).text(t, M, y, { width: W, align:'justify', lineGap:2.5 }); y = doc.y + 9; };
+  const sign = (g, d) => {
+    y += 6;
+    const bw = (W - 32) / 2;
+    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(INK).text(g, M, y, { width: bw });
+    doc.text(d, M + bw + 32, y, { width: bw });
+    const by = doc.y + 4;
+    doc.rect(M, by, bw, 74).lineWidth(.8).strokeColor(RULE).stroke();
+    doc.rect(M + bw + 32, by, bw, 74).lineWidth(.8).strokeColor(RULE).stroke();
+    y = by + 74;
   };
 
   if (type === 'devis' || type === 'facture') {
-    doc.fontSize(8).fillColor(ACCENT).text('OPÉRATION');
-    doc.fontSize(11).fillColor(DARK).text(opLabel);
-    doc.moveDown(.7);
-    field('Volume CEE :', cumac.toLocaleString('fr-FR') + ' kWh cumac');
-    field('Prix de valorisation :', prix + ' € / MWh cumac');
-    if (delegNom) field('Délégataire :', delegNom);
-    doc.moveDown(.5);
-    doc.fontSize(15).fillColor(ACCENT).text((type === 'facture' ? 'Montant total : ' : 'Prime CEE estimée : ') + fmtE(subvention));
-    doc.moveDown(1);
-    para(type === 'facture'
-      ? "La présente facture correspond à l'opération d'économies d'énergie désignée ci-dessus, valorisée au titre du dispositif des Certificats d'Économies d'Énergie."
-      : "Le présent devis est établi au titre du dispositif des Certificats d'Économies d'Énergie. Montant indicatif sous réserve de la validation du dossier. Devis valable 30 jours à compter de sa date d'émission.");
-    signatures('Le bénéficiaire (lu et approuvé)', 'Pour ' + (org.nom || 'le partenaire'));
+    doc.font('Helvetica-Bold').fontSize(8).fillColor(SOFT).text('OBJET', M, y); y = doc.y + 3;
+    doc.font('Helvetica').fontSize(9.5).fillColor(INK).text("Valorisation d'une opération d'économies d'énergie au titre des Certificats d'Économies d'Énergie.", M, y, { width: W }); y = doc.y + 16;
+    const w0 = W*0.46, w1 = W*0.20, w2 = W*0.17, w3 = W - w0 - w1 - w2;
+    const c0 = M, c1 = M+w0, c2 = c1+w1, c3 = c2+w2;
+    doc.rect(M, y, W, 19).fill(BAND);
+    doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#ffffff');
+    doc.text('DÉSIGNATION', c0+7, y+6, { width:w0-10 });
+    doc.text('VOLUME', c1, y+6, { width:w1-7, align:'right' });
+    doc.text('PRIX UNITAIRE', c2, y+6, { width:w2-7, align:'right' });
+    doc.text('MONTANT', c3, y+6, { width:w3-7, align:'right' });
+    y += 19;
+    const rh = 40;
+    doc.rect(M, y, W, rh).lineWidth(.8).strokeColor(RULE).stroke();
+    doc.font('Helvetica').fontSize(8.5).fillColor(INK).text(opLabel, c0+7, y+8, { width:w0-12 });
+    doc.text(cumac.toLocaleString('fr-FR') + ' kWhc', c1, y+14, { width:w1-7, align:'right' });
+    doc.text(prix + ' €/MWhc', c2, y+14, { width:w2-7, align:'right' });
+    doc.font('Helvetica-Bold').text(eur(subvention), c3, y+14, { width:w3-7, align:'right' });
+    y += rh + 12;
+    const tw = W*0.44, tx = R-tw;
+    doc.rect(tx, y, tw, 28).fill(BAND);
+    doc.font('Helvetica-Bold').fontSize(9).fillColor('#ffffff').text(type==='facture' ? 'NET À PAYER' : 'PRIME CEE ESTIMÉE', tx+10, y+9, { width:tw*0.5 });
+    doc.fontSize(12).fillColor('#ffffff').text(eur(subvention), tx+tw*0.5, y+8, { width:tw*0.5-10, align:'right' });
+    y += 28 + 22;
+    if (type === 'devis') {
+      para("Le présent devis est établi au titre du dispositif des Certificats d'Économies d'Énergie (articles L.221-1 et suivants du Code de l'énergie). Le montant indiqué revêt un caractère estimatif et demeure subordonné à la validation du dossier. Devis valable 30 jours à compter de sa date d'émission.");
+      y += 4;
+      doc.font('Helvetica').fontSize(8.5).fillColor(SOFT).text('Fait à ' + (b.ville || '________________') + ', le ' + today, M, y); y = doc.y + 10;
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(INK).text('Bon pour accord — date et signature du client', M, y); y = doc.y + 4;
+      doc.rect(M, y, W*0.5, 76).lineWidth(.8).strokeColor(RULE).stroke();
+      y += 76;
+    } else {
+      para("Montant valorisé au titre du dispositif des Certificats d'Économies d'Énergie. Règlement à réception de la présente facture.");
+      para("Conformément aux articles L.441-10 et D.441-5 du Code de commerce, tout retard de paiement donne lieu à des pénalités calculées au taux de trois fois le taux d'intérêt légal, ainsi qu'à une indemnité forfaitaire pour frais de recouvrement de 40 euros. Aucun escompte n'est accordé pour paiement anticipé.");
+    }
   } else if (type === 'ah') {
-    para("Je soussigné(e) " + nomComplet + ", agissant pour le compte de " + (b.raison_sociale || 'la structure bénéficiaire') + (b.siret ? (' (SIRET ' + b.siret + ')') : '') + ", atteste sur l'honneur ce qui suit :");
-    para("Les travaux d'économies d'énergie réalisés à l'adresse " + (b.adresse || '—') + " " + villeBenef + " correspondent à l'opération standardisée " + opLabel + ".");
-    para("J'atteste que ces travaux sont achevés et conformes aux exigences de la fiche d'opération standardisée correspondante, et qu'ils n'ont fait l'objet d'aucune autre demande de Certificats d'Économies d'Énergie.");
-    para("Je reconnais avoir été informé(e) du rôle actif et incitatif de " + (org.nom || 'mon partenaire') + (delegNom ? (' et du délégataire ' + delegNom) : '') + " dans la décision d'engager ces travaux, préalablement à leur réalisation.");
-    doc.fontSize(9).fillColor(GREY).text("Fait pour servir et valoir ce que de droit.");
-    signatures('Le bénéficiaire', 'Le professionnel');
+    para("Je soussigné(e) " + nomComplet + ", agissant en qualité de représentant de " + (b.raison_sociale || 'la structure bénéficiaire') + (b.siret ? (', immatriculée sous le numéro SIRET ' + b.siret) : '') + ", déclare sur l'honneur ce qui suit :");
+    para("1.   Les travaux d'économies d'énergie réalisés à l'adresse " + (b.adresse || '—') + ' ' + villeBenef + " relèvent de l'opération standardisée " + opLabel + ".");
+    para("2.   Ces travaux sont achevés et conformes aux exigences techniques de la fiche d'opération standardisée correspondante.");
+    para("3.   Ces travaux n'ont fait l'objet d'aucune autre demande de Certificats d'Économies d'Énergie auprès d'un tiers.");
+    para("4.   Je reconnais avoir été informé(e), préalablement à l'engagement des travaux, du rôle actif et incitatif joué par " + (org.nom || 'le professionnel') + (delegNom ? (" ainsi que par le délégataire " + delegNom) : '') + " dans ma décision de réaliser ces travaux.");
+    para("La présente attestation est établie pour servir et valoir ce que de droit.");
+    doc.font('Helvetica').fontSize(8.5).fillColor(SOFT).text('Fait à ' + (b.ville || '________________') + ', le ' + today, M, y); y = doc.y + 6;
+    sign('Le bénéficiaire', 'Le professionnel');
   } else {
-    para("La présente atteste de la convention conclue, dans le cadre du dispositif des Certificats d'Économies d'Énergie, entre les parties suivantes :");
-    field('Partenaire :', org.nom || '—');
-    field('Délégataire :', delegNom || '—');
-    doc.moveDown(.7);
-    para("Cette convention porte sur le traitement du dossier CEE " + b.code + " relatif à l'opération " + opLabel + ", au bénéfice de " + (b.raison_sociale || nomComplet) + ".");
-    para("Le prix de valorisation négocié est de " + prix + " € par MWh cumac. Le délégataire s'engage à porter les certificats d'économies d'énergie correspondants auprès du registre national EMMY.");
-    signatures('Pour le partenaire', 'Pour le délégataire');
+    para("Entre les soussignés :");
+    para("•   " + (org.nom || '—') + (org.siret ? (', SIRET ' + org.siret) : '') + ", ci-après dénommé « le partenaire » ;");
+    para("•   " + (delegNom || '—') + ", ci-après dénommé « le délégataire ».");
+    para("Il est attesté de la convention conclue entre les parties, dans le cadre du dispositif des Certificats d'Économies d'Énergie, pour le traitement du dossier référencé " + b.code + " relatif à l'opération " + opLabel + ", au bénéfice de " + (b.raison_sociale || nomComplet) + ".");
+    para("Le prix de valorisation négocié entre les parties s'établit à " + prix + " euros par MWh cumac. Le délégataire s'engage à porter les Certificats d'Économies d'Énergie correspondants et à en assurer le dépôt auprès du registre national des certificats d'économies d'énergie.");
+    doc.font('Helvetica').fontSize(8.5).fillColor(SOFT).text('Fait le ' + today, M, y); y = doc.y + 6;
+    sign('Pour le partenaire', 'Pour le délégataire');
   }
 
-  doc.moveDown(2.4);
-  doc.fontSize(8).fillColor('#9aa6b4').text('Document généré via la plateforme EchoWAI — Certificats d\'Économies d\'Énergie · ' + today,
-    { align:'center' });
+  // Pied de page — identité légale de l'émetteur
+  const fy = doc.page.height - M - 24;
+  doc.moveTo(M, fy).lineWidth(.7).strokeColor(RULE).lineTo(R, fy).stroke();
+  const legal = [org.nom, org.siret && ('SIRET ' + org.siret),
+    [org.code_postal, org.ville].filter(Boolean).join(' ')].filter(Boolean).join('   —   ');
+  doc.font('Helvetica').fontSize(7).fillColor(SOFT).text(legal || '', M, fy + 6, { width: W, align:'center' });
   doc.end();
 }
 app.get('/api/partner/dossiers/:id/document/:type', requirePartner, (req, res) => {
