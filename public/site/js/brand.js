@@ -49,31 +49,51 @@ const EchoMark = ({
   className: "volt-dot"
 }));
 
-// ── EMMY — cours CEE simulé · marche aléatoire bornée à ±5% de la base ──
+// ── EMMY — cours CEE · base réévaluée chaque jour (serveur), variation ±5% ──
 const EW_EMMY_BASE = 9.10;
 const EW_EMMY = function () {
   var B = EW_EMMY_BASE,
     lo = B * 0.95,
     hi = B * 1.05;
-  var hist = [];
-  for (var i = 0; i < 24; i++) hist.push(B + (Math.random() - 0.5) * 0.045 * B);
-  var price = hist[hist.length - 1],
-    prev = price,
+  var price = B,
+    prev = B,
     trend = 1,
     tk = 0;
   var subs = [];
+  function notify() {
+    subs.forEach(function (f) {
+      f();
+    });
+  }
   function step() {
     prev = price;
     var d = -(price - B) * 0.16 + (Math.random() - 0.5) * 0.072 * B;
     price = Math.min(hi, Math.max(lo, price + d));
     trend = price > prev ? 1 : price < prev ? -1 : 0;
-    hist = hist.slice(1).concat(price);
     tk++;
-    subs.forEach(function (f) {
-      f();
-    });
+    notify();
   }
-  if (typeof window !== "undefined") setInterval(step, 2400);
+  function applyBase(nb) {
+    if (!(nb > 0)) return;
+    B = nb;
+    lo = B * 0.95;
+    hi = B * 1.05;
+    price = B;
+    prev = B;
+    notify();
+  }
+  function fetchBase() {
+    fetch("/api/emmy").then(function (r) {
+      return r.json();
+    }).then(function (d) {
+      applyBase(d && d.base);
+    }).catch(function () {});
+  }
+  if (typeof window !== "undefined") {
+    fetchBase();
+    setInterval(step, 2400);
+    setInterval(fetchBase, 30 * 60 * 1000); // recharge la base (onglet ouvert au passage de minuit)
+  }
   return {
     snap: function () {
       return {
@@ -81,7 +101,6 @@ const EW_EMMY = function () {
         prev: prev,
         trend: trend,
         base: B,
-        hist: hist,
         tk: tk
       };
     },

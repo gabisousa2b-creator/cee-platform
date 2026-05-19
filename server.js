@@ -1752,6 +1752,12 @@ db.serialize(() => {
     commande_id INTEGER,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+  // Cours EMMY (CEE) — base réévaluée une fois par jour
+  db.run(`CREATE TABLE IF NOT EXISTS emmy_state (
+    id   INTEGER PRIMARY KEY CHECK (id = 1),
+    base REAL,
+    day  TEXT
+  )`);
   // Cahier des charges : preuve d'achat du matériel (ajout après seed initial)
   db.get("SELECT id FROM cdc_pieces WHERE partenaire_id IS NULL AND nom LIKE '%matériel%'", (e, r) => {
     if (e || r) return;
@@ -1795,6 +1801,25 @@ function generateNumero(type) {
       });
   });
 }
+
+// ── Cours EMMY (CEE) — base réévaluée chaque jour, lue par le logo ───────────
+function emmyToday(cb) {
+  const today = new Date().toISOString().slice(0, 10);
+  db.get('SELECT base, day FROM emmy_state WHERE id=1', [], (err, row) => {
+    if (err) return cb({ base: 9.10, day: today });
+    if (row && row.day === today && row.base > 0) return cb({ base: row.base, day: today });
+    const ANCHOR = 9.10;
+    let base = (row && row.base > 0) ? row.base : ANCHOR;
+    const delta = (Math.random() - 0.5) * 0.42 - (base - ANCHOR) * 0.12; // dérive douce, retour à la moyenne
+    base = Math.round(Math.max(8.0, Math.min(10.6, base + delta)) * 100) / 100;
+    db.run('INSERT INTO emmy_state (id,base,day) VALUES (1,?,?) ON CONFLICT(id) DO UPDATE SET base=excluded.base, day=excluded.day',
+      [base, today], () => {});
+    cb({ base: base, day: today });
+  });
+}
+app.get('/api/emmy', (req, res) => {
+  emmyToday(d => res.json(d));
+});
 
 // ── Routes Fiches CEE ─────────────────────────────────────────────────────────
 // GET — liste avec filtres

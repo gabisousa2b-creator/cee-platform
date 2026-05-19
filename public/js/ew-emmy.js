@@ -1,10 +1,8 @@
-/* EchoWAI — cours EMMY (CEE) animé · marche aléatoire bornée à ±5% de la base.
-   Sous-ligne discrète intégrée à chaque .ew-logo ; le point orbital réagit. */
+/* EchoWAI — cours EMMY (CEE) · base réévaluée chaque jour (serveur),
+   variation live ±5%. Sous-ligne discrète intégrée à chaque .ew-logo. */
 (function () {
   var BASE = 9.10, LO = BASE * 0.95, HI = BASE * 1.05;
-  var hist = [];
-  for (var i = 0; i < 24; i++) hist.push(BASE + (Math.random() - 0.5) * 0.045 * BASE);
-  var price = hist[hist.length - 1], prev = price, trend = 1;
+  var price = BASE, prev = BASE, trend = 1;
   var tickers = [];
 
   function color(t) { return t > 0 ? '#2E8B57' : t < 0 ? '#C2410C' : '#2E7EF4'; }
@@ -46,15 +44,27 @@
     var d = -(price - BASE) * 0.16 + (Math.random() - 0.5) * 0.072 * BASE;
     price = Math.min(HI, Math.max(LO, price + d));
     trend = price > prev ? 1 : price < prev ? -1 : 0;
-    hist = hist.slice(1).concat(price);
     render();
+  }
+
+  function applyBase(nb) {
+    if (!(nb > 0)) return;
+    BASE = nb; LO = BASE * 0.95; HI = BASE * 1.05;
+    price = BASE; prev = BASE;
+    render();
+  }
+  function fetchBase() {
+    fetch('/api/emmy').then(function (r) { return r.json(); })
+      .then(function (d) { applyBase(d && d.base); }).catch(function () {});
   }
 
   function init() {
     var logos = document.querySelectorAll('.ew-logo');
     for (var i = 0; i < logos.length; i++) build(logos[i]);
     render();
+    fetchBase();
     setInterval(step, 2400);
+    setInterval(fetchBase, 30 * 60 * 1000); // recharge la base au passage de minuit
   }
 
   if (document.readyState !== 'loading') init();
