@@ -103,7 +103,8 @@ const HomeHero = ({
   style: {
     display: "flex",
     gap: 12,
-    marginTop: 32
+    marginTop: 32,
+    flexWrap: "wrap"
   }
 }, /*#__PURE__*/React.createElement(Btn, {
   variant: "primary",
@@ -113,8 +114,8 @@ const HomeHero = ({
 }, "Simuler ma prime"), /*#__PURE__*/React.createElement(Btn, {
   variant: "secondary",
   arrow: true,
-  onClick: () => onNavigate("beneficiaire")
-}, "Acc\xE9der \xE0 mon dossier"))), /*#__PURE__*/React.createElement(RevealOnView, {
+  onClick: () => onNavigate("login")
+}, "Espace partenaire"))), /*#__PURE__*/React.createElement(RevealOnView, {
   delay: 0.4
 }, /*#__PURE__*/React.createElement("div", {
   style: {
@@ -553,14 +554,18 @@ const TestimonialsSection = () => {
       gap: 0,
       border: "1px solid var(--rule-on)"
     }
-  }, items.map((t, i, a) => /*#__PURE__*/React.createElement("div", {
+  }, items.map((t, i, a) => /*#__PURE__*/React.createElement(RevealOnView, {
     key: t.n,
+    delay: i * 0.1,
+    dur: 0.7
+  }, /*#__PURE__*/React.createElement("div", {
     style: {
       padding: 32,
       borderRight: i < a.length - 1 ? "1px solid var(--rule-on)" : "none",
       display: "flex",
       flexDirection: "column",
-      gap: 24
+      gap: 24,
+      height: "100%"
     }
   }, /*#__PURE__*/React.createElement("svg", {
     width: "28",
@@ -611,7 +616,7 @@ const TestimonialsSection = () => {
       fontSize: 12,
       color: "var(--muted)"
     }
-  }, t.r))))))));
+  }, t.r)))))))));
 };
 const FinalCTA = ({
   onNavigate
@@ -676,7 +681,8 @@ const FinalCTA = ({
   style: {
     display: "flex",
     gap: 12,
-    marginTop: 32
+    marginTop: 32,
+    flexWrap: "wrap"
   }
 }, /*#__PURE__*/React.createElement(Btn, {
   variant: "primary",
@@ -684,7 +690,7 @@ const FinalCTA = ({
   magnetic: true,
   onClick: () => onNavigate("simulateur")
 }, "Lancer une simulation"), /*#__PURE__*/React.createElement("button", {
-  onClick: () => onNavigate("beneficiaire"),
+  onClick: () => onNavigate("login"),
   style: {
     background: "transparent",
     border: "1px solid rgba(255,255,255,.3)",
@@ -697,9 +703,18 @@ const FinalCTA = ({
     cursor: "pointer",
     display: "inline-flex",
     alignItems: "center",
-    gap: 10
+    gap: 10,
+    transition: "all .18s var(--ease-out-quart)"
+  },
+  onMouseEnter: e => {
+    e.currentTarget.style.background = "rgba(255,255,255,.1)";
+    e.currentTarget.style.borderColor = "rgba(255,255,255,.55)";
+  },
+  onMouseLeave: e => {
+    e.currentTarget.style.background = "transparent";
+    e.currentTarget.style.borderColor = "rgba(255,255,255,.3)";
   }
-}, "Mon dossier", /*#__PURE__*/React.createElement("svg", {
+}, "Espace partenaire", /*#__PURE__*/React.createElement("svg", {
   width: "14",
   height: "10",
   viewBox: "0 0 14 10",

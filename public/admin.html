@@ -15,28 +15,27 @@
     /* ══════════════ LOGIN ══════════════ */
     #loginScreen {
       min-height:100vh;
-      background:radial-gradient(ellipse at 20% 50%, rgba(0,212,170,.06) 0%, transparent 60%),
-                 radial-gradient(ellipse at 80% 20%, rgba(96,165,250,.04) 0%, transparent 50%),
+      background:radial-gradient(ellipse at 20% 50%, rgba(46,126,244,.08) 0%, transparent 60%),
+                 radial-gradient(ellipse at 80% 20%, rgba(91,168,229,.06) 0%, transparent 50%),
                  var(--bg-0);
       display:flex; align-items:center; justify-content:center;
     }
     .login-card {
-      background:rgba(17,24,39,.8);
-      backdrop-filter:blur(20px);
-      border:1px solid var(--border-light);
+      background:var(--bg-2);
+      border:1px solid var(--border);
       border-radius:var(--r-xl);
       padding:44px 40px;
       width:100%; max-width:420px;
-      box-shadow:var(--shadow-lg), var(--shadow-glow);
+      box-shadow:var(--shadow-lg);
     }
     .login-logo {
       width:64px; height:64px;
-      background:linear-gradient(135deg,var(--accent),#059669);
+      background:linear-gradient(135deg,var(--accent),#1959C7);
       border-radius:var(--r-lg);
       display:flex; align-items:center; justify-content:center;
       font-size:1.8rem; color:#fff;
       margin:0 auto 24px;
-      box-shadow:0 0 32px rgba(0,212,170,.3);
+      box-shadow:0 0 32px rgba(46,126,244,.32);
     }
     .login-card h4 { color:var(--t1); }
     .login-card .text-muted { color:var(--t2) !important; }
@@ -48,8 +47,7 @@
     .sidebar {
       width:var(--sidebar-width);
       min-height:100vh;
-      background:linear-gradient(180deg, rgba(255,255,255,.04) 0%, rgba(255,255,255,.008) 100%);
-      -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+      background:var(--bg-2);
       border-right:1px solid var(--border);
       position:fixed; top:0; left:0; z-index:100;
       display:flex; flex-direction:column;
@@ -139,12 +137,12 @@
 
     /* ── Badges statut ── */
     .badge-statut { padding:3px 9px; border-radius:20px; font-size:.7rem; font-weight:700; }
-    .s-en_attente       { background:rgba(245,158,11,.15); color:#FCD34D; border:1px solid rgba(245,158,11,.3); }
-    .s-en_cours         { background:rgba(96,165,250,.15); color:#93C5FD; border:1px solid rgba(96,165,250,.3); }
-    .s-documents_recus  { background:rgba(249,115,22,.15); color:#FCA5A5; border:1px solid rgba(249,115,22,.3); }
-    .s-valide           { background:rgba(34,197,94,.15);  color:#86EFAC; border:1px solid rgba(34,197,94,.3); }
-    .s-refuse           { background:rgba(248,113,113,.15);color:#FCA5A5; border:1px solid rgba(248,113,113,.3); }
-    .s-dossier_complet  { background:rgba(34,197,94,.2);   color:#4ADE80; border:1px solid rgba(34,197,94,.5); font-weight:800; }
+    .s-en_attente       { background:rgba(201,122,26,.13); color:#9A6B00; border:1px solid rgba(201,122,26,.32); }
+    .s-en_cours         { background:rgba(46,126,244,.12); color:#1959C7; border:1px solid rgba(46,126,244,.32); }
+    .s-documents_recus  { background:rgba(194,65,12,.12);  color:#C2410C; border:1px solid rgba(194,65,12,.32); }
+    .s-valide           { background:rgba(46,139,87,.13);  color:#1E7A48; border:1px solid rgba(46,139,87,.32); }
+    .s-refuse           { background:rgba(217,45,32,.10);  color:#B42318; border:1px solid rgba(217,45,32,.32); }
+    .s-dossier_complet  { background:rgba(46,139,87,.16);  color:#1E7A48; border:1px solid rgba(46,139,87,.45); font-weight:800; }
 
     /* ── Detail panel ── */
     .detail-panel {
@@ -163,7 +161,7 @@
       position:sticky; top:0; background:var(--bg-2); z-index:1;
       backdrop-filter:blur(12px);
     }
-    .overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:150; display:none; backdrop-filter:blur(2px); }
+    .overlay { position:fixed; inset:0; background:rgba(10,31,61,.45); z-index:150; display:none; backdrop-filter:blur(2px); }
     .overlay.show { display:block; }
 
     /* ── Upload zone ── */
@@ -365,8 +363,8 @@
     .form-check-label { color:var(--t2); }
     option { background:var(--bg-3); color:var(--t1); }
 
-    .btn-primary { background:var(--accent) !important; border-color:var(--accent) !important; color:#000 !important; font-weight:700 !important; }
-    .btn-primary:hover { background:#00BBAA !important; border-color:#00BBAA !important; }
+    .btn-primary { background:var(--accent) !important; border-color:var(--accent) !important; color:#fff !important; font-weight:600 !important; }
+    .btn-primary:hover { background:#1D6FE0 !important; border-color:#1D6FE0 !important; }
     .btn-outline-primary { border-color:var(--accent) !important; color:var(--accent) !important; }
     .btn-outline-primary:hover { background:var(--accent-dim) !important; }
     .btn-outline-secondary { border-color:var(--border-light) !important; color:var(--t2) !important; }
@@ -424,7 +422,7 @@
 
     /* ══════════════ HERO DASHBOARD ══════════════ */
     .hero-card {
-      background:linear-gradient(135deg, rgba(31,227,194,.07) 0%, rgba(91,140,255,.05) 55%, rgba(255,255,255,.014) 100%);
+      background:linear-gradient(135deg, rgba(46,126,244,.10) 0%, rgba(91,168,229,.07) 55%, rgba(255,255,255,0) 100%);
       -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
       border:1px solid var(--border-light);
       border-radius:var(--r-xl);
@@ -454,7 +452,7 @@
     /* ── Progress bar premium ── */
     .prog-bar { height:6px; border-radius:3px; background:var(--bg-4); overflow:hidden; }
     .prog-fill { height:100%; border-radius:3px; transition:width .8s cubic-bezier(.4,0,.2,1); }
-    .prog-fill.accent  { background:linear-gradient(90deg,var(--accent),#00FFCC); }
+    .prog-fill.accent  { background:linear-gradient(90deg,var(--accent),#5BA8E5); }
     .prog-fill.success { background:linear-gradient(90deg,var(--success),#4ADE80); }
     .prog-fill.warning { background:linear-gradient(90deg,var(--warning),#FCD34D); }
     .prog-fill.danger  { background:linear-gradient(90deg,var(--danger),#FCA5A5); }
@@ -477,12 +475,12 @@
     .fiche-card:hover { border-color:var(--accent); background:var(--accent-dim); }
     .fiche-card.selected { border-color:var(--accent); background:var(--accent-dim); box-shadow:0 0 0 2px var(--accent-glow); }
     .secteur-badge { font-size:.65rem; font-weight:800; text-transform:uppercase; letter-spacing:.8px; padding:2px 8px; border-radius:4px; }
-    .secteur-BAR  { background:rgba(96,165,250,.15); color:#93C5FD; }
-    .secteur-BAT  { background:rgba(167,139,250,.15); color:#C4B5FD; }
-    .secteur-IND  { background:rgba(249,115,22,.15);  color:#FCA5A5; }
-    .secteur-TRA  { background:rgba(52,211,153,.15);  color:#6EE7B7; }
-    .secteur-AGRI { background:rgba(250,204,21,.15);  color:#FDE68A; }
-    .secteur-RES  { background:rgba(0,212,170,.15);   color:#5EEAD4; }
+    .secteur-BAR  { background:rgba(46,126,244,.12); color:#2E7EF4; }
+    .secteur-BAT  { background:rgba(109,91,208,.13); color:#5B46B8; }
+    .secteur-IND  { background:rgba(194,65,12,.12);  color:#C2410C; }
+    .secteur-TRA  { background:rgba(217,45,32,.10);  color:#B42318; }
+    .secteur-AGRI { background:rgba(46,139,87,.13);  color:#1E7A48; }
+    .secteur-RES  { background:rgba(25,89,199,.12);  color:#1959C7; }
 
     .sim-step { display:none; }
     .sim-step.active { display:block; animation:fadeInUp .2s ease; }
@@ -535,7 +533,7 @@
   <div class="sidebar">
     <div class="sidebar-logo">
       <div class="d-flex align-items-center gap-2">
-        <div style="width:32px;height:32px;background:linear-gradient(135deg,var(--accent),#059669);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#000;font-size:.9rem;box-shadow:0 0 16px rgba(0,212,170,.3)"><i class="fas fa-bolt"></i></div>
+        <div style="width:32px;height:32px;background:linear-gradient(135deg,var(--accent),#1959C7);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.9rem;box-shadow:0 0 16px rgba(46,126,244,.32)"><i class="fas fa-bolt"></i></div>
         <div>
           <div class="brand">Echo<span>WAI</span> CEE</div>
           <div style="font-size:.6rem;color:var(--t3);font-weight:600;letter-spacing:.5px;margin-top:-1px">Plateforme CEE</div>
@@ -3693,7 +3691,7 @@ function renderBiblio(fiches) {
       <td style="max-width:320px;white-space:normal">${escHtml(f.nom)}</td>
       <td><span class="secteur-badge secteur-${escHtml(secteur)}">${escHtml(secteur)}</span></td>
       <td><span class="badge" style="background:var(--bg-4);color:var(--t2);font-size:.68rem">${escHtml(TYPE_LABELS[tc]||tc)}</span></td>
-      <td><span class="badge" style="background:rgba(0,0,0,.3);color:${STATUT_COLORS[st]||'var(--t2)'};border:1px solid ${STATUT_COLORS[st]||'var(--border)'}30">${st}</span></td>
+      <td><span class="badge" style="background:rgba(10,31,61,.06);color:${STATUT_COLORS[st]||'var(--t2)'};border:1px solid ${STATUT_COLORS[st]||'var(--border)'}30">${st}</span></td>
       <td class="text-muted small">${escHtml(f.version||'—')}</td>
       <td>
         <a href="/simulateur-pro.html?fiche=${escHtml(f.code)}" target="_blank" class="btn btn-sm btn-outline-primary py-0 px-2" title="Simuler"><i class="fas fa-calculator"></i></a>
@@ -3831,7 +3829,7 @@ async function loadDevisAdmin() {
         <td>${escHtml(d.client_nom||d.client_raison_sociale||'—')}</td>
         <td class="text-muted small">${escHtml(d.nom_operation||d.code_fiche||'—')}</td>
         <td class="fw-semibold">${d.montant_ttc?parseFloat(d.montant_ttc).toLocaleString('fr-FR',{minimumFractionDigits:2})+'€':'—'}</td>
-        <td><span class="badge" style="background:rgba(0,0,0,.3);color:${DEVIS_STATUT_COLORS[st]||'var(--t2)'};border:1px solid ${DEVIS_STATUT_COLORS[st]||'var(--border)'}30">${DEVIS_STATUT_LABELS[st]||st}</span></td>
+        <td><span class="badge" style="background:rgba(10,31,61,.06);color:${DEVIS_STATUT_COLORS[st]||'var(--t2)'};border:1px solid ${DEVIS_STATUT_COLORS[st]||'var(--border)'}30">${DEVIS_STATUT_LABELS[st]||st}</span></td>
         <td class="text-muted small">${d.date_devis ? new Date(d.date_devis).toLocaleDateString('fr-FR') : '—'}</td>
         <td><a href="/devis.html" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-2"><i class="fas fa-arrow-right"></i></a></td>
       </tr>`;

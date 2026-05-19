@@ -16,7 +16,7 @@
       border:1px solid var(--border-light); border-radius:var(--r-xl);
       padding:42px 38px; width:100%; max-width:440px; box-shadow:var(--shadow-lg);
     }
-    .login-logo { width:72px; height:72px; background:linear-gradient(135deg,var(--accent),var(--accent-2)); border-radius:var(--r-lg); display:flex; align-items:center; justify-content:center; font-size:1.9rem; color:#04201B; margin:0 auto 20px; box-shadow:0 0 36px -6px var(--accent-glow); }
+    .login-logo { width:72px; height:72px; background:linear-gradient(135deg,var(--accent),var(--accent-2)); border-radius:var(--r-lg); display:flex; align-items:center; justify-content:center; font-size:1.9rem; color:#fff; margin:0 auto 20px; box-shadow:0 0 36px -6px var(--accent-glow); }
     .code-input { font-size:1.5rem; font-family:ui-monospace,'JetBrains Mono',monospace; letter-spacing:5px; text-align:center; text-transform:uppercase; background:var(--bg-3); border:1px solid var(--border-light); border-radius:var(--r-md); padding:14px; color:var(--t1); width:100%; }
     .code-input:focus { border-color:var(--border-focus); box-shadow:0 0 0 3px var(--accent-dim); outline:none; }
 
@@ -38,7 +38,7 @@
     .step::before { content:''; position:absolute; top:18px; left:50%; width:100%; height:2px; background:var(--border-light); z-index:0; }
     .step:last-child::before { display:none; }
     .step-circle { width:38px; height:38px; border-radius:50%; border:1px solid var(--border-light); background:var(--bg-3); display:flex; align-items:center; justify-content:center; margin:0 auto 8px; position:relative; z-index:1; font-size:.9rem; color:var(--t3); transition:all .25s; }
-    .step.done .step-circle { background:var(--accent); border-color:var(--accent); color:#04201B; box-shadow:0 0 18px -4px var(--accent-glow); }
+    .step.done .step-circle { background:var(--accent); border-color:var(--accent); color:#fff; box-shadow:0 0 18px -4px var(--accent-glow); }
     .step.current .step-circle { border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
     .step.done::before { background:var(--accent); }
     .step-label { font-size:.72rem; color:var(--t3); font-weight:500; }
@@ -97,7 +97,7 @@
     <form id="loginForm">
       <label class="form-label fw-semibold">Votre code d'accès</label>
       <input type="text" class="form-control code-input mb-3" id="codeInput" placeholder="CEE-XXXX-XXXX" maxlength="13" autofocus>
-      <button type="submit" class="btn btn-success w-100 py-2 fw-semibold rounded-pill">
+      <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold rounded-pill">
         Accéder à mon dossier <i class="fas fa-arrow-right ms-2"></i>
       </button>
     </form>
@@ -116,7 +116,7 @@
 <div id="appScreen">
   <div class="topnav">
     <div class="d-flex align-items-center gap-2">
-      <div style="width:34px;height:34px;background:linear-gradient(135deg,var(--accent),var(--accent-2));border-radius:9px;display:flex;align-items:center;justify-content:center;color:#04201B;font-size:.9rem;box-shadow:0 0 18px -4px var(--accent-glow)"><i class="fas fa-bolt"></i></div>
+      <div style="width:34px;height:34px;background:linear-gradient(135deg,var(--accent),var(--accent-2));border-radius:9px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.9rem;box-shadow:0 0 18px -4px var(--accent-glow)"><i class="fas fa-bolt"></i></div>
       <span class="brand">Echo<span>WAI</span> CEE</span>
     </div>
     <div class="d-flex align-items-center gap-3">
@@ -148,7 +148,7 @@
     <div id="reqPiecesSection" class="mb-4"></div>
 
     <!-- Required documents -->
-    <h6 class="fw-bold mb-3"><i class="fas fa-paperclip me-2 text-success"></i>Pièces justificatives</h6>
+    <h6 class="fw-bold mb-3"><i class="fas fa-paperclip me-2 text-primary"></i>Pièces justificatives</h6>
 
     <div class="alert alert-info rounded-3 d-flex align-items-start gap-2 mb-3" style="font-size:.9rem">
       <i class="fas fa-circle-info mt-1"></i>
@@ -220,13 +220,13 @@
     </div>
 
     <!-- Comments -->
-    <h6 class="fw-bold mb-3 mt-4"><i class="fas fa-comments me-2 text-success"></i>Messagerie</h6>
+    <h6 class="fw-bold mb-3 mt-4"><i class="fas fa-comments me-2 text-primary"></i>Messagerie</h6>
     <div class="comment-wrap">
       <div id="commentsList"><p class="text-muted small">Aucun message.</p></div>
       <hr>
       <label class="form-label small fw-semibold">Envoyer un message à votre conseiller</label>
       <textarea class="form-control mb-2" id="commentText" rows="2" placeholder="Votre message, question ou précision…"></textarea>
-      <button class="btn btn-success btn-sm px-4" onclick="sendComment()">
+      <button class="btn btn-primary btn-sm px-4" onclick="sendComment()">
         <i class="fas fa-paper-plane me-2"></i>Envoyer
       </button>
     </div>
@@ -324,7 +324,7 @@ async function renderRequiredPieces() {
     </div>`;
   }).join('');
   el.innerHTML = `
-    <h6 class="fw-bold mb-2"><i class="fas fa-list-check me-2 text-success"></i>Pièces demandées pour votre dossier</h6>
+    <h6 class="fw-bold mb-2"><i class="fas fa-list-check me-2 text-primary"></i>Pièces demandées pour votre dossier</h6>
     <div style="background:var(--glass-fill);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid var(--border-light);border-radius:var(--r-lg);overflow:hidden">${rows}</div>
     <div class="text-muted mt-2" style="font-size:.8rem"><i class="fas fa-circle-info me-1"></i>Déposez les pièces en attente via la section ci-dessous.</div>`;
 }
@@ -353,7 +353,7 @@ function renderCoordonnees(d) {
           <div class="col-sm-8"><label class="form-label small fw-semibold">Ville</label><input class="form-control form-control-sm" name="ville" value="${escHtml(d.ville||'')}"></div>
         </div>
         <div class="mt-3 d-flex gap-2 justify-content-end">
-          <button type="submit" class="btn btn-success btn-sm px-4"><i class="fas fa-check me-2"></i>${confirmed?'Mettre à jour':'Confirmer mes coordonnées'}</button>
+          <button type="submit" class="btn btn-primary btn-sm px-4"><i class="fas fa-check me-2"></i>${confirmed?'Mettre à jour':'Confirmer mes coordonnées'}</button>
         </div>
       </form>
     </div>`;
@@ -473,7 +473,7 @@ async function uploadDoc(type, input) {
   zone.classList.add('loading');
   zone.innerHTML = `
     <i class="fas fa-magnifying-glass fa-spin text-primary"></i>
-    <div class="small fw-semibold mt-1" style="color:var(--green)">Analyse du document en cours…</div>
+    <div class="small fw-semibold mt-1" style="color:var(--accent)">Analyse du document en cours…</div>
     <div class="text-muted" style="font-size:.72rem">Vérification automatique par intelligence artificielle</div>`;
 
   const fd = new FormData();

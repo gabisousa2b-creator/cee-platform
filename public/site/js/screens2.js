@@ -33,40 +33,40 @@ const Simulator = ({
       display: "grid",
       gridTemplateColumns: "1fr 1.05fr",
       height: embedded ? "auto" : "calc(100% - 77px)",
-      minHeight: embedded ? 820 : "auto"
+      minHeight: embedded ? 720 : "auto"
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "sim-pane",
     style: {
-      padding: 56,
+      padding: embedded ? 40 : 56,
       borderRight: "1px solid var(--ink-line)",
       display: "flex",
       flexDirection: "column",
-      gap: 28
+      gap: embedded ? 22 : 28
     }
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "upper",
     style: {
-      color: "var(--muted)"
+      color: "var(--volt)"
     }
-  }, "Simulateur \xB7 \xE9tape ", step + 1, " sur 4"), /*#__PURE__*/React.createElement("h2", {
+  }, "\xC9tape ", step + 1, " sur 4 \xB7 ", ["Secteur", "Opération", "Bénéficiaire", "Estimation"][step]), /*#__PURE__*/React.createElement("h2", {
     className: "serif",
     style: {
-      fontSize: 54,
-      lineHeight: 0.95,
-      letterSpacing: "-0.03em",
-      margin: "14px 0 12px",
-      fontWeight: 400
+      fontSize: embedded ? 30 : 54,
+      lineHeight: embedded ? 1.08 : 0.95,
+      letterSpacing: "-0.025em",
+      margin: embedded ? "10px 0 8px" : "14px 0 12px",
+      fontWeight: 500
     }
-  }, "D\xE9crivez", /*#__PURE__*/React.createElement("br", null), "votre op\xE9ration."), /*#__PURE__*/React.createElement("p", {
+  }, embedded ? "Décrivez votre opération." : /*#__PURE__*/React.createElement(React.Fragment, null, "D\xE9crivez", /*#__PURE__*/React.createElement("br", null), "votre op\xE9ration.")), /*#__PURE__*/React.createElement("p", {
     style: {
-      fontSize: 15,
+      fontSize: 14,
       color: "var(--muted)",
-      maxWidth: 420,
+      maxWidth: 440,
       lineHeight: 1.55,
       margin: 0
     }
-  }, "Identifiez la fiche standardis\xE9e \u2014 EchoWAI estime instantan\xE9ment la prime.")), /*#__PURE__*/React.createElement("div", {
+  }, "Identifiez la fiche standardis\xE9e \u2014 EchoWAI estime la prime instantan\xE9ment, \xE0 chaque variable modifi\xE9e.")), /*#__PURE__*/React.createElement("div", {
     className: "r-cols-stepper",
     style: {
       display: "grid",
@@ -161,7 +161,7 @@ const Simulator = ({
     className: "sim-pane",
     style: {
       background: "var(--card-2)",
-      padding: 56,
+      padding: embedded ? 40 : 56,
       position: "relative",
       overflow: "hidden",
       display: "flex",
@@ -206,20 +206,22 @@ const Simulator = ({
       color: "var(--volt)"
     }
   }, "Estimation en direct")), /*#__PURE__*/React.createElement("div", {
+    className: "sim-amount",
     style: {
       display: "flex",
       alignItems: "baseline",
-      gap: 14,
-      marginTop: 14
+      gap: 12,
+      marginTop: 14,
+      flexWrap: "wrap"
     }
   }, /*#__PURE__*/React.createElement(LiquidNumber, {
     value: prime,
-    size: 156,
+    size: embedded ? 116 : 156,
     color: "var(--ink)"
   }), /*#__PURE__*/React.createElement("span", {
     className: "serif",
     style: {
-      fontSize: 64,
+      fontSize: embedded ? 50 : 64,
       color: "var(--volt)"
     }
   }, "\u20AC")), /*#__PURE__*/React.createElement("div", {
@@ -232,11 +234,11 @@ const Simulator = ({
     }
   }, "Prime estim\xE9e TTC, susceptible d'ajustement lors du contr\xF4le. Mise \xE0 jour en temps r\xE9el \xE0 chaque variable modifi\xE9e."), /*#__PURE__*/React.createElement("div", {
     style: {
-      margin: "32px -56px 0",
+      margin: embedded ? "26px -40px 0" : "32px -56px 0",
       opacity: 0.5
     }
   }, /*#__PURE__*/React.createElement(FlowRibbon, {
-    height: 110,
+    height: embedded ? 92 : 110,
     lines: 5,
     speed: 8 + surface / 30,
     color: "var(--volt)"

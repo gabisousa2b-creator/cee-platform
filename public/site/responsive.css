@@ -143,3 +143,34 @@
 @media (max-width: 720px) {
   body { background-size: 22px 22px; }
 }
+
+/* ─── Legal pages (TOC + article) ────────────────── */
+@media (max-width: 900px) {
+  .r-cols-legal { grid-template-columns: 1fr !important; gap: 24px !important; }
+  .legal-toc { display: none !important; }
+  .legal-article { padding: 28px 22px !important; }
+}
+@media (max-width: 560px) {
+  .legal-kv { flex-direction: column !important; gap: 4px !important; }
+  .legal-kv > span:first-child { width: auto !important; }
+}
+
+/* ─── Cookie banner (mobile) ─────────────────────── */
+@media (max-width: 560px) {
+  .cookie-banner { padding: 10px !important; }
+}
+
+/* ─── Footer bottom strip stacks on small screens ── */
+@media (max-width: 720px) {
+  .footer-bottom { flex-direction: column !important; align-items: flex-start !important; }
+}
+
+/* ─── Honour reduced-motion preferences ──────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

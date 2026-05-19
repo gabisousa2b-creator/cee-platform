@@ -1,5 +1,15 @@
 /* eslint-disable */
-// EchoWAI — Site shell (TopNav, Footer, Cmd+K modal, Toast host)
+// EchoWAI — Site shell (TopNav, Footer, Cmd+K modal, Toast host, Cookies)
+
+// Login portal URL — compte.echowai.com in prod, /compte.html in dev
+function loginUrl() {
+  var h = (typeof location !== "undefined" ? location.hostname : "").toLowerCase();
+  if (h === "localhost" || h === "127.0.0.1" || /^192\.168\./.test(h) || /^10\./.test(h)) return "/compte.html";
+  return "https://compte.echowai.com/";
+}
+function goLogin() {
+  window.location.href = loginUrl();
+}
 
 // ─────────────────────────────────────────────────────────
 // Site Top Nav — sticky, navigates between views
@@ -10,6 +20,15 @@ const SiteNav = ({
   onCmdK
 }) => {
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const [scrolled, setScrolled] = React.useState(false);
+  React.useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, {
+      passive: true
+    });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
   const links = [{
     id: "dispositif",
     label: "Le dispositif"
@@ -35,10 +54,12 @@ const SiteNav = ({
       position: "sticky",
       top: 0,
       zIndex: 40,
-      background: "rgba(236,239,245,0.86)",
+      background: scrolled ? "rgba(236,239,245,0.92)" : "rgba(236,239,245,0.80)",
       backdropFilter: "blur(14px)",
       WebkitBackdropFilter: "blur(14px)",
-      borderBottom: "1px solid var(--rule-on)"
+      borderBottom: "1px solid var(--rule-on)",
+      boxShadow: scrolled ? "0 10px 30px -22px rgba(10,31,61,.45)" : "none",
+      transition: "background .3s var(--ease-out-quart), box-shadow .3s var(--ease-out-quart)"
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "site-nav-inner",
@@ -131,8 +152,9 @@ const SiteNav = ({
   }, /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
     arrow: true,
-    onClick: () => go("beneficiaire")
-  }, "Acc\xE9der \xE0 mon dossier")), /*#__PURE__*/React.createElement("button", {
+    magnetic: true,
+    onClick: goLogin
+  }, "Espace partenaire")), /*#__PURE__*/React.createElement("button", {
     onClick: onCmdK,
     className: "only-on-mobile",
     "aria-label": "Rechercher",
@@ -250,8 +272,8 @@ const SiteNav = ({
     variant: "primary",
     arrow: true,
     full: true,
-    onClick: () => go("beneficiaire")
-  }, "Acc\xE9der \xE0 mon dossier"), /*#__PURE__*/React.createElement(Btn, {
+    onClick: goLogin
+  }, "Espace partenaire"), /*#__PURE__*/React.createElement(Btn, {
     variant: "secondary",
     arrow: true,
     full: true,
@@ -352,49 +374,85 @@ const SiteFooter = ({
     l: "Bénéficiaire",
     to: "beneficiaire"
   }, {
-    l: "Partenaire",
-    to: "beneficiaire"
+    l: "Espace partenaire",
+    to: "login"
   }, {
     l: "Administration",
-    to: "beneficiaire"
+    to: "login"
   }],
   onNavigate: onNavigate
 }), /*#__PURE__*/React.createElement(FooterCol, {
   title: "L\xE9gal",
   links: [{
     l: "Mentions légales",
-    to: "contact"
+    to: "mentions"
   }, {
     l: "CGU",
-    to: "contact"
+    to: "cgu"
   }, {
     l: "Confidentialité",
-    to: "contact"
+    to: "confidentialite"
   }, {
-    l: "Contact",
-    to: "contact"
+    l: "Gestion des cookies",
+    to: "cookies"
   }],
   onNavigate: onNavigate
 })), /*#__PURE__*/React.createElement("div", {
+  className: "footer-bottom",
   style: {
     borderTop: "1px solid rgba(255,255,255,.1)",
     paddingTop: 28,
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center"
+    alignItems: "center",
+    gap: 18,
+    flexWrap: "wrap"
   }
 }, /*#__PURE__*/React.createElement("span", {
   style: {
     fontSize: 12,
     color: "rgba(255,255,255,.5)"
   }
-}, "EchoWAI \xA9 2026 \u2014 Certificats d'\xC9conomies d'\xC9nergie \xB7 Tous droits r\xE9serv\xE9s"), /*#__PURE__*/React.createElement("span", {
+}, "EchoWAI \xA9 2026 \u2014 Certificats d'\xC9conomies d'\xC9nergie \xB7 Tous droits r\xE9serv\xE9s"), /*#__PURE__*/React.createElement("div", {
+  style: {
+    display: "flex",
+    gap: 18,
+    alignItems: "center",
+    flexWrap: "wrap"
+  }
+}, [{
+  l: "Mentions légales",
+  to: "mentions"
+}, {
+  l: "CGU",
+  to: "cgu"
+}, {
+  l: "Confidentialité",
+  to: "confidentialite"
+}, {
+  l: "Cookies",
+  to: "cookies"
+}].map(x => /*#__PURE__*/React.createElement("button", {
+  key: x.to,
+  onClick: () => onNavigate(x.to),
+  style: {
+    background: "transparent",
+    border: 0,
+    padding: 0,
+    cursor: "pointer",
+    fontFamily: "var(--font-sans)",
+    fontSize: 11,
+    color: "rgba(255,255,255,.5)"
+  },
+  onMouseEnter: e => e.currentTarget.style.color = "var(--volt)",
+  onMouseLeave: e => e.currentTarget.style.color = "rgba(255,255,255,.5)"
+}, x.l)), /*#__PURE__*/React.createElement("span", {
   className: "mono",
   style: {
     fontSize: 11,
     color: "rgba(255,255,255,.5)"
   }
-}, "contact@echowai.com"))));
+}, "contact@echowai.com")))));
 const FooterCol = ({
   title,
   links,
@@ -466,7 +524,10 @@ const CmdKModal = ({
       width: "92%",
       maxWidth: 600
     }
-  }, /*#__PURE__*/React.createElement(CommandPalette, null)));
+  }, /*#__PURE__*/React.createElement(CommandPalette, {
+    onNavigate: onNavigate,
+    onClose: onClose
+  })));
 };
 
 // ─────────────────────────────────────────────────────────
@@ -521,6 +582,264 @@ const useCmdK = cb => {
     return () => window.removeEventListener("keydown", onKey);
   }, [cb]);
 };
+
+// ─────────────────────────────────────────────────────────
+// Cookie consent — RGPD banner + preference manager
+// ─────────────────────────────────────────────────────────
+const COOKIE_KEY = "ew_cookie_consent_v1";
+function readConsent() {
+  try {
+    return JSON.parse(localStorage.getItem(COOKIE_KEY) || "null");
+  } catch (e) {
+    return null;
+  }
+}
+function writeConsent(c) {
+  try {
+    localStorage.setItem(COOKIE_KEY, JSON.stringify({
+      ...c,
+      ts: Date.now()
+    }));
+  } catch (e) {}
+}
+const CookieBanner = ({
+  onNavigate
+}) => {
+  const [visible, setVisible] = React.useState(false);
+  const [custom, setCustom] = React.useState(false);
+  const [analytics, setAnalytics] = React.useState(true);
+  const [prefs, setPrefs] = React.useState(true);
+  React.useEffect(() => {
+    if (!readConsent()) setVisible(true);
+    window.EWCookies = {
+      open: () => {
+        const c = readConsent();
+        if (c) {
+          setAnalytics(!!c.analytics);
+          setPrefs(!!c.prefs);
+        }
+        setCustom(true);
+        setVisible(true);
+      },
+      get: readConsent
+    };
+  }, []);
+  if (!visible) return null;
+  const decide = c => {
+    writeConsent(c);
+    setVisible(false);
+    setCustom(false);
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "cookie-banner",
+    style: {
+      position: "fixed",
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 90,
+      display: "flex",
+      justifyContent: "center",
+      padding: 16,
+      pointerEvents: "none"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      pointerEvents: "auto",
+      width: "100%",
+      maxWidth: 880,
+      background: "var(--card)",
+      border: "1px solid var(--rule-on)",
+      borderRadius: 10,
+      boxShadow: "0 28px 70px -20px rgba(10,31,61,.4)",
+      overflow: "hidden",
+      animation: "revealUp .45s var(--ease-out-quart) both"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      height: 3,
+      background: "var(--volt)"
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "22px 24px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: "16",
+    height: "16",
+    viewBox: "0 0 16 16",
+    fill: "none",
+    "aria-hidden": true
+  }, /*#__PURE__*/React.createElement("circle", {
+    cx: "8",
+    cy: "8",
+    r: "6.5",
+    stroke: "var(--volt)",
+    strokeWidth: "1.3"
+  }), /*#__PURE__*/React.createElement("circle", {
+    cx: "6",
+    cy: "6.5",
+    r: "1",
+    fill: "var(--volt)"
+  }), /*#__PURE__*/React.createElement("circle", {
+    cx: "10",
+    cy: "9",
+    r: "1.1",
+    fill: "var(--volt)"
+  }), /*#__PURE__*/React.createElement("circle", {
+    cx: "6.5",
+    cy: "10.5",
+    r: ".8",
+    fill: "var(--volt)"
+  })), /*#__PURE__*/React.createElement("span", {
+    className: "upper",
+    style: {
+      color: "var(--ink)"
+    }
+  }, "Vos cookies, votre choix")), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 13.5,
+      lineHeight: 1.6,
+      color: "var(--bone-soft)",
+      margin: "12px 0 0"
+    }
+  }, "EchoWAI utilise des cookies strictement n\xE9cessaires au fonctionnement de la plateforme, et \u2014 avec votre accord \u2014 des cookies de mesure d'audience et de pr\xE9f\xE9rences. D\xE9tails dans notre", " ", /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setVisible(false);
+      onNavigate && onNavigate("cookies");
+    },
+    style: {
+      background: "transparent",
+      border: 0,
+      padding: 0,
+      cursor: "pointer",
+      color: "var(--volt)",
+      fontFamily: "var(--font-sans)",
+      fontSize: 13.5,
+      textDecoration: "underline"
+    }
+  }, "politique de gestion des cookies"), "."), custom && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 16,
+      display: "flex",
+      flexDirection: "column",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement(CookieRow, {
+    title: "Strictement n\xE9cessaires",
+    desc: "Session, s\xE9curit\xE9, \xE9quilibrage de charge. Indispensables \u2014 toujours actifs.",
+    locked: true,
+    checked: true
+  }), /*#__PURE__*/React.createElement(CookieRow, {
+    title: "Mesure d'audience",
+    desc: "Statistiques de fr\xE9quentation anonymis\xE9es pour am\xE9liorer le service.",
+    checked: analytics,
+    onToggle: () => setAnalytics(v => !v)
+  }), /*#__PURE__*/React.createElement(CookieRow, {
+    title: "Pr\xE9f\xE9rences",
+    desc: "M\xE9morisation de vos choix d'affichage et de langue.",
+    checked: prefs,
+    onToggle: () => setPrefs(v => !v)
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 10,
+      marginTop: 18,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    variant: "primary",
+    onClick: () => decide({
+      analytics: true,
+      prefs: true
+    })
+  }, "Tout accepter"), /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    onClick: () => decide({
+      analytics: false,
+      prefs: false
+    })
+  }, "Tout refuser"), custom ? /*#__PURE__*/React.createElement(Btn, {
+    variant: "secondary",
+    onClick: () => decide({
+      analytics,
+      prefs
+    })
+  }, "Enregistrer mes choix") : /*#__PURE__*/React.createElement(Btn, {
+    variant: "ghost",
+    onClick: () => setCustom(true)
+  }, "Personnaliser")))));
+};
+const CookieRow = ({
+  title,
+  desc,
+  checked,
+  onToggle,
+  locked
+}) => /*#__PURE__*/React.createElement("div", {
+  style: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 14,
+    padding: "12px 14px",
+    background: "var(--card-2)",
+    border: "1px solid var(--rule-on)",
+    borderRadius: 6
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    flex: 1,
+    minWidth: 0
+  }
+}, /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: 13,
+    color: "var(--ink)",
+    fontWeight: 600
+  }
+}, title), /*#__PURE__*/React.createElement("div", {
+  style: {
+    fontSize: 12,
+    color: "var(--muted)",
+    marginTop: 3,
+    lineHeight: 1.5
+  }
+}, desc)), /*#__PURE__*/React.createElement("button", {
+  onClick: locked ? undefined : onToggle,
+  disabled: locked,
+  "aria-pressed": !!checked,
+  style: {
+    flexShrink: 0,
+    width: 42,
+    height: 24,
+    borderRadius: 999,
+    border: 0,
+    background: checked ? "var(--volt)" : "var(--rule-on)",
+    cursor: locked ? "not-allowed" : "pointer",
+    opacity: locked ? 0.6 : 1,
+    position: "relative",
+    transition: "background .2s var(--ease-out-quart)"
+  }
+}, /*#__PURE__*/React.createElement("span", {
+  style: {
+    position: "absolute",
+    top: 3,
+    left: checked ? 21 : 3,
+    width: 18,
+    height: 18,
+    borderRadius: "50%",
+    background: "#fff",
+    transition: "left .2s var(--ease-out-quart)",
+    boxShadow: "0 1px 3px rgba(10,31,61,.3)"
+  }
+})));
 Object.assign(window, {
   SiteNav,
   SiteFooter,
@@ -529,5 +848,9 @@ Object.assign(window, {
   ToastProvider,
   useToast,
   useCmdK,
-  FooterCol
+  FooterCol,
+  CookieBanner,
+  CookieRow,
+  loginUrl,
+  goLogin
 });

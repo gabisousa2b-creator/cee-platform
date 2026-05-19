@@ -124,66 +124,147 @@ const ToastStack = ({
 }, "maintenant"))));
 
 // ──────────────────────────────────────────────────────────────
-// CommandPalette — Cmd+K overlay with fuzzy search
+// CommandPalette — Cmd+K overlay with live, navigable search
 // ──────────────────────────────────────────────────────────────
 const COMMANDS = [{
+  kind: "page",
+  label: "Accueil",
+  desc: "Vue d'ensemble",
+  view: "home"
+}, {
+  kind: "page",
+  label: "Le dispositif CEE",
+  desc: "Comprendre les CEE",
+  view: "dispositif"
+}, {
+  kind: "page",
+  label: "Simulateur de prime",
+  desc: "Estimer en 4 étapes",
+  view: "simulateur"
+}, {
+  kind: "page",
+  label: "Commande de matériel",
+  desc: "Catalogue éligible",
+  view: "materiel"
+}, {
+  kind: "page",
+  label: "Espaces & bénéficiaire",
+  desc: "Suivi de dossier",
+  view: "beneficiaire"
+}, {
+  kind: "page",
+  label: "Contact",
+  desc: "Démo · partenariat",
+  view: "contact"
+}, {
+  kind: "action",
+  label: "Simuler ma prime",
+  desc: "Lancer le simulateur",
+  view: "simulateur"
+}, {
+  kind: "action",
+  label: "Espace partenaire — se connecter",
+  desc: "Connexion plateforme",
+  view: "login"
+}, {
+  kind: "action",
+  label: "Suivre mon dossier",
+  desc: "Espace bénéficiaire",
+  view: "beneficiaire"
+}, {
   kind: "fiche",
   label: "BAR-EN-101 · Isolation des combles",
-  desc: "Résidentiel"
-}, {
-  kind: "fiche",
-  label: "IND-UT-117 · Récupération de chaleur",
-  desc: "Industrie"
-}, {
-  kind: "fiche",
-  label: "AGRI-TH-116 · Pompe à chaleur élevage",
-  desc: "Agriculture"
+  desc: "Résidentiel",
+  view: "dispositif"
 }, {
   kind: "fiche",
   label: "BAR-TH-104 · Pompe à chaleur air/eau",
-  desc: "Résidentiel"
+  desc: "Résidentiel",
+  view: "dispositif"
 }, {
   kind: "fiche",
-  label: "BAT-EN-103 · Isolation toiture-terrasse",
-  desc: "Tertiaire"
+  label: "IND-UT-117 · Récupération de chaleur",
+  desc: "Industrie",
+  view: "dispositif"
 }, {
-  kind: "dossier",
-  label: "ECW-2026-04417 · Hubert & fils SARL",
-  desc: "Contrôle"
+  kind: "fiche",
+  label: "AGRI-TH-116 · Pompe à chaleur élevage",
+  desc: "Agriculture",
+  view: "dispositif"
 }, {
-  kind: "dossier",
-  label: "ECW-2026-04420 · Boulangerie Lefranc",
-  desc: "Validé"
+  kind: "legal",
+  label: "Mentions légales",
+  desc: "Informations éditeur",
+  view: "mentions"
 }, {
-  kind: "action",
-  label: "Simuler une nouvelle prime",
-  desc: "Lancer le simulateur"
+  kind: "legal",
+  label: "Politique de confidentialité",
+  desc: "RGPD · données",
+  view: "confidentialite"
 }, {
-  kind: "action",
-  label: "Commander du matériel",
-  desc: "Espace partenaire"
+  kind: "legal",
+  label: "Conditions générales d'utilisation",
+  desc: "Règles d'usage",
+  view: "cgu"
 }, {
-  kind: "action",
-  label: "Déposer une pièce justificative",
-  desc: "Espace bénéficiaire"
-}, {
-  kind: "secteur",
-  label: "Résidentiel · 89 fiches",
-  desc: "BAR"
-}, {
-  kind: "secteur",
-  label: "Tertiaire · 47 fiches",
-  desc: "BAT"
+  kind: "legal",
+  label: "Gestion des cookies",
+  desc: "Préférences",
+  view: "cookies"
 }];
+const deburr = s => (s || "").toString().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 const CommandPalette = ({
-  embedded = false
+  embedded = false,
+  onNavigate,
+  onClose
 }) => {
   const [q, setQ] = React.useState("");
   const [sel, setSel] = React.useState(0);
-  const filtered = COMMANDS.filter(c => !q || c.label.toLowerCase().includes(q.toLowerCase()) || c.desc.toLowerCase().includes(q.toLowerCase())).slice(0, 7);
+  const listRef = React.useRef(null);
+  const filtered = React.useMemo(() => {
+    const nq = deburr(q).trim();
+    if (!nq) return COMMANDS;
+    const terms = nq.split(/\s+/);
+    return COMMANDS.map(c => {
+      const hay = deburr(c.label + " " + c.desc + " " + c.kind);
+      const score = terms.every(t => hay.includes(t)) ? deburr(c.label).startsWith(nq) ? 0 : 1 : -1;
+      return {
+        c,
+        score
+      };
+    }).filter(x => x.score >= 0).sort((a, b) => a.score - b.score).map(x => x.c);
+  }, [q]);
   React.useEffect(() => {
     setSel(0);
   }, [q]);
+
+  // keep the highlighted row visible
+  React.useEffect(() => {
+    const el = listRef.current && listRef.current.children[sel];
+    if (el && el.scrollIntoView) el.scrollIntoView({
+      block: "nearest"
+    });
+  }, [sel]);
+  const run = c => {
+    if (!c) return;
+    if (onClose) onClose();
+    if (onNavigate) onNavigate(c.view);
+  };
+  const onKeyDown = e => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSel(s => Math.min(filtered.length - 1, s + 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSel(s => Math.max(0, s - 1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      run(filtered[sel]);
+    } else if (e.key === "Escape" && onClose) {
+      e.preventDefault();
+      onClose();
+    }
+  };
   return /*#__PURE__*/React.createElement("div", {
     style: {
       background: "var(--card)",
@@ -212,18 +293,19 @@ const CommandPalette = ({
     cx: "7",
     cy: "7",
     r: "5",
-    stroke: "var(--muted)",
+    stroke: "var(--volt)",
     strokeWidth: "1.4"
   }), /*#__PURE__*/React.createElement("path", {
     d: "m11 11 3 3",
-    stroke: "var(--muted)",
+    stroke: "var(--volt)",
     strokeWidth: "1.4",
     strokeLinecap: "round"
   })), /*#__PURE__*/React.createElement("input", {
     autoFocus: true,
-    placeholder: "Rechercher une fiche, un dossier, un secteur\u2026",
+    placeholder: "Rechercher une page, une fiche, une action\u2026",
     value: q,
     onChange: e => setQ(e.target.value),
+    onKeyDown: onKeyDown,
     style: {
       flex: 1,
       border: 0,
@@ -233,7 +315,19 @@ const CommandPalette = ({
       color: "var(--ink)",
       background: "transparent"
     }
-  }), /*#__PURE__*/React.createElement("kbd", {
+  }), q && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setQ(""),
+    "aria-label": "Effacer",
+    style: {
+      background: "transparent",
+      border: 0,
+      cursor: "pointer",
+      color: "var(--muted)",
+      fontSize: 16,
+      lineHeight: 1,
+      padding: 2
+    }
+  }, "\xD7"), /*#__PURE__*/React.createElement("kbd", {
     style: {
       fontFamily: "var(--font-mono)",
       fontSize: 10,
@@ -244,13 +338,14 @@ const CommandPalette = ({
       background: "var(--card-2)"
     }
   }, "ESC")), /*#__PURE__*/React.createElement("div", {
+    ref: listRef,
     style: {
-      maxHeight: 320,
+      maxHeight: 340,
       overflow: "auto"
     }
   }, filtered.length === 0 ? /*#__PURE__*/React.createElement("div", {
     style: {
-      padding: 24,
+      padding: 28,
       fontSize: 13,
       color: "var(--muted)",
       textAlign: "center"
@@ -260,18 +355,24 @@ const CommandPalette = ({
     style: {
       color: "var(--ink)"
     }
-  }, "\"", q, "\"")) : filtered.map((c, i) => /*#__PURE__*/React.createElement("div", {
-    key: i,
-    onMouseEnter: () => setSel(i),
+  }, "\"", q, "\""), /*#__PURE__*/React.createElement("div", {
     style: {
-      padding: "10px 18px",
+      fontSize: 12,
+      marginTop: 6
+    }
+  }, "Essayez \xAB simulateur \xBB, \xAB mat\xE9riel \xBB ou \xAB cookies \xBB.")) : filtered.map((c, i) => /*#__PURE__*/React.createElement("div", {
+    key: c.label,
+    onMouseEnter: () => setSel(i),
+    onClick: () => run(c),
+    style: {
+      padding: "11px 18px",
       display: "flex",
       alignItems: "center",
       gap: 12,
       background: i === sel ? "var(--card-2)" : "transparent",
       borderLeft: i === sel ? "2px solid var(--volt)" : "2px solid transparent",
       cursor: "pointer",
-      transition: "background .15s"
+      transition: "background .12s"
     }
   }, /*#__PURE__*/React.createElement("span", {
     className: "mono",
@@ -290,7 +391,7 @@ const CommandPalette = ({
       fontSize: 13,
       color: "var(--ink)",
       flex: 1,
-      lineHeight: 1.25
+      lineHeight: 1.3
     }
   }, c.label), /*#__PURE__*/React.createElement("span", {
     className: "mono",
@@ -301,7 +402,7 @@ const CommandPalette = ({
   }, c.desc), i === sel && /*#__PURE__*/React.createElement("span", {
     className: "mono",
     style: {
-      fontSize: 10,
+      fontSize: 11,
       color: "var(--volt)"
     }
   }, "\u21B5")))), /*#__PURE__*/React.createElement("div", {
@@ -315,27 +416,31 @@ const CommandPalette = ({
       fontSize: 10,
       color: "var(--muted)"
     }
-  }, /*#__PURE__*/React.createElement("span", null, "\u2191 \u2193 naviguer"), /*#__PURE__*/React.createElement("span", null, "\u21B5 ouvrir"), /*#__PURE__*/React.createElement("span", null, "\u2318K rouvrir"), /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("span", null, "\u2191 \u2193 naviguer"), /*#__PURE__*/React.createElement("span", null, "\u21B5 ouvrir"), /*#__PURE__*/React.createElement("span", null, "esc fermer"), /*#__PURE__*/React.createElement("span", {
     style: {
       marginLeft: "auto"
     }
-  }, COMMANDS.length, " r\xE9sultats index\xE9s")));
+  }, filtered.length, " / ", COMMANDS.length, " r\xE9sultats")));
 };
 function kindBg(k) {
   return {
-    fiche: "var(--volt-soft)",
-    dossier: "rgba(46,139,87,0.15)",
+    page: "var(--volt-soft)",
+    fiche: "var(--sky-soft)",
     action: "rgba(201,122,26,0.15)",
+    legal: "var(--card-3)",
+    dossier: "rgba(46,139,87,0.15)",
     secteur: "var(--card-3)"
-  }[k];
+  }[k] || "var(--card-3)";
 }
 function kindFg(k) {
   return {
+    page: "var(--volt-deep)",
     fiche: "var(--volt-deep)",
-    dossier: "var(--st-valide)",
     action: "var(--st-controle)",
+    legal: "var(--bone-soft)",
+    dossier: "var(--st-valide)",
     secteur: "var(--bone-soft)"
-  }[k];
+  }[k] || "var(--bone-soft)";
 }
 
 // ──────────────────────────────────────────────────────────────
