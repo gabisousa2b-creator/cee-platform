@@ -108,7 +108,8 @@ function emmyColor(t) {
   return t > 0 ? "#2E8B57" : t < 0 ? "#C2410C" : "var(--volt)";
 }
 
-// Wordmark — logo #125 "Orbital Dot" + cours EMMY animé ; le point réagit au trend
+// Wordmark — logo #125 "Orbital Dot" : verrou logo 2 lignes,
+// le cours EMMY intégré en sous-ligne discrète, le point réagit au trend
 const Wordmark = ({
   scale = 1,
   color = "var(--bone)",
@@ -118,24 +119,17 @@ const Wordmark = ({
   const e = useEmmy();
   const tc = emmyColor(e.trend);
   const onDark = color === "#FFFFFF" || color === "#fff";
-  const h = e.hist.slice(-12);
-  const mx = Math.max.apply(null, h),
-    mn = Math.min.apply(null, h),
-    rg = mx - mn || 1;
-  const pts = h.map(function (v, i) {
-    return (i / (h.length - 1) * 38).toFixed(1) + "," + (13 - (v - mn) / rg * 11).toFixed(1);
-  }).join(" ");
   return /*#__PURE__*/React.createElement("span", {
     style: {
       display: "inline-flex",
-      alignItems: "center",
-      gap: 13 * scale
+      flexDirection: "column",
+      alignItems: "flex-start"
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
       position: "relative",
       display: "inline-block",
-      padding: `${9 * scale}px ${15 * scale}px`
+      padding: `${8 * scale}px ${14 * scale}px ${4 * scale}px`
     }
   }, /*#__PURE__*/React.createElement("span", {
     className: "serif",
@@ -156,76 +150,44 @@ const Wordmark = ({
       position: "absolute",
       left: 0,
       top: 0,
-      width: 7 * scale,
-      height: 7 * scale,
+      width: 6.5 * scale,
+      height: 6.5 * scale,
       borderRadius: "50%",
       background: tc,
-      offsetPath: `ellipse(${66 * scale}px ${18 * scale}px at 50% 50%)`,
+      offsetPath: `ellipse(${64 * scale}px ${17 * scale}px at 50% 50%)`,
       animation: "orbitDot 5.2s linear infinite",
       transition: "background .6s ease",
-      boxShadow: `0 0 ${8 * scale}px ${tc}`
+      boxShadow: `0 0 ${6 * scale}px ${tc}`
     }
   })), emmy && /*#__PURE__*/React.createElement("span", {
-    className: "ew-tk",
+    className: "mono ew-tk",
     style: {
       display: "inline-flex",
-      alignItems: "center",
-      gap: 8 * scale,
-      paddingLeft: 12 * scale,
-      borderLeft: `1px solid ${onDark ? "rgba(255,255,255,.2)" : "var(--rule-on)"}`
+      alignItems: "baseline",
+      gap: 4 * scale,
+      paddingLeft: 14 * scale,
+      marginTop: -3 * scale,
+      fontSize: 8.4 * scale,
+      letterSpacing: ".02em",
+      whiteSpace: "nowrap",
+      color: onDark ? "rgba(255,255,255,.4)" : "var(--bone-mute)"
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      display: "inline-flex",
-      flexDirection: "column",
-      lineHeight: 1.15
+      letterSpacing: ".15em"
     }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "mono",
+  }, "EMMY"), /*#__PURE__*/React.createElement("span", {
     style: {
-      fontSize: 8 * scale,
-      letterSpacing: ".13em",
-      color: onDark ? "rgba(255,255,255,.55)" : "var(--bone-mute)"
+      color: onDark ? "rgba(255,255,255,.74)" : "var(--bone-soft)",
+      fontWeight: 600
     }
-  }, "EMMY \xB7 COURS CEE"), /*#__PURE__*/React.createElement("span", {
-    className: "mono",
-    style: {
-      fontSize: 13.5 * scale,
-      color,
-      fontWeight: 600,
-      letterSpacing: "-.01em"
-    }
-  }, e.price.toFixed(2), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 8.5 * scale,
-      color: tc,
-      marginLeft: 3
-    }
-  }, "\u20AC/MWh"))), /*#__PURE__*/React.createElement("svg", {
-    width: 40 * scale,
-    height: 15 * scale,
-    viewBox: "0 0 38 13",
-    style: {
-      overflow: "visible",
-      display: "block"
-    }
-  }, /*#__PURE__*/React.createElement("polyline", {
-    points: pts,
-    fill: "none",
-    stroke: tc,
-    strokeWidth: "1.5",
-    strokeLinecap: "round",
-    strokeLinejoin: "round",
-    style: {
-      transition: "stroke .6s ease"
-    }
-  })), /*#__PURE__*/React.createElement("span", {
+  }, e.price.toFixed(2).replace(".", ",")), /*#__PURE__*/React.createElement("span", null, "\u20AC/MWh"), /*#__PURE__*/React.createElement("span", {
     key: e.tk,
-    className: "mono",
     style: {
-      fontSize: 13 * scale,
       color: tc,
       fontWeight: 700,
+      fontSize: 9 * scale,
+      display: "inline-block",
       animation: "tickFlash .5s var(--ease-out-quart)"
     }
   }, e.trend > 0 ? "↑" : e.trend < 0 ? "↓" : "→")));
