@@ -405,14 +405,17 @@ const SimulateurPage = ({
   className: "r-padbox"
 }, /*#__PURE__*/React.createElement("div", {
   style: {
-    background: "var(--card)",
-    border: "1px solid var(--rule-on)",
-    borderRadius: 8,
+    background: "rgba(255,255,255,.62)",
+    backdropFilter: "saturate(180%) blur(20px)",
+    WebkitBackdropFilter: "saturate(180%) blur(20px)",
+    border: "1px solid rgba(255,255,255,.55)",
+    borderRadius: 18,
     overflow: "hidden",
-    boxShadow: "var(--sh-2)"
+    boxShadow: "var(--sh-3), inset 0 1px 0 rgba(255,255,255,.7)"
   }
 }, /*#__PURE__*/React.createElement(Simulator, {
-  embedded: true
+  embedded: true,
+  onNavigate: onNavigate
 }))));
 
 // ─────────────────────────────────────────────────────────
@@ -462,11 +465,13 @@ const MaterielPage = () => /*#__PURE__*/React.createElement("div", null, /*#__PU
   className: "r-padbox"
 }, /*#__PURE__*/React.createElement("div", {
   style: {
-    background: "var(--card)",
-    border: "1px solid var(--rule-on)",
-    borderRadius: 8,
+    background: "rgba(255,255,255,.62)",
+    backdropFilter: "saturate(180%) blur(20px)",
+    WebkitBackdropFilter: "saturate(180%) blur(20px)",
+    border: "1px solid rgba(255,255,255,.55)",
+    borderRadius: 18,
     overflow: "hidden",
-    boxShadow: "var(--sh-2)"
+    boxShadow: "var(--sh-3), inset 0 1px 0 rgba(255,255,255,.7)"
   }
 }, /*#__PURE__*/React.createElement(MaterialOrder, {
   embedded: true
@@ -521,11 +526,13 @@ const BeneficiairePage = ({
   className: "r-padbox"
 }, /*#__PURE__*/React.createElement("div", {
   style: {
-    background: "var(--card)",
-    border: "1px solid var(--rule-on)",
-    borderRadius: 8,
+    background: "rgba(255,255,255,.62)",
+    backdropFilter: "saturate(180%) blur(20px)",
+    WebkitBackdropFilter: "saturate(180%) blur(20px)",
+    border: "1px solid rgba(255,255,255,.55)",
+    borderRadius: 18,
     overflow: "hidden",
-    boxShadow: "var(--sh-2)"
+    boxShadow: "var(--sh-3), inset 0 1px 0 rgba(255,255,255,.7)"
   }
 }, /*#__PURE__*/React.createElement(DossierTracker, {
   embedded: true

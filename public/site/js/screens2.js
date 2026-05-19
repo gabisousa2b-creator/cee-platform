@@ -1,44 +1,380 @@
 /* eslint-disable */
 // EchoWAI — Screens 2: Simulator (4-step interactive) + Dossier + Sectors
 
-// ────────── SIMULATOR (full screen) ──────────
-const Simulator = ({
-  embedded = false
+// ────────── SIMULATOR — parcours 4 étapes interactif ──────────
+const SIM_SECTEURS = [{
+  id: "BAR",
+  nom: "Résidentiel",
+  desc: "Logements & copropriétés"
+}, {
+  id: "BAT",
+  nom: "Tertiaire",
+  desc: "Bureaux, commerces, écoles"
+}, {
+  id: "IND",
+  nom: "Industrie",
+  desc: "Sites de production"
+}, {
+  id: "AGRI",
+  nom: "Agriculture",
+  desc: "Exploitations & élevage"
+}, {
+  id: "RES",
+  nom: "Réseaux",
+  desc: "Chaleur & éclairage public"
+}, {
+  id: "TRA",
+  nom: "Transport",
+  desc: "Flottes & logistique"
+}];
+const SIM_OPERATIONS = {
+  BAR: [{
+    code: "BAR-EN-101",
+    nom: "Isolation des combles perdus",
+    base: 16,
+    unit: "m²",
+    min: 20,
+    max: 400,
+    def: 120
+  }, {
+    code: "BAR-TH-104",
+    nom: "Pompe à chaleur air/eau",
+    base: 8400,
+    unit: "logement",
+    min: 1,
+    max: 30,
+    def: 1
+  }, {
+    code: "BAR-TH-171",
+    nom: "Pompe à chaleur air/air",
+    base: 5200,
+    unit: "logement",
+    min: 1,
+    max: 30,
+    def: 1
+  }],
+  BAT: [{
+    code: "BAT-EN-103",
+    nom: "Isolation de toiture-terrasse",
+    base: 13,
+    unit: "m²",
+    min: 50,
+    max: 2000,
+    def: 350
+  }, {
+    code: "BAT-TH-116",
+    nom: "Gestion technique du bâtiment",
+    base: 4,
+    unit: "m²",
+    min: 100,
+    max: 6000,
+    def: 900
+  }],
+  IND: [{
+    code: "IND-UT-117",
+    nom: "Récupération de chaleur fatale",
+    base: 19000,
+    unit: "installation",
+    min: 1,
+    max: 8,
+    def: 1
+  }, {
+    code: "IND-UT-102",
+    nom: "Moteur haut rendement IE3",
+    base: 980,
+    unit: "kW",
+    min: 5,
+    max: 400,
+    def: 60
+  }],
+  AGRI: [{
+    code: "AGRI-TH-116",
+    nom: "PAC sur bâtiment d'élevage",
+    base: 7200,
+    unit: "bâtiment",
+    min: 1,
+    max: 15,
+    def: 1
+  }, {
+    code: "AGRI-EQ-101",
+    nom: "Pré-refroidisseur de lait",
+    base: 2200,
+    unit: "installation",
+    min: 1,
+    max: 8,
+    def: 1
+  }],
+  RES: [{
+    code: "RES-CH-103",
+    nom: "Raccordement à un réseau de chaleur",
+    base: 480,
+    unit: "logement",
+    min: 5,
+    max: 800,
+    def: 90
+  }, {
+    code: "RES-EC-104",
+    nom: "Rénovation de l'éclairage public",
+    base: 300,
+    unit: "point",
+    min: 10,
+    max: 2000,
+    def: 160
+  }],
+  TRA: [{
+    code: "TRA-EQ-101",
+    nom: "Télématique embarquée de flotte",
+    base: 620,
+    unit: "véhicule",
+    min: 1,
+    max: 250,
+    def: 24
+  }, {
+    code: "TRA-SE-104",
+    nom: "Formation à l'écoconduite",
+    base: 380,
+    unit: "conducteur",
+    min: 1,
+    max: 200,
+    def: 18
+  }]
+};
+const SIM_STEPS = ["Secteur", "Opération", "Profil", "Estimation"];
+const SimPick = ({
+  active,
+  onClick,
+  children
 }) => {
-  const [step, setStep] = React.useState(1); // 0..3
-  const [surface, setSurface] = React.useState(142);
+  const [h, setH] = React.useState(false);
+  return /*#__PURE__*/React.createElement("button", {
+    onClick: onClick,
+    onMouseEnter: () => setH(true),
+    onMouseLeave: () => setH(false),
+    style: {
+      textAlign: "left",
+      cursor: "pointer",
+      width: "100%",
+      fontFamily: "var(--font-sans)",
+      background: active ? "var(--volt-soft)" : "var(--card)",
+      border: "1px solid " + (active ? "var(--volt)" : "var(--rule-on)"),
+      borderRadius: 12,
+      padding: "13px 15px",
+      transition: "transform .25s var(--ease-out-quart), background .15s, border-color .15s, box-shadow .25s",
+      transform: h && !active ? "translateY(-2px)" : "none",
+      boxShadow: active ? "0 8px 20px -8px var(--volt-glow)" : h ? "var(--sh-2)" : "none"
+    }
+  }, children);
+};
+const Simulator = ({
+  embedded = false,
+  onNavigate
+}) => {
+  const [step, setStep] = React.useState(0);
+  const [secteur, setSecteur] = React.useState("BAR");
+  const [opIdx, setOpIdx] = React.useState(0);
+  const ops = SIM_OPERATIONS[secteur];
+  const op = ops[Math.min(opIdx, ops.length - 1)];
+  const [qty, setQty] = React.useState(op.def);
   const [zone, setZone] = React.useState("H1");
   const [energy, setEnergy] = React.useState("Gaz");
-  const [precarite, setPrecarite] = React.useState("Standard");
+  const [precarite, setPrec] = React.useState("Standard");
   const zoneCoef = {
     H1: 1.0,
     H2: 0.85,
     H3: 0.7
   }[zone];
   const energyCoef = {
-    Gaz: 1.0,
-    Électricité: 0.92,
-    Fioul: 1.15
+    "Gaz": 1.0,
+    "Électricité": 0.92,
+    "Fioul": 1.15
   }[energy];
   const precCoef = {
-    Standard: 1,
-    Précaire: 2.1,
+    "Standard": 1,
+    "Précaire": 2.1,
     "Très précaire": 3.2
   }[precarite];
-  const prime = Math.round(surface * 20.05 * zoneCoef * energyCoef * precCoef);
+  const prime = Math.round(op.base * qty * zoneCoef * energyCoef * precCoef);
   const cumac = Math.round(prime / 0.0091);
+  const secteurNom = (SIM_SECTEURS.find(s => s.id === secteur) || {}).nom;
+  const fmt = n => new Intl.NumberFormat("fr-FR").format(n);
+  const pickSecteur = id => {
+    setSecteur(id);
+    setOpIdx(0);
+    setQty(SIM_OPERATIONS[id][0].def);
+  };
+  const pickOp = i => {
+    setOpIdx(i);
+    setQty(SIM_OPERATIONS[secteur][i].def);
+  };
+  const pad = embedded ? 38 : 56;
+  const heads = ["Quel est votre secteur ?", "Quelle opération valoriser ?", "Le profil du chantier.", "Votre estimation est prête."];
+  let body;
+  if (step === 0) {
+    body = /*#__PURE__*/React.createElement("div", {
+      className: "r-cols-form2",
+      style: {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: 10
+      }
+    }, SIM_SECTEURS.map(s => /*#__PURE__*/React.createElement(SimPick, {
+      key: s.id,
+      active: secteur === s.id,
+      onClick: () => pickSecteur(s.id)
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "mono",
+      style: {
+        fontSize: 10,
+        color: secteur === s.id ? "var(--volt-deep)" : "var(--bone-mute)"
+      }
+    }, s.id), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 15,
+        color: "var(--ink)",
+        fontWeight: 600,
+        marginTop: 3
+      }
+    }, s.nom), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: "var(--muted)",
+        marginTop: 2
+      }
+    }, s.desc))));
+  } else if (step === 1) {
+    body = /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        gap: 9
+      }
+    }, ops.map((o, i) => /*#__PURE__*/React.createElement(SimPick, {
+      key: o.code,
+      active: opIdx === i,
+      onClick: () => pickOp(i)
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 11
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "mono",
+      style: {
+        fontSize: 10,
+        padding: "3px 7px",
+        borderRadius: 4,
+        background: "var(--volt-soft)",
+        color: "var(--volt-deep)",
+        flexShrink: 0
+      }
+    }, o.code), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 14,
+        color: "var(--ink)",
+        fontWeight: 500
+      }
+    }, o.nom)))));
+  } else if (step === 2) {
+    body = /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        gap: 20
+      }
+    }, /*#__PURE__*/React.createElement(Slider, {
+      label: "Quantité — " + op.unit,
+      value: qty,
+      min: op.min,
+      max: op.max,
+      step: 1,
+      onChange: setQty,
+      unit: op.unit
+    }), /*#__PURE__*/React.createElement("div", {
+      className: "r-cols-form2",
+      style: {
+        display: "flex",
+        gap: 16,
+        flexWrap: "wrap"
+      }
+    }, /*#__PURE__*/React.createElement(SegRow, {
+      label: "Zone climatique",
+      options: ["H1", "H2", "H3"],
+      value: zone,
+      onChange: setZone
+    }), /*#__PURE__*/React.createElement(SegRow, {
+      label: "\xC9nergie remplac\xE9e",
+      options: ["Gaz", "Électricité", "Fioul"],
+      value: energy,
+      onChange: setEnergy
+    })), /*#__PURE__*/React.createElement(SegRow, {
+      label: "Situation du b\xE9n\xE9ficiaire",
+      options: ["Standard", "Précaire", "Très précaire"],
+      value: precarite,
+      onChange: setPrec
+    }));
+  } else {
+    body = /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        gap: 16
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        border: "1px solid var(--rule-on)",
+        borderRadius: 12,
+        overflow: "hidden"
+      }
+    }, [["Secteur", secteurNom], ["Opération", op.code + " · " + op.nom], ["Quantité", fmt(qty) + " " + op.unit], ["Zone climatique", zone], ["Énergie remplacée", energy], ["Situation", precarite]].map(([k, v], i) => /*#__PURE__*/React.createElement("div", {
+      key: k,
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        gap: 16,
+        padding: "10px 14px",
+        background: i % 2 ? "var(--card-2)" : "transparent",
+        fontSize: 13
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "upper",
+      style: {
+        color: "var(--muted)"
+      }
+    }, k), /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: "var(--ink)",
+        textAlign: "right",
+        fontWeight: 500
+      }
+    }, v)))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 10,
+        flexWrap: "wrap"
+      }
+    }, /*#__PURE__*/React.createElement(Btn, {
+      variant: "primary",
+      arrow: true,
+      magnetic: true,
+      onClick: () => onNavigate && onNavigate("login")
+    }, "D\xE9poser ce dossier"), /*#__PURE__*/React.createElement(Btn, {
+      variant: "secondary",
+      onClick: () => onNavigate && onNavigate("contact")
+    }, "Parler \xE0 un conseiller")));
+  }
   const content = /*#__PURE__*/React.createElement("div", {
     className: "r-cols-sim",
     style: {
       display: "grid",
       gridTemplateColumns: "1fr 1.05fr",
       height: embedded ? "auto" : "calc(100% - 77px)",
-      minHeight: embedded ? 720 : "auto"
+      minHeight: embedded ? 700 : "auto"
     }
   }, /*#__PURE__*/React.createElement("div", {
     className: "sim-pane",
     style: {
-      padding: embedded ? 40 : 56,
+      padding: pad,
       borderRight: "1px solid var(--ink-line)",
       display: "flex",
       flexDirection: "column",
@@ -49,31 +385,24 @@ const Simulator = ({
     style: {
       color: "var(--volt)"
     }
-  }, "\xC9tape ", step + 1, " sur 4 \xB7 ", ["Secteur", "Opération", "Bénéficiaire", "Estimation"][step]), /*#__PURE__*/React.createElement("h2", {
+  }, "\xC9tape ", step + 1, " / 4 \xB7 ", SIM_STEPS[step]), /*#__PURE__*/React.createElement("h2", {
     className: "serif",
     style: {
-      fontSize: embedded ? 30 : 54,
-      lineHeight: embedded ? 1.08 : 0.95,
+      fontSize: embedded ? 28 : 48,
+      lineHeight: 1.06,
       letterSpacing: "-0.025em",
-      margin: embedded ? "10px 0 8px" : "14px 0 12px",
-      fontWeight: 500
+      margin: embedded ? "10px 0 0" : "14px 0 0",
+      fontWeight: 500,
+      color: "var(--ink)"
     }
-  }, embedded ? "Décrivez votre opération." : /*#__PURE__*/React.createElement(React.Fragment, null, "D\xE9crivez", /*#__PURE__*/React.createElement("br", null), "votre op\xE9ration.")), /*#__PURE__*/React.createElement("p", {
-    style: {
-      fontSize: 14,
-      color: "var(--muted)",
-      maxWidth: 440,
-      lineHeight: 1.55,
-      margin: 0
-    }
-  }, "Identifiez la fiche standardis\xE9e \u2014 EchoWAI estime la prime instantan\xE9ment, \xE0 chaque variable modifi\xE9e.")), /*#__PURE__*/React.createElement("div", {
+  }, heads[step])), /*#__PURE__*/React.createElement("div", {
     className: "r-cols-stepper",
     style: {
       display: "grid",
       gridTemplateColumns: "repeat(4, 1fr)",
       gap: 8
     }
-  }, ["Secteur", "Opération", "Bénéficiaire", "Estimation"].map((k, i) => /*#__PURE__*/React.createElement("button", {
+  }, SIM_STEPS.map((k, i) => /*#__PURE__*/React.createElement("button", {
     key: k,
     onClick: () => setStep(i),
     style: {
@@ -88,8 +417,10 @@ const Simulator = ({
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      height: 2,
-      background: i <= step ? "var(--volt)" : "var(--ink-line)"
+      height: 3,
+      borderRadius: 3,
+      background: i <= step ? "var(--volt)" : "var(--rule-on)",
+      transition: "background .35s var(--ease-out-quart)"
     }
   }), /*#__PURE__*/React.createElement("div", {
     className: "mono",
@@ -99,69 +430,37 @@ const Simulator = ({
     }
   }, "0", i + 1), /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: 13,
-      color: i <= step ? "var(--bone)" : "var(--muted)",
+      fontSize: 12.5,
+      color: i <= step ? "var(--ink)" : "var(--muted)",
       fontWeight: i === step ? 600 : 400
     }
   }, k)))), /*#__PURE__*/React.createElement("div", {
+    key: step,
+    style: {
+      flex: 1,
+      animation: "revealUp .35s var(--ease-out-quart) both"
+    }
+  }, body), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
-      flexDirection: "column",
-      gap: 18
+      gap: 12
     }
-  }, /*#__PURE__*/React.createElement(Field, {
-    label: "Fiche d'op\xE9ration",
-    value: "BAR-EN-101 \xB7 Isolation des combles perdus",
-    mono: true,
-    big: true,
-    focused: true
-  }), /*#__PURE__*/React.createElement(Slider, {
-    label: "Surface isol\xE9e",
-    value: surface,
-    min: 20,
-    max: 500,
-    step: 1,
-    onChange: setSurface,
-    unit: "m\xB2"
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 16
-    }
-  }, /*#__PURE__*/React.createElement(SegRow, {
-    label: "Zone climatique",
-    options: ["H1", "H2", "H3"],
-    value: zone,
-    onChange: setZone
-  }), /*#__PURE__*/React.createElement(SegRow, {
-    label: "\xC9nergie remplac\xE9e",
-    options: ["Gaz", "Électricité", "Fioul"],
-    value: energy,
-    onChange: setEnergy
-  })), /*#__PURE__*/React.createElement(SegRow, {
-    label: "Pr\xE9carit\xE9 \xE9nerg\xE9tique",
-    options: ["Standard", "Précaire", "Très précaire"],
-    value: precarite,
-    onChange: setPrecarite
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 12,
-      marginTop: "auto"
-    }
-  }, /*#__PURE__*/React.createElement(Btn, {
+  }, step > 0 && /*#__PURE__*/React.createElement(Btn, {
     variant: "ghost",
-    onClick: () => setStep(Math.max(0, step - 1))
-  }, "\u2190 Pr\xE9c\xE9dent"), /*#__PURE__*/React.createElement(Btn, {
+    onClick: () => setStep(step - 1)
+  }, "\u2190 Pr\xE9c\xE9dent"), step < 3 ? /*#__PURE__*/React.createElement(Btn, {
     variant: "primary",
     arrow: true,
     magnetic: true,
-    onClick: () => setStep(Math.min(3, step + 1))
-  }, "Continuer"))), /*#__PURE__*/React.createElement("div", {
+    onClick: () => setStep(step + 1)
+  }, "Continuer") : /*#__PURE__*/React.createElement(Btn, {
+    variant: "ghost",
+    onClick: () => setStep(0)
+  }, "\u21BB Recommencer"))), /*#__PURE__*/React.createElement("div", {
     className: "sim-pane",
     style: {
       background: "var(--card-2)",
-      padding: embedded ? 40 : 56,
+      padding: pad,
       position: "relative",
       overflow: "hidden",
       display: "flex",
@@ -216,42 +515,42 @@ const Simulator = ({
     }
   }, /*#__PURE__*/React.createElement(LiquidNumber, {
     value: prime,
-    size: embedded ? 116 : 156,
+    size: embedded ? 108 : 156,
     color: "var(--ink)"
   }), /*#__PURE__*/React.createElement("span", {
     className: "serif",
     style: {
-      fontSize: embedded ? 50 : 64,
+      fontSize: embedded ? 46 : 64,
       color: "var(--volt)"
     }
   }, "\u20AC")), /*#__PURE__*/React.createElement("div", {
     style: {
-      fontSize: 14,
+      fontSize: 13.5,
       color: "var(--muted)",
-      marginTop: 12,
-      maxWidth: 480,
+      marginTop: 10,
+      maxWidth: 470,
       lineHeight: 1.55
     }
-  }, "Prime estim\xE9e TTC, susceptible d'ajustement lors du contr\xF4le. Mise \xE0 jour en temps r\xE9el \xE0 chaque variable modifi\xE9e."), /*#__PURE__*/React.createElement("div", {
+  }, op.code, " \xB7 ", op.nom, " \u2014 prime estim\xE9e pour ", fmt(qty), " ", op.unit, ". Susceptible d'ajustement lors du contr\xF4le."), /*#__PURE__*/React.createElement("div", {
     style: {
-      margin: embedded ? "26px -40px 0" : "32px -56px 0",
+      margin: embedded ? "22px -38px 0" : "32px -56px 0",
       opacity: 0.5
     }
   }, /*#__PURE__*/React.createElement(FlowRibbon, {
-    height: embedded ? 92 : 110,
+    height: embedded ? 84 : 110,
     lines: 5,
-    speed: 8 + surface / 30,
+    speed: 8 + Math.min(14, qty / 8),
     color: "var(--volt)"
   }))), /*#__PURE__*/React.createElement("div", {
     style: {
       position: "relative",
       display: "grid",
       gridTemplateColumns: "1fr 1fr",
-      gap: 28,
-      paddingTop: 28,
+      gap: 24,
+      paddingTop: 24,
       borderTop: "1px solid var(--rule-on)"
     }
-  }, [["Volume kWh cumac", new Intl.NumberFormat("fr-FR").format(cumac)], ["Cours du certificat", "9,11 €/MWh"], ["Délai de versement", "≈ 42 j"], ["Pièces requises", "7 documents"]].map(([k, v]) => /*#__PURE__*/React.createElement("div", {
+  }, [["Volume kWh cumac", fmt(cumac)], ["Cours du certificat", "9,11 €/MWh"], ["Délai de versement", "≈ 42 jours"], ["Pièces requises", "7 documents"]].map(([k, v]) => /*#__PURE__*/React.createElement("div", {
     key: k
   }, /*#__PURE__*/React.createElement("div", {
     className: "upper",
@@ -261,9 +560,9 @@ const Simulator = ({
   }, k), /*#__PURE__*/React.createElement("div", {
     className: "mono",
     style: {
-      fontSize: 22,
+      fontSize: embedded ? 19 : 22,
       color: "var(--ink)",
-      marginTop: 6
+      marginTop: 5
     }
   }, v))))));
   if (embedded) return content;
