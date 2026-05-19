@@ -502,6 +502,7 @@
                 <option value="chantier">Livraison — sur le chantier</option>
               </select>
               <input class="form-control form-control-sm mb-2" id="cmdAdresse" placeholder="Adresse de livraison">
+              <input class="form-control form-control-sm mb-2" id="cmdReste" type="number" step="0.01" min="0" placeholder="Reste à charge partenaire (€) — 0 par défaut">
               <button class="btn btn-sm btn-primary" onclick="createCommande()"><i class="fas fa-plus me-1"></i>Créer la commande</button>
             </div>
           </div>
@@ -1514,9 +1515,16 @@ function renderCommandes() {
         <div class="d-flex gap-1 flex-wrap">
           <a href="/api/partner/commandes/${c.id}/document/bc" target="_blank" class="btn btn-sm btn-outline-secondary" title="Bon de commande"><i class="fas fa-file-pdf me-1"></i>BC</a>
           <a href="/api/partner/commandes/${c.id}/document/bl" target="_blank" class="btn btn-sm btn-outline-secondary" title="Bon de livraison"><i class="fas fa-file-pdf me-1"></i>BL</a>
+          <a href="/api/partner/commandes/${c.id}/document/facture" target="_blank" class="btn btn-sm btn-outline-secondary" title="Facture matériel"><i class="fas fa-file-pdf me-1"></i>Facture</a>
           ${next ? `<button class="btn btn-sm btn-outline-primary" onclick="advanceCommande(${c.id},'${next[0]}')">${next[1]}</button>` : ''}
           ${c.statut==='preparee' ? `<button class="btn btn-sm btn-outline-secondary" onclick="deleteCommande(${c.id})" title="Supprimer"><i class="fas fa-trash"></i></button>` : ''}
         </div>
+      </div>
+      <div class="d-flex gap-1 align-items-center mt-2">
+        <span style="font-size:.7rem;color:var(--t3)"><i class="fas fa-hand-holding-dollar me-1" style="color:var(--accent)"></i>Reste à charge partenaire</span>
+        <input class="form-control form-control-sm" id="reste-${c.id}" type="number" step="0.01" min="0" style="width:92px" value="${c.reste_a_charge||''}">
+        <span style="font-size:.72rem;color:var(--t3)">€</span>
+        <button class="btn btn-sm btn-outline-primary" onclick="saveReste(${c.id})" title="Enregistrer"><i class="fas fa-save"></i></button>
       </div>
     </div>`;
   }).join('');
@@ -1524,10 +1532,12 @@ function renderCommandes() {
 async function createCommande() {
   const ids = [...document.getElementById('cmdDossiers').selectedOptions].map(o => +o.value);
   if (!ids.length) { showToast('Sélectionne au moins un dossier', 'danger'); return; }
-  const body = { beneficiaire_ids: ids, livraison_type: document.getElementById('cmdLivType').value, livraison_adresse: document.getElementById('cmdAdresse').value.trim() };
+  const body = { beneficiaire_ids: ids, livraison_type: document.getElementById('cmdLivType').value,
+    livraison_adresse: document.getElementById('cmdAdresse').value.trim(),
+    reste_a_charge: document.getElementById('cmdReste').value || 0 };
   const r = await fetch('/api/partner/commandes', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
   const d = await r.json().catch(() => ({}));
-  if (r.ok && d.success) { showToast('Commande créée'); document.getElementById('cmdAdresse').value = ''; refreshCommandes(); }
+  if (r.ok && d.success) { showToast('Commande créée'); document.getElementById('cmdAdresse').value = ''; document.getElementById('cmdReste').value = ''; refreshCommandes(); }
   else showToast(d.error || 'Erreur', 'danger');
 }
 async function advanceCommande(id, statut) {
@@ -1539,6 +1549,11 @@ async function deleteCommande(id) {
   const r = await fetch('/api/partner/commandes/' + id, { method:'DELETE' });
   if (r.ok) { showToast('Commande supprimée'); refreshCommandes(); }
   else showToast('Erreur', 'danger');
+}
+async function saveReste(id) {
+  const v = document.getElementById('reste-' + id).value;
+  const r = await fetch('/api/partner/commandes/' + id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ reste_a_charge: v }) });
+  if (r.ok) showToast('Reste à charge enregistré'); else showToast('Erreur', 'danger');
 }
 function renderDash() {
   const fop = document.getElementById('fOp').value;

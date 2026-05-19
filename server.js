@@ -1741,6 +1741,13 @@ db.serialize(() => {
     prix_unitaire   REAL DEFAULT 0,
     tva             REAL DEFAULT 20
   )`);
+  db.run(`ALTER TABLE commandes ADD COLUMN reste_a_charge REAL DEFAULT 0`, () => {});
+  // Cahier des charges : preuve d'achat du matériel (ajout après seed initial)
+  db.get("SELECT id FROM cdc_pieces WHERE partenaire_id IS NULL AND nom LIKE '%matériel%'", (e, r) => {
+    if (e || r) return;
+    db.run("INSERT INTO cdc_pieces (partenaire_id,delegataire_id,operation_id,nom,fourni_par,obligatoire,ordre) VALUES (NULL,NULL,NULL,?,?,?,?)",
+      ["Preuve d'achat / facture du matériel", 'partenaire', 1, 9]);
+  });
   // Opération choisie au dépôt d'un dossier (id partenaire_operations)
   db.run(`ALTER TABLE beneficiaires ADD COLUMN operation_id INTEGER`, () => {});
 
@@ -2417,6 +2424,15 @@ function renderDocPdf(res, ctx) {
     doc.text(prix + ' €/MWhc', c2, y+14, { width:w2-7, align:'right' });
     doc.font('Helvetica-Bold').text(eur(subvention), c3, y+14, { width:w3-7, align:'right' });
     y += rh + 12;
+    if (Array.isArray(ctx.materiel) && ctx.materiel.length) {
+      doc.font('Helvetica-Bold').fontSize(8).fillColor(SOFT).text('MATÉRIEL INCLUS', M, y); y = doc.y + 4;
+      ctx.materiel.forEach(mt => {
+        doc.font('Helvetica').fontSize(8.7).fillColor(INK)
+          .text('•  ' + (mt.nom || '—') + '   ×' + (mt.quantite || 1), M + 4, y, { width: W - 8 });
+        y = doc.y + 2;
+      });
+      y += 12;
+    }
     const tw = W*0.44, tx = R-tw;
     doc.rect(tx, y, tw, 28).fill(BAND);
     doc.font('Helvetica-Bold').fontSize(9).fillColor('#ffffff').text(type==='facture' ? 'NET À PAYER' : 'PRIME CEE ESTIMÉE', tx+10, y+9, { width:tw*0.5 });
@@ -2478,10 +2494,14 @@ app.get('/api/partner/dossiers/:id/document/:type', requirePartner, (req, res) =
                 WHERE d.id=?`, [s.partenaire_id, b.delegataire_id || 0], (e3, deleg) => {
           getPrixCee(s.partenaire_id, (prixDefaut) => {
             const prix = (deleg && deleg.prix_mwhc) ? deleg.prix_mwhc : prixDefaut;
-            res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename="${type}-${b.code}.pdf"`);
-            renderDocPdf(res, { type, titre: TYPES[type], b, org: org || {}, deleg: deleg || {},
-              prix, cumac: b.cumac || 0, subvention: Math.round((b.cumac || 0) * prix / 1000) });
+            db.all(`SELECT dm.quantite, m.nom FROM dossier_materiel dm
+                    JOIN materiel m ON m.id=dm.materiel_id WHERE dm.beneficiaire_id=?`, [b.id], (e4, materiel) => {
+              res.setHeader('Content-Type', 'application/pdf');
+              res.setHeader('Content-Disposition', `attachment; filename="${type}-${b.code}.pdf"`);
+              renderDocPdf(res, { type, titre: TYPES[type], b, org: org || {}, deleg: deleg || {},
+                prix, cumac: b.cumac || 0, subvention: Math.round((b.cumac || 0) * prix / 1000),
+                materiel: materiel || [] });
+            });
           });
         });
       });
@@ -3165,9 +3185,10 @@ app.post('/api/partner/commandes', requireRole('admin_partenaire'), (req, res) =
       [s.partenaire_nom, ...ids], (e, lignes) => {
         if (e) return res.status(500).json({ error: e.message });
         if (!lignes || !lignes.length) return res.status(400).json({ error: 'Aucun matériel sélectionné sur ces dossiers' });
-        db.run(`INSERT INTO commandes (partenaire_id,reference,statut,livraison_type,livraison_adresse,notes,created_by)
-                VALUES (?,?,'preparee',?,?,?,?)`,
-          [s.partenaire_id, genCmdRef(), livType, req.body.livraison_adresse || '', req.body.notes || '', s.compte_nom || s.partenaire_nom],
+        db.run(`INSERT INTO commandes (partenaire_id,reference,statut,livraison_type,livraison_adresse,notes,created_by,reste_a_charge)
+                VALUES (?,?,'preparee',?,?,?,?,?)`,
+          [s.partenaire_id, genCmdRef(), livType, req.body.livraison_adresse || '', req.body.notes || '',
+           s.compte_nom || s.partenaire_nom, parseFloat(req.body.reste_a_charge) || 0],
           function(err) {
             if (err) return res.status(500).json({ error: err.message });
             const cid = this.lastID;
@@ -3180,7 +3201,7 @@ app.post('/api/partner/commandes', requireRole('admin_partenaire'), (req, res) =
 });
 app.get('/api/partner/commandes', requireRole('admin_partenaire'), (req, res) => {
   partnerScope(req, res, (s) => {
-    db.all(`SELECT c.id,c.reference,c.statut,c.livraison_type,c.created_at,
+    db.all(`SELECT c.id,c.reference,c.statut,c.livraison_type,c.reste_a_charge,c.created_at,
               (SELECT COUNT(*) FROM commande_lignes WHERE commande_id=c.id) AS nb_lignes,
               (SELECT COALESCE(SUM(quantite*prix_unitaire*(1+tva/100.0)),0) FROM commande_lignes WHERE commande_id=c.id) AS total_ttc
             FROM commandes c WHERE c.partenaire_id=? ORDER BY c.created_at DESC`,
@@ -3207,6 +3228,19 @@ app.put('/api/partner/commandes/:id/statut', requireRole('admin_partenaire'), (r
       err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
   });
 });
+app.put('/api/partner/commandes/:id', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    const sets = [], vals = [];
+    if (req.body.reste_a_charge !== undefined)    { sets.push('reste_a_charge=?');    vals.push(parseFloat(req.body.reste_a_charge) || 0); }
+    if (req.body.livraison_adresse !== undefined) { sets.push('livraison_adresse=?'); vals.push(String(req.body.livraison_adresse || '')); }
+    if (req.body.livraison_type !== undefined && LIV_TYPES.includes(req.body.livraison_type)) { sets.push('livraison_type=?'); vals.push(req.body.livraison_type); }
+    if (!sets.length) return res.status(400).json({ error: 'Aucune modification' });
+    sets.push('updated_at=CURRENT_TIMESTAMP');
+    vals.push(req.params.id, s.partenaire_id);
+    db.run(`UPDATE commandes SET ${sets.join(',')} WHERE id=? AND partenaire_id=?`, vals,
+      err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+  });
+});
 app.delete('/api/partner/commandes/:id', requireRole('admin_partenaire'), (req, res) => {
   partnerScope(req, res, (s) => {
     db.get('SELECT statut FROM commandes WHERE id=? AND partenaire_id=?', [req.params.id, s.partenaire_id], (e, c) => {
@@ -3227,8 +3261,8 @@ function renderCommandePdf(res, ctx) {
   const INK = '#181c24', SOFT = '#5c6470', RULE = '#cdd2db', BAND = '#1f2632';
   const eur = n => (Math.round((+n||0)*100)/100).toLocaleString('fr-FR') + ' €';
   const today = new Date().toLocaleDateString('fr-FR');
-  const M = 56, isBC = type === 'bc';
-  const TITRE = isBC ? 'BON DE COMMANDE' : 'BON DE LIVRAISON';
+  const M = 56, isBC = type === 'bc' || type === 'facture';
+  const TITRE = type === 'bc' ? 'BON DE COMMANDE' : type === 'facture' ? 'FACTURE MATÉRIEL' : 'BON DE LIVRAISON';
   const LIV = { entrepot:'Entrepôt', beneficiaire:'Chez le bénéficiaire', partenaire:'Chez le partenaire', chantier:'Sur le chantier' };
 
   const doc = new PDFDocument({ size:'A4', margin:M, info:{ Title: TITRE + ' ' + c.reference, Author: org.nom || '' } });
@@ -3282,18 +3316,30 @@ function renderCommandePdf(res, ctx) {
   });
   y += 16;
 
-  if (isBC) {
-    const tw = W*0.42, tx = R-tw;
+  if (type === 'bc' || type === 'facture') {
+    const tw = W*0.46, tx = R-tw;
     const row = (lab, val, strong) => {
       if (strong) { doc.rect(tx, y, tw, 24).fill(BAND); }
       doc.font(strong?'Helvetica-Bold':'Helvetica').fontSize(strong?10:9).fillColor(strong?'#ffffff':INK);
-      doc.text(lab, tx+10, y + (strong?8:2), { width: tw*0.5 });
-      doc.text(val, tx+tw*0.5, y + (strong?8:2), { width: tw*0.5-10, align:'right' });
+      doc.text(lab, tx+10, y + (strong?8:2), { width: tw*0.62 });
+      doc.text(val, tx+tw*0.38, y + (strong?8:2), { width: tw*0.62-10, align:'right' });
       y += strong ? 24 : 16;
     };
-    row('Total HT', eur(totHT));
-    row('TVA', eur(totTVA));
-    row('TOTAL TTC', eur(totHT + totTVA), true);
+    if (type === 'bc') {
+      row('Total HT', eur(totHT));
+      row('TVA', eur(totTVA));
+      row('TOTAL TTC', eur(totHT + totTVA), true);
+    } else {
+      const reste = +c.reste_a_charge || 0;
+      row('Total matériel TTC', eur(totHT + totTVA));
+      row('Pris en charge — Certificats d\'Économies d\'Énergie', eur(-(totHT + totTVA)));
+      row('NET À PAYER', eur(0), true);
+      y += 12;
+      doc.font('Helvetica').fontSize(9).fillColor(INK)
+        .text('Reste à charge partenaire : ' + eur(reste), M, y, { width: W }); y = doc.y + 6;
+      doc.font('Helvetica').fontSize(8.5).fillColor(SOFT)
+        .text("Matériel valorisé au titre du dispositif des Certificats d'Économies d'Énergie. Aucune somme n'est facturée au bénéficiaire.", M, y, { width: W, align:'justify', lineGap:2 });
+    }
   } else {
     doc.font('Helvetica').fontSize(8.5).fillColor(SOFT).text('Réception — date et signature :', M, y); y = doc.y + 6;
     doc.rect(M, y, W*0.5, 72).lineWidth(.8).strokeColor(RULE).stroke();
@@ -3309,7 +3355,7 @@ function renderCommandePdf(res, ctx) {
 app.get('/api/partner/commandes/:id/document/:type', requireRole('admin_partenaire'), (req, res) => {
   partnerScope(req, res, (s) => {
     const type = String(req.params.type || '').toLowerCase();
-    if (type !== 'bc' && type !== 'bl') return res.status(400).json({ error: 'Type de document inconnu' });
+    if (!['bc','bl','facture'].includes(type)) return res.status(400).json({ error: 'Type de document inconnu' });
     db.get('SELECT * FROM commandes WHERE id=? AND partenaire_id=?', [req.params.id, s.partenaire_id], (e, c) => {
       if (e)  return res.status(500).json({ error: e.message });
       if (!c) return res.status(404).json({ error: 'Commande introuvable' });
