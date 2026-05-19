@@ -2023,7 +2023,7 @@ app.get('/api/partner/dossiers', requirePartner, (req, res) => {
   partnerScope(req, res, (s) => {
     const f = dossierFilter(s);
     getPrixCee(s.partenaire_id, (prix) => {
-      db.all(`SELECT b.id,b.code,b.nom,b.prenom,b.email,b.telephone,b.raison_sociale,b.siret,b.ville,
+      db.all(`SELECT b.id,b.code,b.nom,b.prenom,b.email,b.telephone,b.raison_sociale,b.siret,b.adresse,b.code_postal,b.ville,
                 b.activite,b.statut,b.statut_cee,b.apporteur_id,b.operation_id,b.created_at,b.updated_at,
                 (SELECT COALESCE(SUM(volume_kwh),0) FROM cee_operations WHERE beneficiaire_id=b.id) AS volume_cumac,
                 (SELECT COUNT(DISTINCT type) FROM documents WHERE beneficiaire_id=b.id AND uploaded_by='beneficiaire' AND type IN ('kbis_rne','liasse_fiscale','attestation_urssaf')) AS docs_count,
@@ -2074,6 +2074,228 @@ app.get('/api/partner/dossiers/:id', requirePartner, (req, res) => {
               });
           });
       });
+    });
+  });
+});
+
+// ═══ Tableau de bord partenaire — exports CSV ════════════════════════════════
+const REGIONS_FR = {
+  'Auvergne-Rhône-Alpes':['01','03','07','15','26','38','42','43','63','69','73','74'],
+  'Bourgogne-Franche-Comté':['21','25','39','58','70','71','89','90'],
+  'Bretagne':['22','29','35','56'],
+  'Centre-Val de Loire':['18','28','36','37','41','45'],
+  'Corse':['20','2A','2B'],
+  'Grand Est':['08','10','51','52','54','55','57','67','68','88'],
+  'Hauts-de-France':['02','59','60','62','80'],
+  'Île-de-France':['75','77','78','91','92','93','94','95'],
+  'Normandie':['14','27','50','61','76'],
+  'Nouvelle-Aquitaine':['16','17','19','23','24','33','40','47','64','79','86','87'],
+  'Occitanie':['09','11','12','30','31','32','34','46','48','65','66','81','82'],
+  'Pays de la Loire':['44','49','53','72','85'],
+  "Provence-Alpes-Côte d'Azur":['04','05','06','13','83','84'],
+  'Guadeloupe':['971'],'Martinique':['972'],'Guyane':['973'],'La Réunion':['974'],'Mayotte':['976']
+};
+const DEPT_TO_REGION = {};
+Object.entries(REGIONS_FR).forEach(([reg, depts]) => depts.forEach(d => { DEPT_TO_REGION[d] = reg; }));
+function regionFromCP(cp) {
+  cp = String(cp || '').trim();
+  if (!cp) return '';
+  if (cp.startsWith('97') || cp.startsWith('98')) return DEPT_TO_REGION[cp.slice(0,3)] || '';
+  return DEPT_TO_REGION[cp.slice(0,2)] || '';
+}
+function csvCell(v) {
+  v = (v == null ? '' : String(v));
+  return /[";\r\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v;
+}
+function buildCsv(headers, rows) {
+  const lines = [headers.map(csvCell).join(';')];
+  rows.forEach(r => lines.push(r.map(csvCell).join(';')));
+  return '﻿' + lines.join('\r\n');
+}
+function sendCsv(res, filename, csv) {
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(csv);
+}
+const CEE_STATUT_FR  = { engage:'Engagé', controle:'Contrôle', valide:'Validé', facture:'Facturé' };
+const COMM_MODE_FR   = { pct:'%', eur_mwhc:'€/MWhc', fixe:'€ fixe' };
+
+// Export des commissions par apporteur d'affaires
+app.get('/api/partner/export/commissions', requirePartner, (req, res) => {
+  partnerScope(req, res, (s) => {
+    const f = dossierFilter(s);
+    getPrixCee(s.partenaire_id, (prix) => {
+      const cc = scopeCommission(s);
+      db.all(`SELECT b.code,b.nom,b.prenom,b.raison_sociale,b.code_postal,b.ville,b.statut_cee,
+                (SELECT COALESCE(SUM(volume_kwh),0) FROM cee_operations WHERE beneficiaire_id=b.id) AS cumac,
+                (SELECT nom FROM comptes WHERE id=b.apporteur_id) AS apporteur_nom,
+                po.code_fiche AS op_code, po.nom AS op_nom, po.commission_mode AS op_cmode, po.commission_valeur AS op_cval
+              FROM beneficiaires b LEFT JOIN partenaire_operations po ON po.id=b.operation_id
+              WHERE ${f.where} ORDER BY apporteur_nom, b.created_at`, f.params, (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        rows = rows || [];
+        const headers = ['Apporteur','Code dossier','Bénéficiaire','Entreprise','Opération','Fiche',
+          'Région','Ville','Volume kWh cumac','Subvention (€)','Commission','Mode','Statut CEE'];
+        const out = []; let grand = 0, sub = 0, lastApp = null, nApp = 0;
+        const flush = () => { if (lastApp !== null) {
+          out.push([`Total — ${lastApp}`,'','','','','','','', '', '', sub, `${nApp} dossier(s)`, '']); out.push([]);
+        } };
+        rows.forEach(r => {
+          const app = r.apporteur_nom || '(non attribué)';
+          if (app !== lastApp) { flush(); sub = 0; nApp = 0; lastApp = app; }
+          const subv = Math.round((r.cumac||0) * prix / 1000);
+          const cm = r.op_cmode || cc.mode;
+          const cv = r.op_cmode != null ? r.op_cval : cc.valeur;
+          const com = computeCommission(cm, cv, { subvention: subv, volume_cumac: r.cumac });
+          sub += com; grand += com; nApp++;
+          out.push([app, r.code, `${r.prenom||''} ${r.nom||''}`.trim(), r.raison_sociale||'',
+            r.op_nom||'', r.op_code||'', regionFromCP(r.code_postal), r.ville||'',
+            r.cumac||0, subv, com, COMM_MODE_FR[cm]||cm, CEE_STATUT_FR[r.statut_cee]||r.statut_cee||'']);
+        });
+        flush();
+        out.push(['TOTAL GÉNÉRAL','','','','','','','', '', '', grand, `${rows.length} dossier(s)`, '']);
+        sendCsv(res, `commissions-${new Date().toISOString().slice(0,10)}.csv`, buildCsv(headers, out));
+      });
+    });
+  });
+});
+
+// Export EMMY — tableau récapitulatif des opérations (structure Annexe 6, arrêté 04/09/2014)
+app.get('/api/partner/export/emmy', requirePartner, (req, res) => {
+  partnerScope(req, res, (s) => {
+    const f = dossierFilter(s);
+    const opId = parseInt(req.query.operation_id) || null;
+    let where = f.where; const params = [...f.params];
+    if (opId) { where += ' AND b.operation_id=?'; params.push(opId); }
+    getPrixCee(s.partenaire_id, (prix) => {
+      db.all(`SELECT b.code,b.nom,b.prenom,b.raison_sociale,b.siret,b.adresse,b.code_postal,b.ville,b.statut_cee,
+                (SELECT COALESCE(SUM(volume_kwh),0) FROM cee_operations WHERE beneficiaire_id=b.id) AS cumac,
+                (SELECT MIN(date_engagement) FROM cee_operations WHERE beneficiaire_id=b.id) AS d_eng,
+                (SELECT MAX(date_achevement) FROM cee_operations WHERE beneficiaire_id=b.id) AS d_ach,
+                po.code_fiche AS op_code, po.nom AS op_nom, po.secteur AS op_secteur
+              FROM beneficiaires b LEFT JOIN partenaire_operations po ON po.id=b.operation_id
+              WHERE ${where} ORDER BY po.code_fiche, b.code`, params, (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        rows = rows || [];
+        const headers = ['Référence dossier','Type de bénéficiaire','Raison sociale','Nom','Prénom','SIRET',
+          'Adresse des travaux','Code postal','Ville','Région','Code fiche','Dénomination opération','Secteur',
+          "Date d'engagement","Date d'achèvement",'Volume (kWh cumac)','Prime estimée (€)','Statut'];
+        const out = rows.map(r => {
+          const morale = !!(r.raison_sociale && r.raison_sociale.trim());
+          const subv = Math.round((r.cumac||0) * prix / 1000);
+          return [r.code, morale?'Personne morale':'Personne physique', r.raison_sociale||'',
+            r.nom||'', r.prenom||'', r.siret||'', r.adresse||'', r.code_postal||'', r.ville||'',
+            regionFromCP(r.code_postal), r.op_code||'', r.op_nom||'', r.op_secteur||'',
+            r.d_eng||'', r.d_ach||'', r.cumac||0, subv, CEE_STATUT_FR[r.statut_cee]||r.statut_cee||''];
+        });
+        let fname = 'export-emmy';
+        if (opId && rows[0] && rows[0].op_code) fname += '-' + String(rows[0].op_code).replace(/[^A-Za-z0-9-]/g,'');
+        sendCsv(res, `${fname}-${new Date().toISOString().slice(0,10)}.csv`, buildCsv(headers, out));
+      });
+    });
+  });
+});
+
+// Helpers DB promesse (pour l'import séquentiel)
+function dbGet(sql, params) { return new Promise((resolve, reject) => db.get(sql, params, (e, r) => e ? reject(e) : resolve(r))); }
+function dbRun(sql, params) { return new Promise((resolve, reject) => db.run(sql, params, function(e) { e ? reject(e) : resolve(this); })); }
+// Parseur CSV — détecte ; ou , — gère les champs entre guillemets
+function parseCsvText(text) {
+  text = text.replace(/^﻿/, '');
+  const firstLine = text.split(/\r?\n/)[0] || '';
+  const sep = (firstLine.split(';').length >= firstLine.split(',').length) ? ';' : ',';
+  const rows = []; let row = [], field = '', inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') { if (text[i+1] === '"') { field += '"'; i++; } else inQ = false; }
+      else field += c;
+    } else if (c === '"') { inQ = true; }
+    else if (c === sep)   { row.push(field); field = ''; }
+    else if (c === '\n')  { row.push(field); rows.push(row); row = []; field = ''; }
+    else if (c !== '\r')  { field += c; }
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+// Import CEE / EMMY — crée les nouveaux dossiers, met à jour ceux reconnus par leur code
+app.post('/api/partner/import', requireRole('admin_partenaire','apporteur'), (req, res) => {
+  csvXlsxUpload.single('file')(req, res, (uErr) => {
+    if (uErr)      return res.status(400).json({ error: uErr.message || 'Upload échoué' });
+    if (!req.file) return res.status(400).json({ error: 'Fichier CSV requis' });
+    partnerScope(req, res, async (s) => {
+      try {
+        const rows = parseCsvText(req.file.buffer.toString('utf8'));
+        if (rows.length < 2) return res.status(400).json({ error: 'Fichier vide ou sans ligne de données.' });
+        const norm = h => String(h||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+        const head = rows[0].map(norm);
+        const col = (...names) => { for (const n of names) { const i = head.indexOf(n); if (i >= 0) return i; } return -1; };
+        const ci = {
+          code:    col('code','reference dossier','reference','ref'),
+          nom:     col('nom'),
+          prenom:  col('prenom'),
+          rs:      col('raison sociale','entreprise','societe','raison_sociale'),
+          siret:   col('siret'),
+          email:   col('email','mail','e-mail'),
+          tel:     col('telephone','tel'),
+          adresse: col('adresse','adresse des travaux'),
+          cp:      col('code postal','cp','code_postal'),
+          ville:   col('ville'),
+          fiche:   col('code fiche','code fiche operation','fiche','operation'),
+          volume:  col('volume (kwh cumac)','volume kwh cumac','volume','kwh cumac','cumac','volume_kwh'),
+          statut:  col('statut','statut cee','statut_cee')
+        };
+        const normStatut = v => { v = norm(v);
+          if (v.startsWith('eng'))    return 'engage';
+          if (v.startsWith('contr'))  return 'controle';
+          if (v.startsWith('valid'))  return 'valide';
+          if (v.startsWith('factur')) return 'facture';
+          return null; };
+        const get = (row, i) => (i >= 0 && i < row.length) ? String(row[i] || '').trim() : '';
+        const dataRows = rows.slice(1).filter(r => r.some(c => String(c||'').trim()));
+        let created = 0, updated = 0; const errors = [];
+        for (let idx = 0; idx < dataRows.length; idx++) {
+          const row = dataRows[idx], ln = idx + 2;
+          try {
+            const code = get(row, ci.code);
+            const nom = get(row, ci.nom), prenom = get(row, ci.prenom), rs = get(row, ci.rs);
+            const statut = normStatut(get(row, ci.statut));
+            const volume = parseFloat(get(row, ci.volume).replace(/[  ]/g,'').replace(',','.')) || 0;
+            const fiche = get(row, ci.fiche);
+            let existing = null;
+            if (code) {
+              let q = 'SELECT id FROM beneficiaires WHERE code=? AND partenaire=? AND archived=0';
+              const qp = [code, s.partenaire_nom];
+              if (s.role === 'apporteur') { q += ' AND apporteur_id=?'; qp.push(s.id); }
+              existing = await dbGet(q, qp);
+            }
+            if (existing) {
+              if (statut) await dbRun('UPDATE beneficiaires SET statut_cee=?,updated_at=CURRENT_TIMESTAMP WHERE id=?', [statut, existing.id]);
+              if (volume > 0) {
+                const op = await dbGet('SELECT id FROM cee_operations WHERE beneficiaire_id=? LIMIT 1', [existing.id]);
+                if (op) await dbRun('UPDATE cee_operations SET volume_kwh=?,updated_at=CURRENT_TIMESTAMP WHERE id=?', [volume, op.id]);
+                else    await dbRun("INSERT INTO cee_operations (beneficiaire_id,code_fiche,nom_operation,volume_kwh,statut) VALUES (?,?,?,?,'en_cours')", [existing.id, fiche, fiche || 'Import', volume]);
+              }
+              updated++;
+            } else {
+              if (!nom && !rs) { errors.push({ ligne: ln, message: 'Ni nom ni raison sociale — ligne ignorée' }); continue; }
+              const newCode = await generateUniqueCode();
+              const r = await dbRun(`INSERT INTO beneficiaires (code,nom,prenom,email,telephone,raison_sociale,siret,adresse,code_postal,ville,partenaire,statut,statut_cee,apporteur_id)
+                                     VALUES (?,?,?,?,?,?,?,?,?,?,?,'en_attente',?,?)`,
+                [newCode, nom || rs, prenom, get(row,ci.email), get(row,ci.tel), rs, get(row,ci.siret),
+                 get(row,ci.adresse), get(row,ci.cp), get(row,ci.ville), s.partenaire_nom,
+                 statut || 'engage', s.role === 'apporteur' ? s.id : null]);
+              if (volume > 0 || fiche) {
+                await dbRun("INSERT INTO cee_operations (beneficiaire_id,code_fiche,nom_operation,volume_kwh,statut) VALUES (?,?,?,?,'en_cours')",
+                  [r.lastID, fiche, fiche || 'Import', volume]);
+              }
+              created++;
+            }
+          } catch(e) { errors.push({ ligne: ln, message: e.message }); }
+        }
+        res.json({ success: true, total: dataRows.length, created, updated, errors });
+      } catch(e) { res.status(500).json({ error: e.message }); }
     });
   });
 });
