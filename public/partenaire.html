@@ -163,6 +163,7 @@
       <button class="btn btn-sm btn-outline-secondary d-none" id="btnCatalogue" onclick="openCatalogue()"><i class="fas fa-layer-group me-1"></i>Catalogue</button>
       <button class="btn btn-sm btn-outline-secondary d-none" id="btnTeam" onclick="openTeam()"><i class="fas fa-users me-1"></i>Mon équipe</button>
       <button class="btn btn-sm btn-outline-secondary" id="btnDash" onclick="openDashModal()"><i class="fas fa-chart-line me-1"></i>Tableau de bord</button>
+      <button class="btn btn-sm btn-outline-secondary" id="btnComm" onclick="openCommModal()"><i class="fas fa-comments me-1"></i>Communication</button>
       <button class="btn btn-sm btn-primary" onclick="openDeposit()"><i class="fas fa-plus me-1"></i>Déposer un dossier</button>
       <button class="btn btn-sm btn-outline-secondary" onclick="openAccountModal()" title="Mon compte"><i class="fas fa-id-card me-1"></i>Mon compte</button>
       <button class="btn btn-sm btn-outline-secondary" onclick="logout()"><i class="fas fa-right-from-bracket me-1"></i>Déconnexion</button>
@@ -445,6 +446,40 @@
           <button class="btn btn-sm btn-primary" id="importBtn" onclick="runImport()"><i class="fas fa-upload me-1"></i>Importer</button>
         </div>
         <div id="importResult" class="mt-3"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL COMMUNICATION ══ -->
+<div class="modal fade" id="commModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-0 rounded-4">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fw-bold"><i class="fas fa-comments me-2" style="color:var(--accent)"></i>Communication</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div class="d-flex gap-1 flex-wrap mb-3" id="commTabs">
+          <button class="fpill active" onclick="commTab('annonces',this)"><i class="fas fa-bullhorn me-1"></i>Annonces</button>
+          <button class="fpill" onclick="commTab('messagerie',this)"><i class="fas fa-inbox me-1"></i>Messagerie EchoWAI</button>
+          <button class="fpill" onclick="commTab('modeles',this)"><i class="fas fa-file-lines me-1"></i>Modèles &amp; supports</button>
+          <button class="fpill" onclick="commTab('contact',this)"><i class="fas fa-paper-plane me-1"></i>Contacter un bénéficiaire</button>
+        </div>
+        <div id="cp-annonces" style="max-height:420px;overflow-y:auto"></div>
+        <div id="cp-messagerie" class="d-none"></div>
+        <div id="cp-modeles" class="d-none" style="max-height:420px;overflow-y:auto"></div>
+        <div id="cp-contact" class="d-none">
+          <div id="contactError" class="alert alert-danger d-none py-2"></div>
+          <div class="alert alert-light border small mb-3"><i class="fas fa-circle-info me-1"></i>Envoie un email à l'un de tes bénéficiaires. L'email part au nom de ton organisation.</div>
+          <div class="mb-2"><label class="form-label">Bénéficiaire</label>
+            <select class="form-select form-select-sm" id="ctBenef"></select></div>
+          <div class="mb-2"><label class="form-label">Sujet</label>
+            <input class="form-control form-control-sm" id="ctSujet" placeholder="Objet de l'email"></div>
+          <div class="mb-2"><label class="form-label">Message</label>
+            <textarea class="form-control form-control-sm" id="ctMessage" rows="7" placeholder="Votre message…"></textarea></div>
+          <button class="btn btn-sm btn-primary mt-1" onclick="sendContactBenef()"><i class="fas fa-paper-plane me-1"></i>Envoyer l'email</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1093,6 +1128,134 @@ async function runImport() {
     res.innerHTML = '<div class="alert alert-danger small mb-0">Erreur réseau.</div>';
   }
   btn.disabled = false; inp.value = '';
+}
+
+// ── Communication ──
+function commTab(tab, el) {
+  document.querySelectorAll('#commTabs .fpill').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  ['annonces','messagerie','modeles','contact'].forEach(t =>
+    document.getElementById('cp-'+t).classList.toggle('d-none', t !== tab));
+}
+function openCommModal() {
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('commModal')).show();
+  commTab('annonces', document.querySelector('#commTabs .fpill'));
+  loadAnnonces(); loadMessages(); loadModeles(); loadContactBenefs();
+}
+async function loadAnnonces() {
+  const box = document.getElementById('cp-annonces');
+  box.innerHTML = '<div class="text-center py-3" style="color:var(--t3)"><i class="fas fa-spinner fa-spin"></i></div>';
+  try {
+    const list = await (await fetch('/api/partner/annonces')).json();
+    if (!list.length) { box.innerHTML = '<div style="color:var(--t3);font-size:.85rem">Aucune annonce.</div>'; return; }
+    const NIV = { info:['var(--BAR)','circle-info'], alerte:['var(--danger)','triangle-exclamation'], nouveaute:['var(--accent)','star'] };
+    box.innerHTML = list.map(a => { const n = NIV[a.niveau] || NIV.info; return `
+      <div class="op-card">
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <i class="fas fa-${n[1]}" style="color:${n[0]}"></i>
+          <strong>${escH(a.titre)}</strong>
+          <span style="margin-left:auto;font-size:.7rem;color:var(--t3)">${fmtDate(a.created_at)}</span>
+        </div>
+        <div style="font-size:.84rem;color:var(--t2);white-space:pre-wrap">${escH(a.contenu)}</div>
+      </div>`; }).join('');
+  } catch(e) { box.innerHTML = '<div class="alert alert-danger">Erreur de chargement.</div>'; }
+}
+function loadMessages() {
+  document.getElementById('cp-messagerie').innerHTML =
+    `<div id="msgThread" style="max-height:320px;overflow-y:auto;margin-bottom:12px;padding-right:4px"></div>
+     <div class="d-flex gap-2">
+       <textarea class="form-control form-control-sm" id="msgInput" rows="2" placeholder="Votre message à l'équipe EchoWAI…"></textarea>
+       <button class="btn btn-sm btn-primary" onclick="sendMessage()"><i class="fas fa-paper-plane"></i></button>
+     </div>`;
+  renderMsgThread();
+}
+async function renderMsgThread() {
+  const thread = document.getElementById('msgThread');
+  if (!thread) return;
+  try {
+    const list = await (await fetch('/api/partner/messages')).json();
+    if (!list.length) {
+      thread.innerHTML = '<div style="color:var(--t3);font-size:.82rem;text-align:center;padding:18px">Aucun message. Écris à l\'équipe EchoWAI ci-dessous.</div>';
+      return;
+    }
+    thread.innerHTML = list.map(m => {
+      const mine = m.auteur === 'partenaire';
+      return `<div style="display:flex;justify-content:${mine?'flex-end':'flex-start'};margin-bottom:8px">
+        <div style="max-width:80%;background:${mine?'var(--accent-dim)':'var(--bg-3)'};border:1px solid ${mine?'var(--accent-line)':'var(--border)'};border-radius:10px;padding:8px 11px">
+          <div style="font-size:.67rem;color:var(--t3);margin-bottom:2px">${mine?escH(m.nom_auteur||'Vous'):'EchoWAI'} · ${fmtDate(m.created_at)}</div>
+          <div style="font-size:.84rem;color:var(--t1);white-space:pre-wrap">${escH(m.contenu)}</div>
+        </div></div>`;
+    }).join('');
+    thread.scrollTop = thread.scrollHeight;
+  } catch(e) {}
+}
+async function sendMessage() {
+  const inp = document.getElementById('msgInput');
+  const txt = inp.value.trim();
+  if (!txt) return;
+  const r = await fetch('/api/partner/messages', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ contenu:txt }) });
+  if (r.ok) { inp.value = ''; renderMsgThread(); showToast('Message envoyé'); }
+  else showToast('Erreur', 'danger');
+}
+let modelesData = [];
+async function loadModeles() {
+  const box = document.getElementById('cp-modeles');
+  box.innerHTML = '<div class="text-center py-3" style="color:var(--t3)"><i class="fas fa-spinner fa-spin"></i></div>';
+  try {
+    modelesData = await (await fetch('/api/partner/modeles')).json();
+    if (!modelesData.length) { box.innerHTML = '<div style="color:var(--t3)">Aucun modèle.</div>'; return; }
+    const CAT = { email:'Email-type', attestation:'Attestation', marketing:'Support' };
+    box.innerHTML = modelesData.map((m,i) => `
+      <div class="op-card">
+        <div class="d-flex align-items-center gap-2">
+          <span class="sec-code" style="background:var(--accent-dim);color:var(--accent)">${escH(CAT[m.categorie]||m.categorie)}</span>
+          <strong style="font-size:.86rem">${escH(m.titre)}</strong>
+          <div class="d-flex gap-1" style="margin-left:auto">
+            <button class="btn btn-sm btn-outline-secondary" onclick="copyModele(${i})" title="Copier"><i class="fas fa-copy"></i></button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="dlModele(${i})" title="Télécharger"><i class="fas fa-download"></i></button>
+          </div>
+        </div>
+        <pre style="margin:8px 0 0;white-space:pre-wrap;font-family:inherit;font-size:.8rem;color:var(--t2);background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:10px;max-height:170px;overflow:auto">${escH(m.contenu)}</pre>
+      </div>`).join('');
+  } catch(e) { box.innerHTML = '<div class="alert alert-danger">Erreur.</div>'; }
+}
+function copyModele(i) {
+  navigator.clipboard.writeText(modelesData[i].contenu).then(() => showToast('Modèle copié')).catch(() => showToast('Copie impossible','danger'));
+}
+function dlModele(i) {
+  const m = modelesData[i];
+  const blob = new Blob([m.contenu], { type:'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = m.titre.replace(/[^\wÀ-ÿ-]+/g,'_') + '.txt';
+  a.click(); URL.revokeObjectURL(a.href);
+}
+async function loadContactBenefs() {
+  const sel = document.getElementById('ctBenef');
+  try {
+    const list = await (await fetch('/api/partner/dossiers')).json();
+    const withEmail = (Array.isArray(list)?list:[]).filter(d => d.email);
+    sel.innerHTML = withEmail.length
+      ? withEmail.map(d => `<option value="${d.id}">${escH(((d.prenom||'')+' '+(d.nom||'')).trim()||d.code)} — ${escH(d.email)}</option>`).join('')
+      : '<option value="">Aucun bénéficiaire avec adresse email</option>';
+  } catch(e) { sel.innerHTML = '<option value="">Erreur de chargement</option>'; }
+}
+async function sendContactBenef() {
+  const err = document.getElementById('contactError'); err.classList.add('d-none');
+  const body = {
+    beneficiaire_id: document.getElementById('ctBenef').value,
+    sujet: document.getElementById('ctSujet').value.trim(),
+    message: document.getElementById('ctMessage').value.trim()
+  };
+  if (!body.beneficiaire_id || !body.sujet || !body.message) {
+    err.textContent = 'Bénéficiaire, sujet et message requis'; err.classList.remove('d-none'); return;
+  }
+  const r = await fetch('/api/partner/contact-beneficiaire', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok && d.success) {
+    showToast('Email envoyé au bénéficiaire');
+    document.getElementById('ctSujet').value = ''; document.getElementById('ctMessage').value = '';
+  } else { err.textContent = d.error || 'Erreur'; err.classList.remove('d-none'); }
 }
 
 // ── Helpers ──

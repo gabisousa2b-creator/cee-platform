@@ -86,6 +86,47 @@ db.serialize(() => {
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
+  // ── Communication partenaires ─────────────────────────────────────────────────
+  db.run(`CREATE TABLE IF NOT EXISTS annonces (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    titre      TEXT NOT NULL,
+    contenu    TEXT NOT NULL,
+    niveau     TEXT DEFAULT 'info',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS messages_partenaire (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    partenaire_id INTEGER NOT NULL,
+    auteur        TEXT NOT NULL DEFAULT 'partenaire',
+    nom_auteur    TEXT DEFAULT '',
+    contenu       TEXT NOT NULL,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS comm_modeles (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    categorie  TEXT DEFAULT 'email',
+    titre      TEXT NOT NULL,
+    contenu    TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  db.get('SELECT COUNT(*) AS n FROM annonces', (e, r) => {
+    if (e || !r || r.n) return;
+    const a = db.prepare('INSERT INTO annonces (titre,contenu,niveau) VALUES (?,?,?)');
+    a.run('Bienvenue sur votre espace partenaire EchoWAI', "Votre espace centralise le dépôt des dossiers CEE, le suivi des commissions, les exports EMMY et les outils de communication. Les annonces d'EchoWAI s'afficheront ici.", 'info');
+    a.run("Catalogue d'opérations", "Le catalogue couvre les 261 fiches d'opérations standardisées des 6 secteurs CEE. Fixez une commission par opération avant de l'affecter à vos apporteurs d'affaires.", 'nouveaute');
+    a.run('Rappel — pièces justificatives', "Tout dossier doit comporter le KBIS/RNE, la liasse fiscale et l'attestation de vigilance URSSAF du bénéficiaire pour passer en contrôle.", 'alerte');
+    a.finalize();
+  });
+  db.get('SELECT COUNT(*) AS n FROM comm_modeles', (e, r) => {
+    if (e || !r || r.n) return;
+    const m = db.prepare('INSERT INTO comm_modeles (categorie,titre,contenu) VALUES (?,?,?)');
+    m.run('email', 'Email — Première prise de contact', "Objet : Votre prime CEE — pièces à transmettre\n\nBonjour,\n\nNous accompagnons la valorisation de vos travaux d'économies d'énergie au titre des Certificats d'Économies d'Énergie (CEE).\n\nPour constituer votre dossier, merci de nous transmettre :\n- l'extrait KBIS ou RNE de votre société,\n- votre dernière liasse fiscale,\n- votre attestation de vigilance URSSAF.\n\nNous restons à votre disposition.\n\nCordialement,");
+    m.run('email', 'Email — Relance pièces manquantes', "Objet : Dossier CEE — pièces en attente\n\nBonjour,\n\nVotre dossier CEE est en cours de constitution ; il nous manque encore certaines pièces justificatives.\n\nMerci de nous les transmettre afin de ne pas retarder le versement de votre prime.\n\nCordialement,");
+    m.run('attestation', "Attestation sur l'honneur — modèle", "ATTESTATION SUR L'HONNEUR\n\nJe soussigné(e) [Nom Prénom], agissant en qualité de [fonction] de la société [raison sociale], SIRET [numéro],\n\natteste sur l'honneur que les travaux d'économies d'énergie réalisés à l'adresse [adresse des travaux] sont conformes à la fiche d'opération standardisée [code fiche] et n'ont fait l'objet d'aucune autre demande de Certificats d'Économies d'Énergie.\n\nFait à [ville], le [date].\n\nSignature :");
+    m.run('marketing', 'Argumentaire — Le dispositif CEE', "LES CERTIFICATS D'ÉCONOMIES D'ÉNERGIE\n\nLe dispositif CEE oblige les fournisseurs d'énergie à financer des travaux d'économies d'énergie.\n\nPour le bénéficiaire :\n- une prime qui réduit le coût des travaux,\n- un dispositif encadré par l'État,\n- un accompagnement de bout en bout.\n\nSecteurs éligibles : résidentiel, tertiaire, industrie, agriculture, réseaux, transport.");
+    m.finalize();
+  });
+
   // ── Opérations CEE ────────────────────────────────────────────────────────────
   db.run(`CREATE TABLE IF NOT EXISTS cee_operations (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2298,6 +2339,75 @@ app.post('/api/partner/import', requireRole('admin_partenaire','apporteur'), (re
       } catch(e) { res.status(500).json({ error: e.message }); }
     });
   });
+});
+
+// ═══ Communication partenaire — annonces, messagerie, modèles ════════════════
+app.get('/api/partner/annonces', requirePartner, (req, res) => {
+  db.all('SELECT id,titre,contenu,niveau,created_at FROM annonces ORDER BY created_at DESC LIMIT 50', [],
+    (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows || []));
+});
+app.get('/api/partner/modeles', requirePartner, (req, res) => {
+  db.all('SELECT id,categorie,titre,contenu FROM comm_modeles ORDER BY categorie,titre', [],
+    (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows || []));
+});
+app.get('/api/partner/messages', requirePartner, (req, res) => {
+  partnerScope(req, res, (s) => {
+    db.all('SELECT id,auteur,nom_auteur,contenu,created_at FROM messages_partenaire WHERE partenaire_id=? ORDER BY created_at',
+      [s.partenaire_id], (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows || []));
+  });
+});
+app.post('/api/partner/messages', requirePartner, (req, res) => {
+  partnerScope(req, res, (s) => {
+    const contenu = String(req.body.contenu || '').trim();
+    if (!contenu) return res.status(400).json({ error: 'Message vide' });
+    db.run('INSERT INTO messages_partenaire (partenaire_id,auteur,nom_auteur,contenu) VALUES (?,?,?,?)',
+      [s.partenaire_id, 'partenaire', s.compte_nom || s.partenaire_nom, contenu], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        const t = getTransporter();
+        if (t && process.env.SMTP_USER) {
+          t.sendMail({ from: `"EchoWAI Plateforme" <${process.env.SMTP_USER}>`, to: process.env.SMTP_USER,
+            subject: `Message partenaire — ${s.partenaire_nom}`,
+            text: `De : ${s.compte_nom || ''} (${s.partenaire_nom})\n\n${contenu}` }).catch(() => {});
+        }
+        res.json({ success: true, id: this.lastID });
+      });
+  });
+});
+// Communication bénéficiaires — le partenaire envoie un email à l'un de ses bénéficiaires
+app.post('/api/partner/contact-beneficiaire', requireRole('admin_partenaire','apporteur'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    const { beneficiaire_id, sujet, message } = req.body;
+    if (!beneficiaire_id || !String(sujet||'').trim() || !String(message||'').trim())
+      return res.status(400).json({ error: 'Bénéficiaire, sujet et message requis' });
+    const f = dossierFilter(s);
+    db.get(`SELECT b.email,b.nom,b.prenom FROM beneficiaires b WHERE ${f.where} AND b.id=?`,
+      [...f.params, beneficiaire_id], (err, b) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!b) return res.status(404).json({ error: 'Bénéficiaire hors de votre périmètre' });
+        if (!b.email) return res.status(400).json({ error: "Ce bénéficiaire n'a pas d'adresse email" });
+        const t = getTransporter();
+        if (!t) return res.status(400).json({ error: 'Service email non configuré sur le serveur' });
+        const safe = String(message).replace(/[<>&]/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;' }[c]));
+        t.sendMail({
+          from: `"${s.partenaire_nom}" <${process.env.SMTP_USER}>`, to: b.email,
+          subject: String(sujet).trim(),
+          html: `<div style="font-family:Arial,sans-serif;font-size:14px;color:#222;white-space:pre-wrap">${safe}</div>`
+        }).then(() => res.json({ success: true }))
+          .catch(e => res.status(500).json({ error: 'Envoi échoué : ' + e.message }));
+      });
+  });
+});
+// Admin — gestion des annonces (UI admin à venir)
+app.post('/api/admin/annonces', requireAdmin, (req, res) => {
+  const { titre, contenu, niveau } = req.body;
+  if (!titre || !contenu) return res.status(400).json({ error: 'Titre et contenu requis' });
+  db.run('INSERT INTO annonces (titre,contenu,niveau) VALUES (?,?,?)',
+    [titre, contenu, ['info','alerte','nouveaute'].includes(niveau) ? niveau : 'info'],
+    function(err) { err ? res.status(500).json({ error: err.message }) : res.json({ success: true, id: this.lastID }); });
+});
+app.delete('/api/admin/annonces/:id', requireAdmin, (req, res) => {
+  db.run('DELETE FROM annonces WHERE id=?', [req.params.id],
+    err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
 });
 
 // Dépôt d'un dossier par un partenaire / apporteur
