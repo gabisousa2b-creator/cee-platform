@@ -176,6 +176,10 @@ body {
 @keyframes orbitDot {
   to { offset-distance: 100%; }
 }
+@keyframes tickFlash {
+  0%   { opacity: 0.2; transform: translateY(-3px) scale(0.6); }
+  100% { opacity: 1;   transform: translateY(0) scale(1); }
+}
 @keyframes orbDrift {
   0%, 100% { transform: translate3d(0,0,0) scale(1); }
   50%      { transform: translate3d(30px,-20px,0) scale(1.04); }

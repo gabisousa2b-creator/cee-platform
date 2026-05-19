@@ -161,6 +161,24 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
 @keyframes ew-orbit { to { offset-distance: 100%; } }
 @media (prefers-reduced-motion: reduce) { .ew-logo i { animation: none; offset-distance: 12%; } }
 
+/* ── Ticker cours EMMY ── */
+.ew-emmy {
+  display: flex; align-items: center; gap: 7px; width: max-content;
+  margin: 7px 0 0 13px; padding: 5px 11px;
+  background: var(--bg-2); border: 1px solid var(--border); border-radius: 999px;
+  font-family: 'IBM Plex Mono',ui-monospace,monospace; line-height: 1;
+  box-shadow: var(--shadow-sm);
+}
+.ew-emmy-lab { font-size: 7.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--t3); white-space: nowrap; }
+.ew-emmy-row { display: inline-flex; align-items: center; gap: 5px; }
+.ew-emmy-val { font-size: 13px; font-weight: 600; color: var(--t1); }
+.ew-emmy-unit { font-size: 8px; transition: color .5s ease; }
+.ew-emmy-spark { width: 38px; height: 13px; overflow: visible; }
+.ew-emmy-spark polyline { transition: stroke .5s ease; }
+.ew-emmy-arr { font-size: 12px; font-weight: 700; display: inline-block; }
+@keyframes ewTick { 0% { opacity: .2; transform: translateY(-3px) scale(.6); } 100% { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ew-emmy-arr { animation: none !important; } }
+
 /* ═══════════ BOOTSTRAP — surcouche sombre ═══════════ */
 .bg-light  { background: var(--bg-3) !important; }
 .bg-white  { background: var(--bg-2) !important; }

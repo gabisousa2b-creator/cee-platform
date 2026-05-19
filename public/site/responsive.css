@@ -174,3 +174,6 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* EMMY ticker — masqué sur petit mobile */
+@media (max-width:600px) { .ew-tk { display:none !important; } }

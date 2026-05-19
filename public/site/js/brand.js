@@ -49,44 +49,187 @@ const EchoMark = ({
   className: "volt-dot"
 }));
 
-// Wordmark — logo #125 "Orbital Dot" : un point orbite le mot autour d'une ellipse
+// ── EMMY — cours CEE simulé · marche aléatoire bornée à ±5% de la base ──
+const EW_EMMY_BASE = 9.10;
+const EW_EMMY = function () {
+  var B = EW_EMMY_BASE,
+    lo = B * 0.95,
+    hi = B * 1.05;
+  var hist = [];
+  for (var i = 0; i < 24; i++) hist.push(B + (Math.random() - 0.5) * 0.045 * B);
+  var price = hist[hist.length - 1],
+    prev = price,
+    trend = 1,
+    tk = 0;
+  var subs = [];
+  function step() {
+    prev = price;
+    var d = -(price - B) * 0.16 + (Math.random() - 0.5) * 0.072 * B;
+    price = Math.min(hi, Math.max(lo, price + d));
+    trend = price > prev ? 1 : price < prev ? -1 : 0;
+    hist = hist.slice(1).concat(price);
+    tk++;
+    subs.forEach(function (f) {
+      f();
+    });
+  }
+  if (typeof window !== "undefined") setInterval(step, 2400);
+  return {
+    snap: function () {
+      return {
+        price: price,
+        prev: prev,
+        trend: trend,
+        base: B,
+        hist: hist,
+        tk: tk
+      };
+    },
+    sub: function (f) {
+      subs.push(f);
+      return function () {
+        subs = subs.filter(function (g) {
+          return g !== f;
+        });
+      };
+    }
+  };
+}();
+function useEmmy() {
+  const [, force] = React.useReducer(function (x) {
+    return x + 1;
+  }, 0);
+  React.useEffect(function () {
+    return EW_EMMY.sub(force);
+  }, []);
+  return EW_EMMY.snap();
+}
+function emmyColor(t) {
+  return t > 0 ? "#2E8B57" : t < 0 ? "#C2410C" : "var(--volt)";
+}
+
+// Wordmark — logo #125 "Orbital Dot" + cours EMMY animé ; le point réagit au trend
 const Wordmark = ({
   scale = 1,
   color = "var(--bone)",
-  accent = "var(--volt)"
-}) => /*#__PURE__*/React.createElement("span", {
-  style: {
-    position: "relative",
-    display: "inline-block",
-    padding: `${9 * scale}px ${15 * scale}px`
-  }
-}, /*#__PURE__*/React.createElement("span", {
-  className: "serif",
-  style: {
-    fontSize: 28 * scale,
-    lineHeight: 1,
-    letterSpacing: "-0.035em",
-    fontWeight: 500,
-    color
-  }
-}, "echo", /*#__PURE__*/React.createElement("span", {
-  style: {
-    color: accent
-  }
-}, "wai")), /*#__PURE__*/React.createElement("span", {
-  "aria-hidden": true,
-  style: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    width: 7 * scale,
-    height: 7 * scale,
-    borderRadius: "50%",
-    background: accent,
-    offsetPath: `ellipse(${66 * scale}px ${18 * scale}px at 50% 50%)`,
-    animation: "orbitDot 5.2s linear infinite"
-  }
-}));
+  accent = "var(--volt)",
+  emmy = true
+}) => {
+  const e = useEmmy();
+  const tc = emmyColor(e.trend);
+  const onDark = color === "#FFFFFF" || color === "#fff";
+  const h = e.hist.slice(-12);
+  const mx = Math.max.apply(null, h),
+    mn = Math.min.apply(null, h),
+    rg = mx - mn || 1;
+  const pts = h.map(function (v, i) {
+    return (i / (h.length - 1) * 38).toFixed(1) + "," + (13 - (v - mn) / rg * 11).toFixed(1);
+  }).join(" ");
+  return /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 13 * scale
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      position: "relative",
+      display: "inline-block",
+      padding: `${9 * scale}px ${15 * scale}px`
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "serif",
+    style: {
+      fontSize: 28 * scale,
+      lineHeight: 1,
+      letterSpacing: "-0.035em",
+      fontWeight: 500,
+      color
+    }
+  }, "echo", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: accent
+    }
+  }, "wai")), /*#__PURE__*/React.createElement("span", {
+    "aria-hidden": true,
+    style: {
+      position: "absolute",
+      left: 0,
+      top: 0,
+      width: 7 * scale,
+      height: 7 * scale,
+      borderRadius: "50%",
+      background: tc,
+      offsetPath: `ellipse(${66 * scale}px ${18 * scale}px at 50% 50%)`,
+      animation: "orbitDot 5.2s linear infinite",
+      transition: "background .6s ease",
+      boxShadow: `0 0 ${8 * scale}px ${tc}`
+    }
+  })), emmy && /*#__PURE__*/React.createElement("span", {
+    className: "ew-tk",
+    style: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8 * scale,
+      paddingLeft: 12 * scale,
+      borderLeft: `1px solid ${onDark ? "rgba(255,255,255,.2)" : "var(--rule-on)"}`
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: "inline-flex",
+      flexDirection: "column",
+      lineHeight: 1.15
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "mono",
+    style: {
+      fontSize: 8 * scale,
+      letterSpacing: ".13em",
+      color: onDark ? "rgba(255,255,255,.55)" : "var(--bone-mute)"
+    }
+  }, "EMMY \xB7 COURS CEE"), /*#__PURE__*/React.createElement("span", {
+    className: "mono",
+    style: {
+      fontSize: 13.5 * scale,
+      color,
+      fontWeight: 600,
+      letterSpacing: "-.01em"
+    }
+  }, e.price.toFixed(2), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 8.5 * scale,
+      color: tc,
+      marginLeft: 3
+    }
+  }, "\u20AC/MWh"))), /*#__PURE__*/React.createElement("svg", {
+    width: 40 * scale,
+    height: 15 * scale,
+    viewBox: "0 0 38 13",
+    style: {
+      overflow: "visible",
+      display: "block"
+    }
+  }, /*#__PURE__*/React.createElement("polyline", {
+    points: pts,
+    fill: "none",
+    stroke: tc,
+    strokeWidth: "1.5",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    style: {
+      transition: "stroke .6s ease"
+    }
+  })), /*#__PURE__*/React.createElement("span", {
+    key: e.tk,
+    className: "mono",
+    style: {
+      fontSize: 13 * scale,
+      color: tc,
+      fontWeight: 700,
+      animation: "tickFlash .5s var(--ease-out-quart)"
+    }
+  }, e.trend > 0 ? "↑" : e.trend < 0 ? "↓" : "→")));
+};
 
 // Brand card — features the wordmark + flowing motif
 const BrandCard = () => /*#__PURE__*/React.createElement("div", {
