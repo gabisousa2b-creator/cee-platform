@@ -1720,6 +1720,8 @@ db.serialize(() => {
 
   // Rattachement dossier → apporteur qui l'a déposé
   db.run(`ALTER TABLE beneficiaires ADD COLUMN apporteur_id INTEGER`, () => {});
+  // Rattachement dossier → installateur en charge de la pose
+  db.run(`ALTER TABLE beneficiaires ADD COLUMN installateur_id INTEGER`, () => {});
   // Parcours CEE du dossier : engage → controle → valide → facture
   db.run(`ALTER TABLE beneficiaires ADD COLUMN statut_cee TEXT DEFAULT 'engage'`, () => {});
 
@@ -2119,11 +2121,13 @@ function partnerScope(req, res, cb) {
       cb(row);
     });
 }
-// Filtre dossiers selon le rôle : apporteur = ses dépôts ; admin_partenaire = tout l'org
+// Filtre dossiers selon le rôle : apporteur = ses dépôts ; installateur = ses dossiers ; admin_partenaire = tout l'org
 function dossierFilter(s) {
-  return s.role === 'apporteur'
-    ? { where: 'b.archived=0 AND b.partenaire=? AND b.apporteur_id=?', params: [s.partenaire_nom, s.id] }
-    : { where: 'b.archived=0 AND b.partenaire=?',                       params: [s.partenaire_nom] };
+  if (s.role === 'apporteur')
+    return { where: 'b.archived=0 AND b.partenaire=? AND b.apporteur_id=?', params: [s.partenaire_nom, s.id] };
+  if (s.role === 'installateur')
+    return { where: 'b.archived=0 AND b.partenaire=? AND b.installateur_id=?', params: [s.partenaire_nom, s.id] };
+  return { where: 'b.archived=0 AND b.partenaire=?', params: [s.partenaire_nom] };
 }
 // Commission du périmètre courant : apporteur → sa commission ; admin_partenaire → celle de l'org
 function scopeCommission(s) {
@@ -2188,6 +2192,8 @@ app.get('/api/partner/dossiers', requirePartner, (req, res) => {
                 (SELECT COALESCE(SUM(volume_kwh),0) FROM cee_operations WHERE beneficiaire_id=b.id) AS volume_cumac,
                 (SELECT COUNT(DISTINCT type) FROM documents WHERE beneficiaire_id=b.id AND uploaded_by='beneficiaire' AND type IN ('kbis_rne','liasse_fiscale','attestation_urssaf')) AS docs_count,
                 (SELECT nom FROM comptes WHERE id=b.apporteur_id) AS apporteur_nom,
+                (SELECT nom FROM comptes WHERE id=b.installateur_id) AS installateur_nom,
+                b.installateur_id,
                 po.code_fiche AS operation_code, po.nom AS operation_nom,
                 po.commission_mode AS op_cmode, po.commission_valeur AS op_cval,
                 aoc.commission_mode AS ao_cmode, aoc.commission_valeur AS ao_cval
@@ -2758,10 +2764,11 @@ app.post('/api/partner/dossiers', requireRole('admin_partenaire','apporteur'), (
         if (!ids.includes(opId)) opId = null;
       }
       const delId = parseInt(b.delegataire_id) || null;
-      db.run(`INSERT INTO beneficiaires (code,nom,prenom,email,telephone,raison_sociale,siret,adresse,code_postal,ville,activite,partenaire,apporteur_id,operation_id,delegataire_id)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      const instId = parseInt(b.installateur_id) || null;
+      db.run(`INSERT INTO beneficiaires (code,nom,prenom,email,telephone,raison_sociale,siret,adresse,code_postal,ville,activite,partenaire,apporteur_id,operation_id,delegataire_id,installateur_id)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [code, b.nom.trim(), b.prenom.trim(), b.email||'', b.telephone||'', b.raison_sociale||'', b.siret||'',
-         b.adresse||'', b.code_postal||'', b.ville||'', b.activite||'', s.partenaire_nom, s.id, opId, delId],
+         b.adresse||'', b.code_postal||'', b.ville||'', b.activite||'', s.partenaire_nom, s.id, opId, delId, instId],
         function(err) {
           if (err) return res.status(500).json({ error: err.message });
           db.run(`INSERT INTO activity_logs (beneficiaire_id,action,details,auteur) VALUES (?,?,?,?)`,
@@ -2798,11 +2805,12 @@ app.post('/api/partner/team', requireRole('admin_partenaire'), (req, res) => {
     if (String(password).length < 6)  return res.status(400).json({ error: 'Mot de passe : 6 caractères minimum' });
     const cmode = COMMISSION_MODES.includes(req.body.commission_mode) ? req.body.commission_mode : 'pct';
     const cval  = parseFloat(req.body.commission_valeur) || 0;
+    const role = req.body.role === 'installateur' ? 'installateur' : 'apporteur';
     db.get('SELECT id FROM comptes WHERE lower(email)=lower(?)', [String(email).trim()], (e, exist) => {
       if (exist) return res.status(409).json({ error: 'Cet email est déjà utilisé' });
       db.run(`INSERT INTO comptes (partenaire_id,role,nom,email,password_hash,actif,commission_mode,commission_valeur)
               VALUES (?,?,?,?,?,1,?,?)`,
-        [s.partenaire_id, 'apporteur', nom.trim(), String(email).trim().toLowerCase(), hashPassword(password), cmode, cval],
+        [s.partenaire_id, role, nom.trim(), String(email).trim().toLowerCase(), hashPassword(password), cmode, cval],
         err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
     });
   });
@@ -2825,8 +2833,15 @@ app.put('/api/partner/team/:id', requireRole('admin_partenaire'), (req, res) => 
     }
     if (!sets.length) return res.status(400).json({ error: 'Aucune modification' });
     vals.push(req.params.id, s.partenaire_id);
-    db.run(`UPDATE comptes SET ${sets.join(',')} WHERE id=? AND partenaire_id=? AND role='apporteur'`, vals,
+    db.run(`UPDATE comptes SET ${sets.join(',')} WHERE id=? AND partenaire_id=? AND role IN ('apporteur','installateur')`, vals,
       err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+  });
+});
+// Installateurs de l'organisation — pour rattacher un dossier (dépôt)
+app.get('/api/partner/installateurs', requirePartner, (req, res) => {
+  partnerScope(req, res, (s) => {
+    db.all("SELECT id,nom FROM comptes WHERE partenaire_id=? AND role='installateur' AND actif=1 ORDER BY nom COLLATE NOCASE",
+      [s.partenaire_id], (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows || []));
   });
 });
 // Commission personnalisée d'un apporteur sur une opération — surcharge la commission de l'opération
