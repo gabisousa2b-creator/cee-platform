@@ -48,21 +48,19 @@ const EchoMark = ({
   fill: color,
   className: "volt-dot"
 }));
+
+// Wordmark — logo #125 "Orbital Dot" : un point orbite le mot autour d'une ellipse
 const Wordmark = ({
   scale = 1,
   color = "var(--bone)",
   accent = "var(--volt)"
-}) => /*#__PURE__*/React.createElement("div", {
+}) => /*#__PURE__*/React.createElement("span", {
   style: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 10 * scale,
-    color
+    position: "relative",
+    display: "inline-block",
+    padding: `${9 * scale}px ${15 * scale}px`
   }
-}, /*#__PURE__*/React.createElement(EchoMark, {
-  size: 26 * scale,
-  color: accent
-}), /*#__PURE__*/React.createElement("span", {
+}, /*#__PURE__*/React.createElement("span", {
   className: "serif",
   style: {
     fontSize: 28 * scale,
@@ -75,7 +73,20 @@ const Wordmark = ({
   style: {
     color: accent
   }
-}, "wai")));
+}, "wai")), /*#__PURE__*/React.createElement("span", {
+  "aria-hidden": true,
+  style: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    width: 7 * scale,
+    height: 7 * scale,
+    borderRadius: "50%",
+    background: accent,
+    offsetPath: `ellipse(${66 * scale}px ${18 * scale}px at 50% 50%)`,
+    animation: "orbitDot 5.2s linear infinite"
+  }
+}));
 
 // Brand card — features the wordmark + flowing motif
 const BrandCard = () => /*#__PURE__*/React.createElement("div", {

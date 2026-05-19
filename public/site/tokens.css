@@ -173,6 +173,9 @@ body {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }
 }
+@keyframes orbitDot {
+  to { offset-distance: 100%; }
+}
 @keyframes orbDrift {
   0%, 100% { transform: translate3d(0,0,0) scale(1); }
   50%      { transform: translate3d(30px,-20px,0) scale(1.04); }
