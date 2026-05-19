@@ -1598,6 +1598,16 @@ db.serialize(() => {
     actif             INTEGER DEFAULT 1,
     created_at        DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+  // Commission personnalisée par (apporteur × opération) — surcharge la commission de l'opération
+  db.run(`CREATE TABLE IF NOT EXISTS apporteur_operations_comm (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    apporteur_id      INTEGER NOT NULL,
+    operation_id      INTEGER NOT NULL,
+    commission_mode   TEXT DEFAULT 'pct',
+    commission_valeur REAL DEFAULT 0,
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(apporteur_id, operation_id)
+  )`);
   // Opération choisie au dépôt d'un dossier (id partenaire_operations)
   db.run(`ALTER TABLE beneficiaires ADD COLUMN operation_id INTEGER`, () => {});
 
@@ -2021,6 +2031,13 @@ function scopeCommission(s) {
     ? { mode: s.c_cmode || 'pct', valeur: s.c_cval || 0 }
     : { mode: s.p_cmode || 'pct', valeur: s.p_cval || 0 };
 }
+// Résolution de la commission d'un dossier — priorité :
+// 1. commission personnalisée apporteur × opération  2. commission de l'opération  3. commission du périmètre
+function resolveCommission(r, cc) {
+  if (r.ao_cmode != null) return { mode: r.ao_cmode, valeur: r.ao_cval };
+  if (r.op_cmode != null) return { mode: r.op_cmode, valeur: r.op_cval };
+  return { mode: cc.mode, valeur: cc.valeur };
+}
 const COMMISSION_MODES = ['pct', 'eur_mwhc', 'fixe'];
 
 app.get('/api/partner/me', requirePartner, (req, res) => {
@@ -2040,8 +2057,11 @@ app.get('/api/partner/stats', requirePartner, (req, res) => {
     getPrixCee(s.partenaire_id, (prix) => {
       const cc = scopeCommission(s);
       db.all(`SELECT b.statut, po.commission_mode AS op_cmode, po.commission_valeur AS op_cval,
+                aoc.commission_mode AS ao_cmode, aoc.commission_valeur AS ao_cval,
                 (SELECT COALESCE(SUM(volume_kwh),0) FROM cee_operations WHERE beneficiaire_id=b.id) AS cumac
-              FROM beneficiaires b LEFT JOIN partenaire_operations po ON po.id=b.operation_id
+              FROM beneficiaires b
+              LEFT JOIN partenaire_operations po ON po.id=b.operation_id
+              LEFT JOIN apporteur_operations_comm aoc ON aoc.apporteur_id=b.apporteur_id AND aoc.operation_id=b.operation_id
               WHERE ${f.where}`, f.params, (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         const byStatut = {}; let total = 0, cumac = 0, commission = 0;
@@ -2049,9 +2069,8 @@ app.get('/api/partner/stats', requirePartner, (req, res) => {
           byStatut[r.statut] = (byStatut[r.statut] || 0) + 1;
           total++; cumac += (r.cumac || 0);
           const subv = Math.round((r.cumac || 0) * prix / 1000);
-          const cm = r.op_cmode || cc.mode;
-          const cv = r.op_cmode != null ? r.op_cval : cc.valeur;
-          commission += computeCommission(cm, cv, { subvention: subv, volume_cumac: r.cumac || 0 });
+          const rc = resolveCommission(r, cc);
+          commission += computeCommission(rc.mode, rc.valeur, { subvention: subv, volume_cumac: r.cumac || 0 });
         });
         res.json({ total, byStatut, volume_cumac: cumac,
           subvention: Math.round(cumac * prix / 1000), prix_eur_mwh: prix, commission });
@@ -2070,16 +2089,18 @@ app.get('/api/partner/dossiers', requirePartner, (req, res) => {
                 (SELECT COUNT(DISTINCT type) FROM documents WHERE beneficiaire_id=b.id AND uploaded_by='beneficiaire' AND type IN ('kbis_rne','liasse_fiscale','attestation_urssaf')) AS docs_count,
                 (SELECT nom FROM comptes WHERE id=b.apporteur_id) AS apporteur_nom,
                 po.code_fiche AS operation_code, po.nom AS operation_nom,
-                po.commission_mode AS op_cmode, po.commission_valeur AS op_cval
-              FROM beneficiaires b LEFT JOIN partenaire_operations po ON po.id=b.operation_id
+                po.commission_mode AS op_cmode, po.commission_valeur AS op_cval,
+                aoc.commission_mode AS ao_cmode, aoc.commission_valeur AS ao_cval
+              FROM beneficiaires b
+              LEFT JOIN partenaire_operations po ON po.id=b.operation_id
+              LEFT JOIN apporteur_operations_comm aoc ON aoc.apporteur_id=b.apporteur_id AND aoc.operation_id=b.operation_id
               WHERE ${f.where} ORDER BY b.created_at DESC`, f.params, (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         const cc = scopeCommission(s);
         (rows || []).forEach(r => {
           r.subvention = Math.round((r.volume_cumac || 0) * prix / 1000);
-          const cm = r.op_cmode || cc.mode;
-          const cv = r.op_cmode != null ? r.op_cval : cc.valeur;
-          r.commission = computeCommission(cm, cv, { subvention: r.subvention, volume_cumac: r.volume_cumac });
+          const rc = resolveCommission(r, cc);
+          r.commission = computeCommission(rc.mode, rc.valeur, { subvention: r.subvention, volume_cumac: r.volume_cumac });
         });
         res.json(rows || []);
       });
@@ -2094,8 +2115,11 @@ app.get('/api/partner/dossiers/:id', requirePartner, (req, res) => {
       db.get(`SELECT b.id,b.code,b.nom,b.prenom,b.email,b.telephone,b.raison_sociale,b.siret,b.adresse,
                 b.code_postal,b.ville,b.activite,b.statut,b.statut_cee,b.partenaire,b.apporteur_id,b.operation_id,b.created_at,b.updated_at,
                 po.code_fiche AS operation_code, po.nom AS operation_nom,
-                po.commission_mode AS op_cmode, po.commission_valeur AS op_cval
-              FROM beneficiaires b LEFT JOIN partenaire_operations po ON po.id=b.operation_id
+                po.commission_mode AS op_cmode, po.commission_valeur AS op_cval,
+                aoc.commission_mode AS ao_cmode, aoc.commission_valeur AS ao_cval
+              FROM beneficiaires b
+              LEFT JOIN partenaire_operations po ON po.id=b.operation_id
+              LEFT JOIN apporteur_operations_comm aoc ON aoc.apporteur_id=b.apporteur_id AND aoc.operation_id=b.operation_id
               WHERE ${f.where} AND b.id=?`, [...f.params, req.params.id], (err, b) => {
         if (err) return res.status(500).json({ error: err.message });
         if (!b)  return res.status(404).json({ error: 'Dossier introuvable ou hors de votre périmètre' });
@@ -2106,12 +2130,11 @@ app.get('/api/partner/dossiers/:id', requirePartner, (req, res) => {
                 const cumac = (ops || []).reduce((t, o) => t + (o.volume_kwh || 0), 0);
                 const subvention = Math.round(cumac * prix / 1000);
                 const cc = scopeCommission(s);
-                const cm = b.op_cmode || cc.mode;
-                const cv = b.op_cmode != null ? b.op_cval : cc.valeur;
+                const rc = resolveCommission(b, cc);
                 res.json({ ...b, documents: docs || [], operations: ops || [],
                   volume_cumac: cumac, subvention, prix_eur_mwh: prix,
-                  commission: computeCommission(cm, cv, { subvention, volume_cumac: cumac }),
-                  commission_mode: cm });
+                  commission: computeCommission(rc.mode, rc.valeur, { subvention, volume_cumac: cumac }),
+                  commission_mode: rc.mode });
               });
           });
       });
@@ -2170,8 +2193,11 @@ app.get('/api/partner/export/commissions', requirePartner, (req, res) => {
       db.all(`SELECT b.code,b.nom,b.prenom,b.raison_sociale,b.code_postal,b.ville,b.statut_cee,
                 (SELECT COALESCE(SUM(volume_kwh),0) FROM cee_operations WHERE beneficiaire_id=b.id) AS cumac,
                 (SELECT nom FROM comptes WHERE id=b.apporteur_id) AS apporteur_nom,
-                po.code_fiche AS op_code, po.nom AS op_nom, po.commission_mode AS op_cmode, po.commission_valeur AS op_cval
-              FROM beneficiaires b LEFT JOIN partenaire_operations po ON po.id=b.operation_id
+                po.code_fiche AS op_code, po.nom AS op_nom, po.commission_mode AS op_cmode, po.commission_valeur AS op_cval,
+                aoc.commission_mode AS ao_cmode, aoc.commission_valeur AS ao_cval
+              FROM beneficiaires b
+              LEFT JOIN partenaire_operations po ON po.id=b.operation_id
+              LEFT JOIN apporteur_operations_comm aoc ON aoc.apporteur_id=b.apporteur_id AND aoc.operation_id=b.operation_id
               WHERE ${f.where} ORDER BY apporteur_nom, b.created_at`, f.params, (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         rows = rows || [];
@@ -2185,8 +2211,8 @@ app.get('/api/partner/export/commissions', requirePartner, (req, res) => {
           const app = r.apporteur_nom || '(non attribué)';
           if (app !== lastApp) { flush(); sub = 0; nApp = 0; lastApp = app; }
           const subv = Math.round((r.cumac||0) * prix / 1000);
-          const cm = r.op_cmode || cc.mode;
-          const cv = r.op_cmode != null ? r.op_cval : cc.valeur;
+          const rc = resolveCommission(r, cc);
+          const cm = rc.mode, cv = rc.valeur;
           const com = computeCommission(cm, cv, { subvention: subv, volume_cumac: r.cumac });
           sub += com; grand += com; nApp++;
           out.push([app, r.code, `${r.prenom||''} ${r.nom||''}`.trim(), r.raison_sociale||'',
@@ -2442,7 +2468,18 @@ app.get('/api/partner/team', requireRole('admin_partenaire'), (req, res) => {
   partnerScope(req, res, (s) => {
     db.all(`SELECT id,role,nom,email,actif,commission_mode,commission_valeur,operations,last_login,created_at
             FROM comptes WHERE partenaire_id=? ORDER BY role,nom`,
-      [s.partenaire_id], (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows || []));
+      [s.partenaire_id], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        db.all(`SELECT aoc.apporteur_id, aoc.operation_id, aoc.commission_mode, aoc.commission_valeur
+                FROM apporteur_operations_comm aoc
+                JOIN comptes c ON c.id=aoc.apporteur_id
+                WHERE c.partenaire_id=?`, [s.partenaire_id], (e2, comm) => {
+          const byApp = {};
+          (comm || []).forEach(c => { (byApp[c.apporteur_id] = byApp[c.apporteur_id] || []).push(c); });
+          (rows || []).forEach(r => { r.op_commissions = byApp[r.id] || []; });
+          res.json(rows || []);
+        });
+      });
   });
 });
 app.post('/api/partner/team', requireRole('admin_partenaire'), (req, res) => {
@@ -2481,6 +2518,35 @@ app.put('/api/partner/team/:id', requireRole('admin_partenaire'), (req, res) => 
     vals.push(req.params.id, s.partenaire_id);
     db.run(`UPDATE comptes SET ${sets.join(',')} WHERE id=? AND partenaire_id=? AND role='apporteur'`, vals,
       err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+  });
+});
+// Commission personnalisée d'un apporteur sur une opération — surcharge la commission de l'opération
+app.put('/api/partner/team/:id/op-commission', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    const apporteurId = parseInt(req.params.id);
+    const operationId = parseInt(req.body.operation_id);
+    if (!apporteurId || !operationId) return res.status(400).json({ error: 'Apporteur et opération requis' });
+    db.get(`SELECT id FROM comptes WHERE id=? AND partenaire_id=? AND role='apporteur'`, [apporteurId, s.partenaire_id], (e1, app) => {
+      if (e1)  return res.status(500).json({ error: e1.message });
+      if (!app) return res.status(404).json({ error: 'Apporteur introuvable' });
+      db.get('SELECT id FROM partenaire_operations WHERE id=? AND partenaire_id=?', [operationId, s.partenaire_id], (e2, op) => {
+        if (e2)  return res.status(500).json({ error: e2.message });
+        if (!op) return res.status(404).json({ error: 'Opération hors de votre catalogue' });
+        if (req.body.reset) {
+          db.run('DELETE FROM apporteur_operations_comm WHERE apporteur_id=? AND operation_id=?', [apporteurId, operationId],
+            err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true, reset: true }));
+        } else {
+          const mode = COMMISSION_MODES.includes(req.body.commission_mode) ? req.body.commission_mode : 'pct';
+          const val  = parseFloat(req.body.commission_valeur) || 0;
+          db.run(`INSERT INTO apporteur_operations_comm (apporteur_id,operation_id,commission_mode,commission_valeur)
+                  VALUES (?,?,?,?)
+                  ON CONFLICT(apporteur_id,operation_id) DO UPDATE SET
+                    commission_mode=excluded.commission_mode, commission_valeur=excluded.commission_valeur`,
+            [apporteurId, operationId, mode, val],
+            err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+        }
+      });
+    });
   });
 });
 

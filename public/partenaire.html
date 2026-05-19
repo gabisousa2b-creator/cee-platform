@@ -116,6 +116,8 @@
     .op-chip { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:.71rem; font-weight:600; cursor:pointer; border:1px solid var(--border-light); background:var(--bg-3); color:var(--t2); transition:all .12s; user-select:none; }
     .op-chip:hover { border-color:var(--accent-line); color:var(--t1); }
     .op-chip.on { background:var(--accent-dim); color:var(--accent); border-color:var(--accent-line); }
+    .aop-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:6px; }
+    .aop-badge { font-size:.6rem; font-weight:700; color:var(--accent); background:var(--accent-dim); border:1px solid var(--accent-line); padding:2px 7px; border-radius:10px; }
     .kpi-box { background:var(--bg-3); border:1px solid var(--border); border-radius:var(--r-sm); padding:12px 14px; text-align:center; height:100%; }
     .kpi-v { font-size:1.15rem; font-weight:700; color:var(--t1); letter-spacing:-.02em; }
     .kpi-l { font-size:.68rem; font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:var(--t3); margin-top:3px; }
@@ -810,10 +812,26 @@ async function loadTeam() {
   const activeOps = ops.filter(o => o.actif);
   el.innerHTML = apporteurs.map(c => {
     let assigned = []; try { assigned = JSON.parse(c.operations || '[]'); } catch(e) {}
-    const chips = activeOps.length
-      ? activeOps.map(o => `<span class="op-chip ${assigned.includes(o.id)?'on':''}" onclick="toggleOpForApporteur(${c.id},${o.id})">
-          <span class="sec-code sc-${escH(o.secteur)}">${escH(o.code_fiche)}</span>${escH(clip(o.nom,26))}
-          <i class="fas fa-${assigned.includes(o.id)?'check':'plus'}" style="font-size:.62rem;opacity:.7"></i></span>`).join('')
+    const opRows = activeOps.length
+      ? activeOps.map(o => {
+          const on = assigned.includes(o.id);
+          const ov = (c.op_commissions || []).find(x => x.operation_id === o.id);
+          const effMode = ov ? ov.commission_mode : o.commission_mode;
+          const effVal  = ov ? ov.commission_valeur : o.commission_valeur;
+          return `<div class="aop-row" style="${on?'':'opacity:.5'}">
+            <span class="op-chip ${on?'on':''}" onclick="toggleOpForApporteur(${c.id},${o.id})" title="${on?'Affectée — cliquer pour retirer':'Cliquer pour affecter'}">
+              <span class="sec-code sc-${escH(o.secteur)}">${escH(o.code_fiche)}</span>${escH(clip(o.nom,20))}
+              <i class="fas fa-${on?'check':'plus'}" style="font-size:.6rem;opacity:.7"></i></span>
+            <select class="form-select form-select-sm" id="aocm-${c.id}-${o.id}" style="width:auto">
+              <option value="pct" ${effMode==='pct'?'selected':''}>%</option>
+              <option value="eur_mwhc" ${effMode==='eur_mwhc'?'selected':''}>€/MWhc</option>
+              <option value="fixe" ${effMode==='fixe'?'selected':''}>€ fixe</option>
+            </select>
+            <input class="form-control form-control-sm" id="aocv-${c.id}-${o.id}" type="number" step="0.01" min="0" style="width:74px" value="${effVal||''}">
+            <button class="btn btn-sm btn-outline-primary" onclick="saveOpCommission(${c.id},${o.id})" title="Enregistrer la commission de cet apporteur sur cette opération"><i class="fas fa-save"></i></button>
+            ${ov ? `<button class="btn btn-sm btn-outline-secondary" onclick="resetOpCommission(${c.id},${o.id})" title="Revenir à la commission de l'opération"><i class="fas fa-rotate-left"></i></button><span class="aop-badge">perso</span>` : ''}
+          </div>`;
+        }).join('')
       : '<span style="font-size:.74rem;color:var(--t3)">Catalogue vide — ajoute des opérations via le bouton « Catalogue ».</span>';
     return `<div class="op-card">
       <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
@@ -838,8 +856,8 @@ async function loadTeam() {
         <button class="btn btn-sm btn-outline-primary" onclick="saveApporteurComm(${c.id})" title="Enregistrer"><i class="fas fa-save"></i></button>
       </div>
       <div class="mt-2">
-        <div style="font-size:.72rem;color:var(--t3);margin-bottom:6px"><i class="fas fa-layer-group me-1" style="color:var(--accent)"></i>Opérations affectées <span style="color:var(--t2)">— clique pour activer/retirer</span></div>
-        <div class="d-flex flex-wrap gap-1">${chips}</div>
+        <div style="font-size:.72rem;color:var(--t3);margin-bottom:6px"><i class="fas fa-layer-group me-1" style="color:var(--accent)"></i>Opérations &amp; commissions <span style="color:var(--t2)">— clique l'opération pour l'affecter, ajuste la commission par opération</span></div>
+        ${opRows}
       </div>
     </div>`;
   }).join('');
@@ -886,6 +904,22 @@ async function resetApporteurPw(id) {
   if (pw.length < 6) { showToast('Mot de passe : 6 caractères minimum', 'danger'); return; }
   const r = await fetch(`/api/partner/team/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ password: pw }) });
   if (r.ok) showToast("Mot de passe réinitialisé — communique-le à l'apporteur");
+  else showToast('Erreur', 'danger');
+}
+async function saveOpCommission(apporteurId, opId) {
+  const mode = document.getElementById(`aocm-${apporteurId}-${opId}`).value;
+  const val  = document.getElementById(`aocv-${apporteurId}-${opId}`).value;
+  const r = await fetch(`/api/partner/team/${apporteurId}/op-commission`, {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ operation_id: opId, commission_mode: mode, commission_valeur: val }) });
+  if (r.ok) { showToast('Commission personnalisée enregistrée'); loadTeam(); }
+  else showToast('Erreur', 'danger');
+}
+async function resetOpCommission(apporteurId, opId) {
+  const r = await fetch(`/api/partner/team/${apporteurId}/op-commission`, {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ operation_id: opId, reset: true }) });
+  if (r.ok) { showToast("Commission revenue au défaut de l'opération"); loadTeam(); }
   else showToast('Erreur', 'danger');
 }
 async function toggleOpForApporteur(apporteurId, opId) {
