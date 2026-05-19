@@ -487,6 +487,26 @@
           <div class="col-md-2"><input class="form-control form-control-sm" id="masseQte" type="number" min="1" step="1" value="1"></div>
           <div class="col-md-2"><button class="btn btn-sm btn-primary w-100" onclick="affecterMasse()">Appliquer</button></div>
         </div>
+
+        <hr style="border-color:var(--border);margin:24px 0">
+        <div class="fw-semibold mb-2"><i class="fas fa-truck-fast me-2" style="color:var(--accent)"></i>Commandes matériel</div>
+        <div id="cmdAddBox" class="d-none">
+          <div class="alert alert-light border small mb-2"><i class="fas fa-circle-info me-1"></i>Sélectionne un ou plusieurs dossiers (Ctrl+clic) — la commande reprend le matériel choisi sur ces dossiers. Validation interne avant envoi au fournisseur.</div>
+          <div class="row g-2 mb-3">
+            <div class="col-md-5"><select multiple class="form-select form-select-sm" id="cmdDossiers" style="min-height:92px"></select></div>
+            <div class="col-md-7">
+              <select class="form-select form-select-sm mb-2" id="cmdLivType">
+                <option value="entrepot">Livraison — entrepôt</option>
+                <option value="beneficiaire">Livraison — chez le bénéficiaire</option>
+                <option value="partenaire">Livraison — chez le partenaire</option>
+                <option value="chantier">Livraison — sur le chantier</option>
+              </select>
+              <input class="form-control form-control-sm mb-2" id="cmdAdresse" placeholder="Adresse de livraison">
+              <button class="btn btn-sm btn-primary" onclick="createCommande()"><i class="fas fa-plus me-1"></i>Créer la commande</button>
+            </div>
+          </div>
+        </div>
+        <div id="cmdList"></div>
       </div>
     </div>
   </div>
@@ -1416,6 +1436,7 @@ async function loadMaterielSection() {
   document.getElementById('masseRow').classList.toggle('d-none', !isAdmin);
   document.getElementById('masseTitle').classList.toggle('d-none', !isAdmin);
   await loadMateriel();
+  await loadCommandes();
 }
 async function loadMateriel() {
   try { materielData = await (await fetch('/api/partner/materiel')).json(); if (!Array.isArray(materielData)) materielData = []; }
@@ -1460,6 +1481,62 @@ async function affecterMasse() {
   const d = await r.json().catch(() => ({}));
   if (r.ok && d.success) showToast(`Matériel affecté à ${d.count} dossier(s)`);
   else showToast(d.error || 'Erreur', 'danger');
+}
+// ── Commandes matériel ──
+let commandesData = [];
+const CMD_STATUT_FR = { preparee:['Préparée','var(--warning)'], commandee:['Commandée','var(--info)'], expediee:['Expédiée','var(--accent)'], livree:['Livrée','var(--success)'], annulee:['Annulée','var(--danger)'] };
+const CMD_NEXT = { preparee:['commandee','Valider & commander'], commandee:['expediee','Marquer expédiée'], expediee:['livree','Marquer livrée'] };
+async function loadCommandes() {
+  document.getElementById('cmdAddBox').classList.toggle('d-none', myRole !== 'admin_partenaire');
+  const sel = document.getElementById('cmdDossiers');
+  if (sel) sel.innerHTML = (dashDossiers || []).map(d =>
+    `<option value="${d.id}">${escH(d.code)} — ${escH(((d.prenom||'')+' '+(d.nom||'')).trim() || d.raison_sociale || '')}</option>`).join('');
+  await refreshCommandes();
+}
+async function refreshCommandes() {
+  try { commandesData = await (await fetch('/api/partner/commandes')).json(); if (!Array.isArray(commandesData)) commandesData = []; }
+  catch(e) { commandesData = []; }
+  renderCommandes();
+}
+function renderCommandes() {
+  const box = document.getElementById('cmdList');
+  if (!commandesData.length) { box.innerHTML = '<div style="color:var(--t3);font-size:.82rem;padding:6px">Aucune commande.</div>'; return; }
+  box.innerHTML = commandesData.map(c => {
+    const st = CMD_STATUT_FR[c.statut] || CMD_STATUT_FR.preparee;
+    const next = CMD_NEXT[c.statut];
+    return `<div class="op-card">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+          <strong>${escH(c.reference)}</strong>
+          <span class="aop-badge" style="color:${st[1]};border-color:${st[1]};background:transparent">${st[0]}</span>
+          <div style="font-size:.72rem;color:var(--t3)">${c.nb_lignes} article(s) · ${fmtEur(c.total_ttc||0)} TTC · ${fmtDate(c.created_at)}</div>
+        </div>
+        <div class="d-flex gap-1">
+          ${next ? `<button class="btn btn-sm btn-outline-primary" onclick="advanceCommande(${c.id},'${next[0]}')">${next[1]}</button>` : ''}
+          ${c.statut==='preparee' ? `<button class="btn btn-sm btn-outline-secondary" onclick="deleteCommande(${c.id})" title="Supprimer"><i class="fas fa-trash"></i></button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+async function createCommande() {
+  const ids = [...document.getElementById('cmdDossiers').selectedOptions].map(o => +o.value);
+  if (!ids.length) { showToast('Sélectionne au moins un dossier', 'danger'); return; }
+  const body = { beneficiaire_ids: ids, livraison_type: document.getElementById('cmdLivType').value, livraison_adresse: document.getElementById('cmdAdresse').value.trim() };
+  const r = await fetch('/api/partner/commandes', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok && d.success) { showToast('Commande créée'); document.getElementById('cmdAdresse').value = ''; refreshCommandes(); }
+  else showToast(d.error || 'Erreur', 'danger');
+}
+async function advanceCommande(id, statut) {
+  const r = await fetch(`/api/partner/commandes/${id}/statut`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ statut }) });
+  if (r.ok) { showToast('Statut mis à jour'); refreshCommandes(); }
+  else showToast('Erreur', 'danger');
+}
+async function deleteCommande(id) {
+  const r = await fetch('/api/partner/commandes/' + id, { method:'DELETE' });
+  if (r.ok) { showToast('Commande supprimée'); refreshCommandes(); }
+  else showToast('Erreur', 'danger');
 }
 function renderDash() {
   const fop = document.getElementById('fOp').value;

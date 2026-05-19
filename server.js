@@ -1718,6 +1718,29 @@ db.serialize(() => {
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(beneficiaire_id, materiel_id)
   )`);
+  // ── Commandes de matériel ─────────────────────────────────────────────────────
+  db.run(`CREATE TABLE IF NOT EXISTS commandes (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    partenaire_id     INTEGER NOT NULL,
+    reference         TEXT,
+    statut            TEXT DEFAULT 'preparee',
+    livraison_type    TEXT DEFAULT 'entrepot',
+    livraison_adresse TEXT DEFAULT '',
+    notes             TEXT DEFAULT '',
+    created_by        TEXT DEFAULT '',
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS commande_lignes (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    commande_id     INTEGER NOT NULL,
+    beneficiaire_id INTEGER,
+    materiel_id     INTEGER,
+    nom             TEXT DEFAULT '',
+    quantite        REAL DEFAULT 1,
+    prix_unitaire   REAL DEFAULT 0,
+    tva             REAL DEFAULT 20
+  )`);
   // Opération choisie au dépôt d'un dossier (id partenaire_operations)
   db.run(`ALTER TABLE beneficiaires ADD COLUMN operation_id INTEGER`, () => {});
 
@@ -3116,6 +3139,85 @@ app.post('/api/partner/materiel/affecter-masse', requireRole('admin_partenaire')
         ids.forEach(id => st.run(id, matId, qte));
         st.finalize(err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true, count: ids.length }));
       });
+  });
+});
+
+// ── Commandes de matériel ─────────────────────────────────────────────────────
+function genCmdRef() {
+  const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let r = 'CMD-'; for (let i = 0; i < 6; i++) r += c[Math.floor(Math.random() * c.length)];
+  return r;
+}
+const CMD_STATUTS = ['preparee','commandee','expediee','livree','annulee'];
+const LIV_TYPES   = ['entrepot','beneficiaire','partenaire','chantier'];
+
+app.post('/api/partner/commandes', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    const ids = Array.isArray(req.body.beneficiaire_ids) ? req.body.beneficiaire_ids.map(Number).filter(Boolean) : [];
+    if (!ids.length) return res.status(400).json({ error: 'Sélectionnez au moins un dossier' });
+    const livType = LIV_TYPES.includes(req.body.livraison_type) ? req.body.livraison_type : 'entrepot';
+    const ph = ids.map(() => '?').join(',');
+    db.all(`SELECT dm.beneficiaire_id, dm.materiel_id, dm.quantite, m.nom, m.prix_vente, m.tva
+            FROM dossier_materiel dm
+            JOIN beneficiaires b ON b.id=dm.beneficiaire_id
+            JOIN materiel m ON m.id=dm.materiel_id
+            WHERE b.partenaire=? AND dm.beneficiaire_id IN (${ph})`,
+      [s.partenaire_nom, ...ids], (e, lignes) => {
+        if (e) return res.status(500).json({ error: e.message });
+        if (!lignes || !lignes.length) return res.status(400).json({ error: 'Aucun matériel sélectionné sur ces dossiers' });
+        db.run(`INSERT INTO commandes (partenaire_id,reference,statut,livraison_type,livraison_adresse,notes,created_by)
+                VALUES (?,?,'preparee',?,?,?,?)`,
+          [s.partenaire_id, genCmdRef(), livType, req.body.livraison_adresse || '', req.body.notes || '', s.compte_nom || s.partenaire_nom],
+          function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            const cid = this.lastID;
+            const st = db.prepare('INSERT INTO commande_lignes (commande_id,beneficiaire_id,materiel_id,nom,quantite,prix_unitaire,tva) VALUES (?,?,?,?,?,?,?)');
+            lignes.forEach(l => st.run(cid, l.beneficiaire_id, l.materiel_id, l.nom, l.quantite, l.prix_vente || 0, l.tva == null ? 20 : l.tva));
+            st.finalize(e2 => e2 ? res.status(500).json({ error: e2.message }) : res.json({ success: true, id: cid }));
+          });
+      });
+  });
+});
+app.get('/api/partner/commandes', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    db.all(`SELECT c.id,c.reference,c.statut,c.livraison_type,c.created_at,
+              (SELECT COUNT(*) FROM commande_lignes WHERE commande_id=c.id) AS nb_lignes,
+              (SELECT COALESCE(SUM(quantite*prix_unitaire*(1+tva/100.0)),0) FROM commande_lignes WHERE commande_id=c.id) AS total_ttc
+            FROM commandes c WHERE c.partenaire_id=? ORDER BY c.created_at DESC`,
+      [s.partenaire_id], (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows || []));
+  });
+});
+app.get('/api/partner/commandes/:id', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    db.get('SELECT * FROM commandes WHERE id=? AND partenaire_id=?', [req.params.id, s.partenaire_id], (e, c) => {
+      if (e)  return res.status(500).json({ error: e.message });
+      if (!c) return res.status(404).json({ error: 'Commande introuvable' });
+      db.all(`SELECT cl.*, b.code AS dossier_code, b.nom AS benef_nom, b.prenom AS benef_prenom
+              FROM commande_lignes cl LEFT JOIN beneficiaires b ON b.id=cl.beneficiaire_id
+              WHERE cl.commande_id=?`, [c.id], (e2, lignes) =>
+        e2 ? res.status(500).json({ error: e2.message }) : res.json({ ...c, lignes: lignes || [] }));
+    });
+  });
+});
+app.put('/api/partner/commandes/:id/statut', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    if (!CMD_STATUTS.includes(req.body.statut)) return res.status(400).json({ error: 'Statut invalide' });
+    db.run('UPDATE commandes SET statut=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND partenaire_id=?',
+      [req.body.statut, req.params.id, s.partenaire_id],
+      err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+  });
+});
+app.delete('/api/partner/commandes/:id', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    db.get('SELECT statut FROM commandes WHERE id=? AND partenaire_id=?', [req.params.id, s.partenaire_id], (e, c) => {
+      if (e)  return res.status(500).json({ error: e.message });
+      if (!c) return res.status(404).json({ error: 'Commande introuvable' });
+      if (c.statut !== 'preparee') return res.status(400).json({ error: 'Seule une commande préparée peut être supprimée' });
+      db.run('DELETE FROM commande_lignes WHERE commande_id=?', [req.params.id], () => {
+        db.run('DELETE FROM commandes WHERE id=?', [req.params.id],
+          err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+      });
+    });
   });
 });
 
