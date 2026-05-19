@@ -1,0 +1,145 @@
+/* EchoWAI — Responsive layer
+   Strategy: keep desktop inline styles as default; override via class
+   selectors with !important inside breakpoints. Touch-friendly. */
+
+/* ─── Fluid containers ────────────────────────────── */
+.container { max-width: 1320px; margin: 0 auto; padding: 0 32px; }
+@media (max-width: 720px) {
+  .container { padding: 0 20px !important; }
+}
+
+/* ─── Fluid type ──────────────────────────────────── */
+.h1-fluid   { font-size: clamp(40px, 8vw, 108px) !important;  line-height: 0.96 !important; }
+.h1-mid     { font-size: clamp(34px, 6vw, 72px)  !important;  line-height: 0.98 !important; }
+.h2-fluid   { font-size: clamp(28px, 5vw, 56px)  !important;  line-height: 1     !important; }
+.h3-fluid   { font-size: clamp(22px, 3.5vw, 40px)!important;  line-height: 1.05  !important; }
+.body-fluid { font-size: clamp(15px, 1.6vw, 19px) !important; }
+
+/* ─── Section padding ─────────────────────────────── */
+.section-pad { /* desktop default kept from inline */ }
+@media (max-width: 900px) {
+  .section-pad { padding-top: 56px !important; padding-bottom: 56px !important;
+                 padding-left: 20px !important; padding-right: 20px !important; }
+}
+@media (max-width: 560px) {
+  .section-pad { padding-top: 40px !important; padding-bottom: 40px !important;
+                 padding-left: 16px !important; padding-right: 16px !important; }
+}
+
+/* CTA inner padbox — shrink interior padding on mobile */
+@media (max-width: 900px) {
+  .cta-padbox { padding: 40px 28px !important; }
+}
+@media (max-width: 560px) {
+  .cta-padbox { padding: 32px 20px !important; }
+}
+
+/* r-padbox: just horizontal compression for small screens */
+@media (max-width: 720px) {
+  .r-padbox { padding-left: 20px !important; padding-right: 20px !important; }
+}
+
+/* ─── Responsive grid collapses ──────────────────── */
+/* split-12: 1.25fr / 1fr  (hero) */
+/* split-22: 2fr / 1fr (dossier) */
+/* split-21: 1.4fr / 1fr (final CTA, contact) */
+/* split-sim: simulator inner */
+/* split-cart: catalog / 380px cart */
+
+@media (max-width: 1080px) {
+  .r-cols-12,
+  .r-cols-22,
+  .r-cols-21,
+  .r-cols-sim,
+  .r-cols-cart {
+    grid-template-columns: 1fr !important;
+    gap: 32px !important;
+    height: auto !important;
+  }
+  .r-cols-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .r-cols-6 { grid-template-columns: repeat(3, 1fr) !important; }
+  .r-cols-footer { grid-template-columns: 1fr 1fr !important; gap: 36px !important; }
+}
+
+@media (max-width: 720px) {
+  .r-cols-3, .r-cols-4 { grid-template-columns: 1fr !important; gap: 14px !important; }
+  .r-cols-6 { grid-template-columns: repeat(2, 1fr) !important; }
+  .r-cols-stepper { grid-template-columns: repeat(2, 1fr) !important; gap: 16px !important; }
+  .r-cols-form2  { grid-template-columns: 1fr !important; gap: 14px !important; }
+  .r-cols-footer { grid-template-columns: 1fr !important; gap: 32px !important; }
+  .r-cols-stats3 { grid-template-columns: 1fr !important; }
+}
+
+/* ─── Visibility helpers ─────────────────────────── */
+.hide-on-mobile { }
+.only-on-mobile { display: none !important; }
+@media (max-width: 1080px) {
+  .hide-on-mobile { display: none !important; }
+  .only-on-mobile { display: flex !important; }
+}
+
+/* ─── Site nav (mobile) ──────────────────────────── */
+.site-nav-inner { display: flex; align-items: center; gap: 24px; padding: 16px 32px; }
+@media (max-width: 1080px) {
+  .site-nav-inner { padding: 14px 20px !important; gap: 16px !important; }
+}
+.nav-links { display: flex; gap: 28px; margin-left: 48px; }
+@media (max-width: 1080px) {
+  .nav-links { display: none !important; }
+}
+
+/* mobile menu drawer (full overlay, slides from top) */
+.mobile-drawer {
+  position: fixed; inset: 0; top: 0; z-index: 50;
+  background: var(--page);
+  display: flex; flex-direction: column;
+  animation: revealUp .35s var(--ease-out-quart) both;
+}
+.mobile-drawer nav {
+  flex: 1; display: flex; flex-direction: column;
+  gap: 4px; padding: 96px 24px 24px;
+}
+.mobile-drawer nav button {
+  background: transparent; border: 0; padding: 18px 0;
+  text-align: left; font-family: var(--font-display);
+  font-size: 36px; font-weight: 500; letter-spacing: -0.02em;
+  color: var(--ink); cursor: pointer;
+  border-bottom: 1px solid var(--rule-on);
+}
+.mobile-drawer-actions { padding: 20px 24px 32px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--rule-on); }
+
+/* ─── Hero adaptations ───────────────────────────── */
+@media (max-width: 1080px) {
+  .hero-section { padding: 56px 20px 32px !important; gap: 32px !important; }
+  .hero-rightcol { margin-top: 0 !important; }
+}
+
+/* ─── Simulator/Material adaptations ─────────────── */
+@media (max-width: 1080px) {
+  .sim-pane     { padding: 32px 24px !important; border-right: 0 !important; }
+  .sim-pane + .sim-pane { border-top: 1px solid var(--rule-on); }
+  .cart-pane    { border-left: 0 !important; border-top: 1px solid var(--rule-on); }
+  .catalog-pane { padding: 32px 20px !important; border-right: 0 !important; }
+}
+
+/* ─── Touch target sizing ───────────────────────── */
+@media (max-width: 720px) {
+  button, a {
+    -webkit-tap-highlight-color: rgba(46,126,244,0.18);
+  }
+}
+
+/* Make tables / heavy content scroll on mobile rather than overflow */
+.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* prevent text from overflowing on narrow screens */
+@media (max-width: 720px) {
+  h1, h2, h3 { word-break: break-word; overflow-wrap: anywhere; }
+  .serif { letter-spacing: -0.02em; }
+  /* trim large numbers / liquid-number columns when needed */
+}
+
+/* keep body background pattern but lighten on mobile for legibility */
+@media (max-width: 720px) {
+  body { background-size: 22px 22px; }
+}

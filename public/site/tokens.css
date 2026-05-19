@@ -1,0 +1,248 @@
+/* EchoWAI — Sérénité tokens (light + blue CEE) */
+:root, .theme-serenite {
+  /* === Surfaces (light, légèrement assombri) === */
+  --page:       #ECEFF5;   /* off-white plus dense, blue-tint */
+  --card:       #FFFFFF;   /* white card stays pure for contrast */
+  --card-2:     #E5EBF3;   /* subtle blue-tint */
+  --card-3:     #D9E1ED;   /* lifted */
+
+  /* Legacy aliases */
+  --ink-2:      #FFFFFF;
+  --ink-3:      #E5EBF3;
+  --ink-lift:   #D9E1ED;
+  --ink-line:   #CFD8E5;   /* rule slightly darker */
+
+  /* === Text === */
+  --ink:        #0A1F3D;   /* deepest navy — text + accent blocks */
+  --bone:       #0A1F3D;   /* (alias) — strong text on light */
+  --bone-2:     #15304E;
+  --bone-soft:  #45587A;
+  --bone-mute:  #7B8AA3;
+  --bone-deep:  #0A1F3D;
+
+  --on-page:    var(--ink);
+  --on-card:    var(--ink);
+  --muted:      #5B6B85;   /* slate */
+
+  --rule:       #CFD8E5;
+  --rule-soft:  #DAE2EE;
+  --rule-on:    #CFD8E5;
+
+  /* === Primary blue (CEE) === */
+  --volt:       #2E7EF4;   /* clean modern blue */
+  --volt-deep:  #1959C7;
+  --volt-soft:  #BBD7FB;
+  --volt-glow:  rgba(46, 126, 244, 0.22);
+
+  --sky:        #5BA8E5;   /* sky-cyan accent */
+  --sky-soft:   #D9ECFB;
+
+  /* === Status (parcours CEE) === */
+  --st-engage:   #7B8AA3;
+  --st-controle: #C97A1A;
+  --st-valide:   #2E8B57;
+  --st-facture:  #1959C7;
+
+  --signal-ok:   #2E8B57;
+  --signal-warn: #C97A1A;
+  --signal-stop: #C2410C;
+  --signal-info: #2E7EF4;
+
+  /* === On-dark inversions (used inside .on-ink blocks) === */
+  --on-ink:        #FFFFFF;
+  --on-ink-soft:   #BBD7FB;
+  --on-ink-mute:   #7C9AC9;
+  --on-ink-rule:   rgba(255,255,255,0.14);
+
+  /* Type */
+  --font-display: "Bricolage Grotesque", "Bricolage", system-ui, sans-serif;
+  --font-sans:    "Public Sans", system-ui, -apple-system, sans-serif;
+  --font-mono:    "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Spacing & radius */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px;
+  --s-6: 24px; --s-8: 32px; --s-10: 40px; --s-12: 48px; --s-16: 64px;
+  --r-1: 2px; --r-2: 4px; --r-3: 8px; --r-4: 14px; --r-pill: 999px;
+
+  /* Shadows — soft, paper-like */
+  --sh-1: 0 1px 0 rgba(10,31,61,.04), 0 1px 2px rgba(10,31,61,.05);
+  --sh-2: 0 1px 1px rgba(10,31,61,.04), 0 6px 24px -8px rgba(10,31,61,.10);
+  --sh-3: 0 1px 1px rgba(10,31,61,.04), 0 24px 64px -20px rgba(10,31,61,.18);
+  --sh-glow: 0 0 0 1px var(--volt), 0 0 32px -4px var(--volt-glow);
+
+  /* Motion */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-in-out-quint: cubic-bezier(0.83, 0, 0.17, 1);
+  --t-fast: 160ms;
+  --t-med:  320ms;
+  --t-slow: 720ms;
+}
+
+/* === On-ink — local inversion for navy accent blocks === */
+.on-ink {
+  --bone:      #FFFFFF;
+  --bone-2:    #EAF1FC;
+  --bone-soft: #BBD7FB;
+  --bone-mute: #7C9AC9;
+  --bone-deep: #FFFFFF;
+  --muted:     #BBD7FB;
+  --on-card:   #FFFFFF;
+  --on-page:   #FFFFFF;
+  --rule-on:   rgba(255,255,255,0.14);
+  --rule:      rgba(255,255,255,0.14);
+  --ink-line:  rgba(255,255,255,0.14);
+  --ink-2:     rgba(255,255,255,0.04);
+  --card:      rgba(255,255,255,0.04);
+  color: #FFFFFF;
+}
+
+/* === Theme: Voltage (kept as alt) === */
+.theme-voltage {
+  --page: #0A0E12;
+  --card: #11161D;
+  --card-2: #181E26;
+  --ink-2: #11161D;
+  --ink-3: #181E26;
+  --ink-lift: #1F2731;
+  --ink-line: #2A323D;
+  --ink: #0A0E12;
+  --bone: #F2F1ED;
+  --bone-2: #E4E3DD;
+  --bone-soft: #B6B7B1;
+  --bone-mute: #7C7E79;
+  --on-page: #F2F1ED;
+  --on-card: #F2F1ED;
+  --muted: #B6B7B1;
+  --rule-on: #2A323D;
+  --rule: #2A323D;
+  --volt: oklch(0.90 0.19 122);
+  --volt-deep: oklch(0.78 0.20 125);
+  --volt-soft: oklch(0.94 0.10 122);
+  --volt-glow: oklch(0.90 0.19 122 / 0.25);
+}
+
+/* === Theme: Ciel (lighter still, paper) === */
+.theme-ciel {
+  --page: #FFFFFF;
+  --card: #F6F8FB;
+  --card-2: #EAF1FC;
+  --ink-2: #F6F8FB;
+  --ink-3: #EAF1FC;
+  --ink-lift: #DCE7F6;
+  --ink-line: #C9D7EB;
+  --rule-on: #C9D7EB;
+  --rule: #C9D7EB;
+  --volt: #1959C7;
+  --volt-deep: #0E3E96;
+  --volt-soft: #9CC1F3;
+  --volt-glow: rgba(25,89,199,0.22);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--font-sans);
+  color: var(--on-page);
+  background: var(--page);
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(10,31,61,0.045) 1px, transparent 0);
+  background-size: 28px 28px;
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "ss01","cv11","tnum";
+}
+
+/* density */
+.density-compact { --row-h: 36px; }
+.density-aere    { --row-h: 48px; }
+
+/* utilities */
+.serif { font-family: var(--font-display); font-weight: 500; letter-spacing: -.025em; font-optical-sizing: auto; }
+.serif em { font-style: normal; font-weight: 400; }
+.sans  { font-family: var(--font-sans); }
+.mono  { font-family: var(--font-mono); font-feature-settings: "tnum","cv01"; }
+.upper { text-transform: uppercase; letter-spacing: .14em; font-size: 11px; font-weight: 500; }
+.rule  { height: 1px; background: var(--rule-on); border: 0; }
+
+.volt { color: var(--volt); }
+.volt-bg { background: var(--volt); color: #fff; }
+
+/* animations */
+@keyframes voltPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+@keyframes orbDrift {
+  0%, 100% { transform: translate3d(0,0,0) scale(1); }
+  50%      { transform: translate3d(30px,-20px,0) scale(1.04); }
+}
+@keyframes blinkCaret {
+  0%, 60% { opacity: 1; }
+  61%, 100% { opacity: 0; }
+}
+@keyframes ringExpand {
+  0%   { transform: scale(0.2); opacity: 0.65; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+@keyframes auroraDrift {
+  0%, 100% { transform: translate3d(0,0,0) rotate(0deg); }
+  33% { transform: translate3d(40px, -30px, 0) rotate(8deg); }
+  66% { transform: translate3d(-30px, 40px, 0) rotate(-6deg); }
+}
+@keyframes stripeShift {
+  to { background-position: 80px 0; }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes marqueeShift {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+@keyframes revealUp {
+  0% { opacity: 0; transform: translateY(18px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes drawStroke {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--volt-glow); }
+  50% { box-shadow: 0 0 0 12px transparent; }
+}
+@keyframes hoverLift {
+  to { transform: translateY(-3px); box-shadow: var(--sh-3); }
+}
+
+.volt-dot { animation: voltPulse 2.2s ease-in-out infinite; }
+
+.reveal-up { animation: revealUp .9s var(--ease-out-quart) both; }
+
+.stripe-loader {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--volt-soft) 0 12px,
+    var(--card-2) 12px 24px
+  );
+  background-size: 80px 100%;
+  animation: stripeShift 1.4s linear infinite;
+}
+
+.shimmer {
+  background: linear-gradient(90deg, var(--card-2) 0%, var(--card-3) 50%, var(--card-2) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+.pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+/* volt-text gradient (for big chiffres) */
+.volt-text {
+  background: linear-gradient(180deg, var(--volt-deep), var(--volt));
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+}
