@@ -14,12 +14,13 @@
   --bg-4:    #E5EBF3;
   --bg-hover:#DDE4EF;
 
-  /* ── Surfaces (panneaux) ── */
-  --glass-1:      rgba(10,31,61,.035);
-  --glass-2:      rgba(10,31,61,.018);
-  --glass-fill:   linear-gradient(180deg, #FFFFFF 0%, #FBFCFE 100%);
-  --glass-solid:  #FFFFFF;
-  --glass-blur:   blur(14px) saturate(140%);
+  /* ── Surfaces translucides — liquid glass ── */
+  --glass-1:      rgba(10,31,61,.04);
+  --glass-2:      rgba(10,31,61,.022);
+  --glass-fill:   linear-gradient(155deg, rgba(255,255,255,.82) 0%, rgba(255,255,255,.64) 100%);
+  --glass-solid:  rgba(255,255,255,.86);
+  --glass-blur:   saturate(180%) blur(22px);
+  --glass-edge:   inset 0 1px 0 rgba(255,255,255,.75);
 
   /* ── Bordures ── */
   --border:       #CFD8E5;
@@ -56,16 +57,20 @@
   --sidebar: var(--bg-2);
   --sidebar-width: 248px;
 
-  /* ── Rayons ── */
-  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 20px;
-  --radius: 14px;
+  /* ── Rayons — généreux (Apple) ── */
+  --r-sm: 10px; --r-md: 14px; --r-lg: 18px; --r-xl: 24px;
+  --radius: 16px;
 
-  /* ── Ombres — douces, papier (navy) ── */
-  --shadow-sm:  0 1px 2px rgba(10,31,61,.06);
-  --shadow-md:  0 12px 36px -14px rgba(10,31,61,.16);
-  --shadow-lg:  0 28px 70px -22px rgba(10,31,61,.22);
-  --shadow:     0 18px 50px -18px rgba(10,31,61,.18);
-  --shadow-glow:0 0 32px -8px var(--accent-glow);
+  /* ── Ombres — douces, étagées (Apple) ── */
+  --shadow-sm:  0 1px 2px rgba(10,31,61,.05), 0 1px 1px rgba(10,31,61,.04);
+  --shadow-md:  0 2px 8px -3px rgba(10,31,61,.10), 0 16px 40px -16px rgba(10,31,61,.16);
+  --shadow-lg:  0 4px 14px -4px rgba(10,31,61,.12), 0 32px 70px -24px rgba(10,31,61,.24);
+  --shadow:     0 2px 10px -3px rgba(10,31,61,.10), 0 22px 56px -20px rgba(10,31,61,.18);
+  --shadow-glow:0 8px 28px -8px var(--accent-glow);
+
+  /* ── Easing — ressort Apple ── */
+  --ease-spring: cubic-bezier(.34,1.28,.64,1);
+  --ease-smooth: cubic-bezier(.32,.72,0,1);
 
   /* ── Bootstrap bindings ── */
   --bs-body-bg: var(--bg-1);
@@ -120,14 +125,15 @@ h1,h2,h3,h4,h5,h6 { letter-spacing: -.02em; }
   background: var(--glass-fill);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-md), inset 0 1px 0 rgba(255,255,255,.05);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-md), var(--glass-edge);
 }
 .glass-solid {
   background: var(--glass-solid);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--glass-edge);
 }
 
 /* Étiquettes micro sci-fi */
@@ -153,7 +159,8 @@ code { background: var(--bg-4); color: var(--accent); padding: 1px 6px; border-r
 kbd  { background: var(--bg-4); color: var(--t1); border: 1px solid var(--border-light); border-radius: 5px; font-size: .76em; padding: 2px 6px; }
 
 /* Boutons Bootstrap */
-.btn { font-family: inherit; font-weight: 600; border-radius: var(--r-sm); transition: all .14s ease; }
+.btn { font-family: inherit; font-weight: 600; border-radius: var(--r-sm);
+  transition: transform .24s var(--ease-spring), box-shadow .24s var(--ease-spring), background-color .15s, border-color .15s, filter .15s, color .15s; }
 .btn-primary {
   background: var(--accent) !important; border-color: var(--accent) !important;
   color: #FFFFFF !important; font-weight: 600 !important;
@@ -186,10 +193,10 @@ kbd  { background: var(--bg-4); color: var(--t1); border: 1px solid var(--border
 }
 .form-control::placeholder { color: var(--t3) !important; }
 .form-control:focus, .form-select:focus {
-  background: var(--bg-3) !important;
+  background: var(--bg-2) !important;
   border-color: var(--border-focus) !important;
   color: var(--t1) !important;
-  box-shadow: 0 0 0 3px var(--accent-dim) !important;
+  box-shadow: 0 0 0 4px var(--accent-dim) !important;
 }
 .form-label { color: var(--t2); font-size: .8rem; font-weight: 600; margin-bottom: 5px; }
 .form-text  { color: var(--t3) !important; }
@@ -219,7 +226,7 @@ option { background: var(--bg-3); color: var(--t1); }
   backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border-light) !important;
   border-radius: var(--r-xl) !important;
-  box-shadow: var(--shadow-lg) !important;
+  box-shadow: var(--shadow-lg), var(--glass-edge) !important;
 }
 .modal-header { border-bottom: 1px solid var(--border) !important; padding: 20px 24px; }
 .modal-footer { border-top: 1px solid var(--border) !important; }
@@ -374,38 +381,38 @@ option { background: var(--bg-3); color: var(--t1); }
 }
 body { animation: ew-drift 40s ease-in-out infinite; }
 
-/* Entrée des panneaux */
-@keyframes ew-rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+/* Entrée des panneaux — ressort Apple */
+@keyframes ew-rise { from { opacity: 0; transform: translateY(20px) scale(.986); } to { opacity: 1; transform: translateY(0) scale(1); } }
 .stat-card, .kpi-card, .table-card, .hero-card, .card-p, .card-d, .sim-card,
 .catalog-panel, .fiche-preview, .access-card, .login-card, .result-hero, .doc-card {
-  animation: ew-rise .5s cubic-bezier(.2,.7,.2,1) both;
+  animation: ew-rise .55s var(--ease-spring) both;
 }
 /* Cascade dans les grilles Bootstrap */
-.row > [class*="col-"]:nth-child(2) > * { animation-delay: .06s; }
-.row > [class*="col-"]:nth-child(3) > * { animation-delay: .12s; }
-.row > [class*="col-"]:nth-child(4) > * { animation-delay: .18s; }
-.row > [class*="col-"]:nth-child(5) > * { animation-delay: .24s; }
-.row > [class*="col-"]:nth-child(6) > * { animation-delay: .30s; }
+.row > [class*="col-"]:nth-child(2) > * { animation-delay: .05s; }
+.row > [class*="col-"]:nth-child(3) > * { animation-delay: .10s; }
+.row > [class*="col-"]:nth-child(4) > * { animation-delay: .15s; }
+.row > [class*="col-"]:nth-child(5) > * { animation-delay: .20s; }
+.row > [class*="col-"]:nth-child(6) > * { animation-delay: .25s; }
 
-/* Survol des cartes : élévation + halo accent */
+/* Survol des cartes : élévation ressort + halo accent */
 .stat-card, .kpi-card, .card-p, .card-d {
-  transition: transform .2s cubic-bezier(.2,.7,.2,1), border-color .2s, box-shadow .2s;
+  transition: transform .36s var(--ease-spring), border-color .2s, box-shadow .36s var(--ease-spring);
 }
 .stat-card:hover, .kpi-card:hover, .card-p:hover, .card-d:hover {
-  transform: translateY(-3px);
-  border-color: var(--border-light);
-  box-shadow: var(--shadow-lg), 0 0 28px -14px var(--accent-glow);
+  transform: translateY(-4px);
+  border-color: var(--accent-line);
+  box-shadow: var(--shadow-lg), var(--glass-edge), 0 0 30px -14px var(--accent-glow);
 }
 
-/* Boutons : pression tactile */
-.btn, .btn-cee, .btn-d { transition: all .15s cubic-bezier(.2,.7,.2,1); }
-.btn:active, .btn-cee:active, .btn-d:active { transform: translateY(1px) scale(.985); }
+/* Boutons : pression tactile ressort */
+.btn-cee, .btn-d { transition: transform .24s var(--ease-spring), box-shadow .24s var(--ease-spring), background-color .15s, color .15s; }
+.btn:active, .btn-cee:active, .btn-d:active { transform: scale(.96); }
 
-/* Modales : entrée en échelle */
-.modal.fade .modal-dialog { transition: transform .32s cubic-bezier(.2,.8,.2,1), opacity .25s; transform: scale(.95) translateY(12px); }
+/* Modales : entrée ressort */
+.modal.fade .modal-dialog { transition: transform .44s var(--ease-spring), opacity .3s ease; transform: scale(.94) translateY(16px); }
 .modal.show .modal-dialog { transform: scale(1) translateY(0); }
-@keyframes ew-modal-in { from { opacity: 0; transform: scale(.95) translateY(12px); } to { opacity: 1; transform: scale(1) translateY(0); } }
-.modal-box { animation: ew-modal-in .3s cubic-bezier(.2,.8,.2,1); }
+@keyframes ew-modal-in { from { opacity: 0; transform: scale(.94) translateY(16px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+.modal-box { animation: ew-modal-in .44s var(--ease-spring); }
 
 /* Pulsation de l'étape courante (steppers) */
 @keyframes ew-pulse {
@@ -416,8 +423,8 @@ body { animation: ew-drift 40s ease-in-out infinite; }
 .step.current .step-circle,
 .step-item.active .step-num { animation: ew-pulse 2.6s ease-in-out infinite; }
 
-/* Focus accessible */
-:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 2px; }
+/* Focus accessible — anneau accent */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-sm); }
 a { transition: color .14s; }
 
 /* Réduction des animations */

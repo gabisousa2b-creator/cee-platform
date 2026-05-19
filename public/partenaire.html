@@ -38,9 +38,9 @@
     .main-p { max-width:1240px; margin:0 auto; padding:28px 26px 64px; }
 
     .hero-p {
-      background:linear-gradient(135deg, rgba(31,227,194,.07), rgba(91,140,255,.05) 60%, rgba(255,255,255,.014));
+      background:linear-gradient(145deg, rgba(46,126,244,.16) 0%, rgba(91,168,229,.10) 38%, rgba(255,255,255,.72) 100%);
       -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
-      border:1px solid var(--border-light); border-radius:var(--r-xl);
+      border:1px solid var(--border-light); border-radius:var(--r-xl); box-shadow:var(--glass-edge);
       padding:24px 28px; margin-bottom:20px; position:relative; overflow:hidden;
     }
     .hero-p::before { content:''; position:absolute; top:0; left:0; right:0; height:1px;
@@ -127,7 +127,9 @@
     #appScreen { display:none; }
     .sidebar-p {
       width:var(--sidebar-width); min-height:100vh;
-      background:var(--bg-2); border-right:1px solid var(--border);
+      background:var(--glass-fill);
+      -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+      border-right:1px solid var(--border-light); box-shadow:var(--glass-edge);
       position:fixed; top:0; left:0; z-index:120;
       display:flex; flex-direction:column; overflow-y:auto;
     }
@@ -159,9 +161,11 @@
     .pview .modal-header { padding:0 0 14px !important; margin:0 0 18px; border-bottom:1px solid var(--border) !important; }
     .pview .modal-header .modal-title { font-size:1.3rem; }
     .pview .modal-body {
-      background:var(--bg-2); border:1px solid var(--border);
-      border-radius:var(--r-lg); box-shadow:var(--shadow-sm);
-      padding:22px 24px !important;
+      background:var(--glass-fill);
+      -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+      border:1px solid var(--border-light);
+      border-radius:var(--r-lg); box-shadow:var(--shadow-md), var(--glass-edge);
+      padding:24px 26px !important;
     }
     .pview .modal-footer { border-top:1px solid var(--border); padding:16px 0 0; margin-top:18px; }
 
