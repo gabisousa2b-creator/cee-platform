@@ -163,6 +163,7 @@
       <span class="role-badge" id="roleBadge"></span>
       <span style="color:var(--t2);font-size:.86rem" id="partnerName"></span>
       <button class="btn btn-sm btn-outline-secondary d-none" id="btnCatalogue" onclick="openCatalogue()"><i class="fas fa-layer-group me-1"></i>Catalogue</button>
+      <button class="btn btn-sm btn-outline-secondary d-none" id="btnDeleg" onclick="openDelegModal()"><i class="fas fa-building-columns me-1"></i>Délégataires</button>
       <button class="btn btn-sm btn-outline-secondary d-none" id="btnTeam" onclick="openTeam()"><i class="fas fa-users me-1"></i>Mon équipe</button>
       <button class="btn btn-sm btn-outline-secondary" id="btnDash" onclick="openDashModal()"><i class="fas fa-chart-line me-1"></i>Tableau de bord</button>
       <button class="btn btn-sm btn-outline-secondary" id="btnComm" onclick="openCommModal()"><i class="fas fa-comments me-1"></i>Communication</button>
@@ -259,6 +260,11 @@
           <div class="mb-3">
             <select class="form-select" id="dOperation"><option value="">— Aucune opération —</option></select>
             <div class="form-text small" id="dOperationHint"></div>
+          </div>
+          <h6 class="fw-semibold mb-2" style="color:var(--t2)"><i class="fas fa-building-columns me-2"></i>Délégataire</h6>
+          <div class="mb-3">
+            <select class="form-select" id="dDelegataire"><option value="">— Aucun délégataire —</option></select>
+            <div class="form-text small" id="dDelegataireHint"></div>
           </div>
           <h6 class="fw-semibold mb-3" style="color:var(--t2)"><i class="fas fa-user me-2"></i>Bénéficiaire</h6>
           <div class="row g-3 mb-3">
@@ -545,6 +551,32 @@
   </div>
 </div>
 
+<!-- ══ MODAL DÉLÉGATAIRES ══ -->
+<div class="modal fade" id="delegModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-0 rounded-4">
+      <div class="modal-header border-bottom">
+        <h5 class="modal-title fw-bold"><i class="fas fa-building-columns me-2" style="color:var(--accent)"></i>Délégataires</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div class="row g-4">
+          <div class="col-lg-6">
+            <div class="fw-semibold mb-2"><i class="fas fa-list me-2" style="color:var(--accent)"></i>Répertoire national</div>
+            <input type="text" class="form-control form-control-sm mb-2" id="delegSearch" placeholder="Rechercher un délégataire…" oninput="renderDeleg()">
+            <div id="delegRepertoire" style="max-height:380px;overflow-y:auto"></div>
+          </div>
+          <div class="col-lg-6">
+            <div class="fw-semibold mb-2"><i class="fas fa-handshake me-2" style="color:var(--accent)"></i>Mes délégataires <span id="delegCount" style="color:var(--t3);font-weight:400"></span></div>
+            <div id="delegSelection" style="max-height:420px;overflow-y:auto"></div>
+          </div>
+        </div>
+        <div class="alert alert-light border small mt-3 mb-0"><i class="fas fa-circle-info me-1"></i>Ajoute les délégataires avec qui tu travailles et saisis le prix du MWhc négocié. Tu pourras rattacher un délégataire à chaque dossier déposé.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast-box" id="toastBox"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -598,6 +630,7 @@ async function loadMe() {
     document.getElementById('tauxInfo').textContent = '(' + myPrix.toLocaleString('fr-FR') + ' €/MWh)';
     document.getElementById('btnTeam').classList.toggle('d-none', myRole !== 'admin_partenaire');
     document.getElementById('btnCatalogue').classList.toggle('d-none', myRole !== 'admin_partenaire');
+    document.getElementById('btnDeleg').classList.toggle('d-none', myRole !== 'admin_partenaire');
     document.getElementById('heroSub').textContent = myRole === 'admin_partenaire'
       ? p.partenaire_nom + ' — dossiers de toute votre équipe'
       : 'Vos dépôts — ' + p.partenaire_nom;
@@ -761,6 +794,23 @@ async function openDeposit() {
       : 'Catalogue vide — ajoute des opérations.';
     else if (ops.length === 1) sel.value = ops[0].id;
   } catch(e) {}
+  const dSel = document.getElementById('dDelegataire');
+  dSel.innerHTML = '<option value="">— Aucun délégataire —</option>';
+  const dHint = document.getElementById('dDelegataireHint');
+  dHint.textContent = '';
+  try {
+    const dgs = await (await fetch('/api/partner/my-delegataires')).json();
+    (dgs || []).forEach(dg => {
+      const opt = document.createElement('option');
+      opt.value = dg.delegataire_id;
+      opt.textContent = dg.nom + (dg.prix_mwhc ? ` — ${dg.prix_mwhc} €/MWhc` : '');
+      dSel.appendChild(opt);
+    });
+    if (!dgs || !dgs.length) dHint.textContent = myRole === 'apporteur'
+      ? 'Aucun délégataire — contacte ton partenaire.'
+      : 'Aucun délégataire — ajoute-les via le bouton « Délégataires ».';
+    else if (dgs.length === 1) dSel.value = dgs[0].delegataire_id;
+  } catch(e) {}
   bootstrap.Modal.getOrCreateInstance(document.getElementById('depositModal')).show();
 }
 document.getElementById('depositForm').addEventListener('submit', async e => {
@@ -777,7 +827,8 @@ document.getElementById('depositForm').addEventListener('submit', async e => {
     code_postal: document.getElementById('dCp').value.trim(),
     ville: document.getElementById('dVille').value.trim(),
     activite: document.getElementById('dActivite').value.trim(),
-    operation_id: document.getElementById('dOperation').value || null
+    operation_id: document.getElementById('dOperation').value || null,
+    delegataire_id: document.getElementById('dDelegataire').value || null
   };
   if (!body.nom || !body.prenom) { err.textContent = 'Nom et prénom requis'; err.classList.remove('d-none'); return; }
   const r = await fetch('/api/partner/dossiers', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
@@ -1472,6 +1523,67 @@ function dlGenDoc() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = 'document-cee.txt';
   a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ── Délégataires ──
+let delegRepertoire = [], delegSelection = [];
+async function openDelegModal() {
+  document.getElementById('delegSearch').value = '';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('delegModal')).show();
+  document.getElementById('delegRepertoire').innerHTML = '<div class="text-center py-3" style="color:var(--t3)"><i class="fas fa-spinner fa-spin"></i></div>';
+  await loadDelegataires();
+}
+async function loadDelegataires() {
+  try {
+    const d = await (await fetch('/api/partner/delegataires')).json();
+    delegRepertoire = d.repertoire || [];
+    delegSelection  = d.selection || [];
+  } catch(e) { delegRepertoire = []; delegSelection = []; }
+  renderDeleg();
+}
+function renderDeleg() {
+  const selIds = new Set(delegSelection.map(x => x.delegataire_id));
+  const q = (document.getElementById('delegSearch').value || '').toLowerCase().trim();
+  let rep = delegRepertoire.filter(d => !selIds.has(d.id));
+  if (q) rep = rep.filter(d => d.nom.toLowerCase().includes(q));
+  document.getElementById('delegRepertoire').innerHTML = rep.length
+    ? rep.map(d => `<div class="op-card op-pick" onclick="addDelegataire(${d.id})">
+        <div class="d-flex justify-content-between align-items-center gap-2">
+          <span style="font-size:.84rem;font-weight:600">${escH(d.nom)}</span>
+          <i class="fas fa-circle-plus" style="color:var(--accent);font-size:1.05rem"></i>
+        </div></div>`).join('')
+    : '<div style="color:var(--t3);font-size:.82rem;padding:14px;text-align:center">Aucun délégataire.</div>';
+  document.getElementById('delegCount').textContent = delegSelection.length ? `(${delegSelection.length})` : '';
+  const nomById = {}; delegRepertoire.forEach(d => { nomById[d.id] = d.nom; });
+  document.getElementById('delegSelection').innerHTML = delegSelection.length
+    ? delegSelection.map(x => `<div class="op-card">
+        <div class="d-flex justify-content-between align-items-center gap-2">
+          <span style="font-size:.84rem;font-weight:600">${escH(nomById[x.delegataire_id] || 'Délégataire')}</span>
+          <button class="btn btn-sm btn-link p-0" style="color:var(--danger)" onclick="removeDelegataire(${x.id})" title="Retirer"><i class="fas fa-trash"></i></button>
+        </div>
+        <div class="d-flex gap-1 align-items-center mt-2">
+          <span style="font-size:.7rem;color:var(--t3)"><i class="fas fa-euro-sign me-1" style="color:var(--accent)"></i>Prix MWhc négocié</span>
+          <input class="form-control form-control-sm" id="pdx-${x.id}" type="number" step="0.01" min="0" style="width:92px" value="${x.prix_mwhc||''}">
+          <span style="font-size:.72rem;color:var(--t3)">€</span>
+          <button class="btn btn-sm btn-outline-primary" onclick="saveDelegataire(${x.id})" title="Enregistrer le prix"><i class="fas fa-save"></i></button>
+        </div></div>`).join('')
+    : '<div style="color:var(--t3);font-size:.82rem;padding:14px;text-align:center">Aucun délégataire sélectionné.</div>';
+}
+async function addDelegataire(delegataireId) {
+  const r = await fetch('/api/partner/delegataires', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ delegataire_id: delegataireId }) });
+  if (r.ok) { showToast('Délégataire ajouté'); await loadDelegataires(); }
+  else showToast('Erreur', 'danger');
+}
+async function saveDelegataire(pdId) {
+  const prix = document.getElementById('pdx-'+pdId).value;
+  const r = await fetch('/api/partner/delegataires/'+pdId, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ prix_mwhc: prix }) });
+  if (r.ok) { showToast('Prix MWhc enregistré'); await loadDelegataires(); }
+  else showToast('Erreur', 'danger');
+}
+async function removeDelegataire(pdId) {
+  const r = await fetch('/api/partner/delegataires/'+pdId, { method:'DELETE' });
+  if (r.ok) { showToast('Délégataire retiré'); await loadDelegataires(); }
+  else showToast('Erreur', 'danger');
 }
 
 // ── Helpers ──

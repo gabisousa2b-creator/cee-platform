@@ -1608,6 +1608,36 @@ db.serialize(() => {
     created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(apporteur_id, operation_id)
   )`);
+  // ── Délégataires CEE ──────────────────────────────────────────────────────────
+  db.run(`CREATE TABLE IF NOT EXISTS delegataires (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    nom        TEXT NOT NULL UNIQUE,
+    actif      INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  // Délégataires retenus par un partenaire + prix MWhc négocié
+  db.run(`CREATE TABLE IF NOT EXISTS partenaire_delegataires (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    partenaire_id  INTEGER NOT NULL,
+    delegataire_id INTEGER NOT NULL,
+    prix_mwhc      REAL DEFAULT 0,
+    actif          INTEGER DEFAULT 1,
+    created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(partenaire_id, delegataire_id)
+  )`);
+  db.run(`ALTER TABLE beneficiaires ADD COLUMN delegataire_id INTEGER`, () => {});
+  db.get('SELECT COUNT(*) AS n FROM delegataires', (e, r) => {
+    if (e || !r || r.n) return;
+    const noms = ["Abokine","ACE Énergie","ACT Commodities France","Aidée","Akéa Énergies","AlphaCEE","Arès",
+      "Capital Energy","CertiNergy","CN Solutions","D.D.E.R","Drapo","EBS Énergie","Éco Environnement",
+      "Économie d'Énergie","Effy Chauffage","Effy Connect","Effy Renov","Enerly Eco","Enneo","Enr'Cert",
+      "Acciona Energia France","GreenYellow","Hellio Solutions","La Compagnie des Économies d'Énergie",
+      "Loris ENR","Neutrali","OAAN Consulting","Objectif 54","Objectif EcoÉnergie","OFEE","Premium Energy",
+      "Sonergia","Teksial","TotalEnergies Marketing France","Vertigo","Vos Travaux Éco","Ynergie"];
+    const st = db.prepare('INSERT INTO delegataires (nom) VALUES (?)');
+    noms.forEach(n => st.run(n));
+    st.finalize();
+  });
   // Opération choisie au dépôt d'un dossier (id partenaire_operations)
   db.run(`ALTER TABLE beneficiaires ADD COLUMN operation_id INTEGER`, () => {});
 
@@ -2449,10 +2479,11 @@ app.post('/api/partner/dossiers', requireRole('admin_partenaire','apporteur'), (
         let ids = []; try { ids = JSON.parse(s.operations || '[]'); } catch(e) {}
         if (!ids.includes(opId)) opId = null;
       }
-      db.run(`INSERT INTO beneficiaires (code,nom,prenom,email,telephone,raison_sociale,siret,adresse,code_postal,ville,activite,partenaire,apporteur_id,operation_id)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      const delId = parseInt(b.delegataire_id) || null;
+      db.run(`INSERT INTO beneficiaires (code,nom,prenom,email,telephone,raison_sociale,siret,adresse,code_postal,ville,activite,partenaire,apporteur_id,operation_id,delegataire_id)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [code, b.nom.trim(), b.prenom.trim(), b.email||'', b.telephone||'', b.raison_sociale||'', b.siret||'',
-         b.adresse||'', b.code_postal||'', b.ville||'', b.activite||'', s.partenaire_nom, s.id, opId],
+         b.adresse||'', b.code_postal||'', b.ville||'', b.activite||'', s.partenaire_nom, s.id, opId, delId],
         function(err) {
           if (err) return res.status(500).json({ error: err.message });
           db.run(`INSERT INTO activity_logs (beneficiaire_id,action,details,auteur) VALUES (?,?,?,?)`,
@@ -2547,6 +2578,60 @@ app.put('/api/partner/team/:id/op-commission', requireRole('admin_partenaire'), 
         }
       });
     });
+  });
+});
+
+// ── Délégataires — répertoire national + sélection du partenaire ─────────────
+app.get('/api/partner/delegataires', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    db.all('SELECT id,nom FROM delegataires WHERE actif=1 ORDER BY nom COLLATE NOCASE', [], (e1, repertoire) => {
+      if (e1) return res.status(500).json({ error: e1.message });
+      db.all('SELECT id,delegataire_id,prix_mwhc,actif FROM partenaire_delegataires WHERE partenaire_id=?',
+        [s.partenaire_id], (e2, sel) => {
+          if (e2) return res.status(500).json({ error: e2.message });
+          res.json({ repertoire: repertoire || [], selection: sel || [] });
+        });
+    });
+  });
+});
+app.post('/api/partner/delegataires', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    const did = parseInt(req.body.delegataire_id);
+    if (!did) return res.status(400).json({ error: 'Délégataire requis' });
+    db.get('SELECT id FROM delegataires WHERE id=? AND actif=1', [did], (e, d) => {
+      if (e)  return res.status(500).json({ error: e.message });
+      if (!d) return res.status(404).json({ error: 'Délégataire introuvable' });
+      db.run(`INSERT INTO partenaire_delegataires (partenaire_id,delegataire_id,prix_mwhc) VALUES (?,?,?)
+              ON CONFLICT(partenaire_id,delegataire_id) DO UPDATE SET actif=1, prix_mwhc=excluded.prix_mwhc`,
+        [s.partenaire_id, did, parseFloat(req.body.prix_mwhc) || 0],
+        err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+    });
+  });
+});
+app.put('/api/partner/delegataires/:id', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    const sets = [], vals = [];
+    if (req.body.prix_mwhc !== undefined) { sets.push('prix_mwhc=?'); vals.push(parseFloat(req.body.prix_mwhc) || 0); }
+    if (req.body.actif !== undefined)     { sets.push('actif=?');     vals.push(req.body.actif ? 1 : 0); }
+    if (!sets.length) return res.status(400).json({ error: 'Aucune modification' });
+    vals.push(req.params.id, s.partenaire_id);
+    db.run(`UPDATE partenaire_delegataires SET ${sets.join(',')} WHERE id=? AND partenaire_id=?`, vals,
+      err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+  });
+});
+app.delete('/api/partner/delegataires/:id', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    db.run('DELETE FROM partenaire_delegataires WHERE id=? AND partenaire_id=?', [req.params.id, s.partenaire_id],
+      err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+  });
+});
+// Délégataires retenus — pour le dépôt d'un dossier (admin_partenaire + apporteur)
+app.get('/api/partner/my-delegataires', requirePartner, (req, res) => {
+  partnerScope(req, res, (s) => {
+    db.all(`SELECT pd.delegataire_id, pd.prix_mwhc, d.nom
+            FROM partenaire_delegataires pd JOIN delegataires d ON d.id=pd.delegataire_id
+            WHERE pd.partenaire_id=? AND pd.actif=1 ORDER BY d.nom COLLATE NOCASE`,
+      [s.partenaire_id], (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows || []));
   });
 });
 
