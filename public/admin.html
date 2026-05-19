@@ -3732,7 +3732,7 @@ async function loadVeilleLogs() {
       const statEl = document.getElementById('veilleStatut');
       const verEl = document.getElementById('veilleVerifiees');
       const chgEl = document.getElementById('veilleChangements');
-      if (lastRunEl) lastRunEl.textContent = formatDate(last.run_at).replace(/\d{2}:\d{2}$/, m => '<br><small class="text-muted">'+m+'</small>');
+      if (lastRunEl) lastRunEl.innerHTML = formatDate(last.run_at).replace(/\d{2}:\d{2}$/, m => '<br><small class="text-muted">'+m+'</small>');
       let changements = 0;
       try { const c = JSON.parse(last.changements||'{}'); changements = (c.nouveaux||[]).length + (c.modifies||[]).length; } catch(e){}
       if (statEl) {
