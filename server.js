@@ -9,6 +9,7 @@ const session      = require('express-session');
 const { Readable } = require('stream');
 const Anthropic    = require('@anthropic-ai/sdk');
 const nodemailer   = require('nodemailer');
+const PDFDocument  = require('pdfkit');
 const XLSX         = require('xlsx');
 
 const app  = express();
@@ -2267,6 +2268,115 @@ app.put('/api/partner/dossiers/:id/pieces', requirePartner, (req, res) => {
           st.run(b.id, nom, p.fourni_par === 'beneficiaire' ? 'beneficiaire' : 'partenaire', p.obligatoire ? 1 : 0, p.fourni ? 1 : 0, i);
         });
         st.finalize(err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+      });
+    });
+  });
+});
+
+// ── Génération de documents PDF — devis, facture, AH, attestation de convention ──
+function renderDocPdf(res, ctx) {
+  const { b, org, deleg, titre, type, prix, cumac, subvention } = ctx;
+  const DARK = '#15233b', GREY = '#5b6472', ACCENT = '#0c8f7d', LINE = '#dde3ea';
+  const fmtE = n => (Math.round(n) || 0).toLocaleString('fr-FR') + ' €';
+  const today = new Date().toLocaleDateString('fr-FR');
+  const nomComplet = ((b.prenom||'') + ' ' + (b.nom||'')).trim() || '—';
+  const villeBenef = [b.code_postal, b.ville].filter(Boolean).join(' ');
+  const opLabel = (b.op_code ? b.op_code + ' — ' : '') + (b.op_nom || 'Opération CEE');
+  const delegNom = deleg && deleg.deleg_nom ? deleg.deleg_nom : null;
+
+  const doc = new PDFDocument({ size: 'A4', margin: 50 });
+  doc.pipe(res);
+
+  doc.fontSize(17).fillColor(ACCENT).text(org.nom || 'Partenaire CEE');
+  doc.fontSize(9).fillColor(GREY);
+  [org.adresse, [org.code_postal, org.ville].filter(Boolean).join(' '),
+   org.siret && ('SIRET ' + org.siret), org.telephone, org.site_web].filter(Boolean).forEach(l => doc.text(l));
+  doc.moveDown(.5);
+  doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor(LINE).stroke();
+  doc.moveDown(1.2);
+
+  doc.fontSize(21).fillColor(DARK).text(titre.toUpperCase());
+  doc.fontSize(10).fillColor(GREY).text('Dossier ' + b.code + '   ·   ' + today);
+  doc.moveDown(1.1);
+
+  doc.fontSize(8).fillColor(ACCENT).text('BÉNÉFICIAIRE');
+  if (b.raison_sociale && b.raison_sociale.trim()) doc.fontSize(11).fillColor(DARK).text(b.raison_sociale);
+  doc.fontSize(10).fillColor(DARK).text(nomComplet);
+  doc.fontSize(9).fillColor(GREY);
+  [b.adresse, villeBenef, b.siret && ('SIRET ' + b.siret), b.email, b.telephone].filter(Boolean).forEach(l => doc.text(l));
+  doc.moveDown(1.3);
+
+  const para = t => { doc.fontSize(10).fillColor(DARK).text(t, { align:'justify', lineGap:3 }); doc.moveDown(.7); };
+  const field = (label, val) => doc.fontSize(9).fillColor(GREY).text(label + '  ', { continued:true }).fillColor(DARK).text(String(val));
+  const signatures = (gauche, droite) => {
+    doc.moveDown(2);
+    const y = doc.y;
+    doc.fontSize(9).fillColor(GREY).text(gauche, 50, y);
+    doc.text(droite, 320, y);
+    doc.rect(50, y + 16, 200, 64).strokeColor(LINE).stroke();
+    doc.rect(320, y + 16, 200, 64).strokeColor(LINE).stroke();
+  };
+
+  if (type === 'devis' || type === 'facture') {
+    doc.fontSize(8).fillColor(ACCENT).text('OPÉRATION');
+    doc.fontSize(11).fillColor(DARK).text(opLabel);
+    doc.moveDown(.7);
+    field('Volume CEE :', cumac.toLocaleString('fr-FR') + ' kWh cumac');
+    field('Prix de valorisation :', prix + ' € / MWh cumac');
+    if (delegNom) field('Délégataire :', delegNom);
+    doc.moveDown(.5);
+    doc.fontSize(15).fillColor(ACCENT).text((type === 'facture' ? 'Montant total : ' : 'Prime CEE estimée : ') + fmtE(subvention));
+    doc.moveDown(1);
+    para(type === 'facture'
+      ? "La présente facture correspond à l'opération d'économies d'énergie désignée ci-dessus, valorisée au titre du dispositif des Certificats d'Économies d'Énergie."
+      : "Le présent devis est établi au titre du dispositif des Certificats d'Économies d'Énergie. Montant indicatif sous réserve de la validation du dossier. Devis valable 30 jours à compter de sa date d'émission.");
+    signatures('Le bénéficiaire (lu et approuvé)', 'Pour ' + (org.nom || 'le partenaire'));
+  } else if (type === 'ah') {
+    para("Je soussigné(e) " + nomComplet + ", agissant pour le compte de " + (b.raison_sociale || 'la structure bénéficiaire') + (b.siret ? (' (SIRET ' + b.siret + ')') : '') + ", atteste sur l'honneur ce qui suit :");
+    para("Les travaux d'économies d'énergie réalisés à l'adresse " + (b.adresse || '—') + " " + villeBenef + " correspondent à l'opération standardisée " + opLabel + ".");
+    para("J'atteste que ces travaux sont achevés et conformes aux exigences de la fiche d'opération standardisée correspondante, et qu'ils n'ont fait l'objet d'aucune autre demande de Certificats d'Économies d'Énergie.");
+    para("Je reconnais avoir été informé(e) du rôle actif et incitatif de " + (org.nom || 'mon partenaire') + (delegNom ? (' et du délégataire ' + delegNom) : '') + " dans la décision d'engager ces travaux, préalablement à leur réalisation.");
+    doc.fontSize(9).fillColor(GREY).text("Fait pour servir et valoir ce que de droit.");
+    signatures('Le bénéficiaire', 'Le professionnel');
+  } else {
+    para("La présente atteste de la convention conclue, dans le cadre du dispositif des Certificats d'Économies d'Énergie, entre les parties suivantes :");
+    field('Partenaire :', org.nom || '—');
+    field('Délégataire :', delegNom || '—');
+    doc.moveDown(.7);
+    para("Cette convention porte sur le traitement du dossier CEE " + b.code + " relatif à l'opération " + opLabel + ", au bénéfice de " + (b.raison_sociale || nomComplet) + ".");
+    para("Le prix de valorisation négocié est de " + prix + " € par MWh cumac. Le délégataire s'engage à porter les certificats d'économies d'énergie correspondants auprès du registre national EMMY.");
+    signatures('Pour le partenaire', 'Pour le délégataire');
+  }
+
+  doc.moveDown(2.4);
+  doc.fontSize(8).fillColor('#9aa6b4').text('Document généré via la plateforme EchoWAI — Certificats d\'Économies d\'Énergie · ' + today,
+    { align:'center' });
+  doc.end();
+}
+app.get('/api/partner/dossiers/:id/document/:type', requirePartner, (req, res) => {
+  partnerScope(req, res, (s) => {
+    const type = String(req.params.type || '').toLowerCase();
+    const TYPES = { devis:'Devis', facture:'Facture', ah:"Attestation sur l'honneur", convention:'Attestation de convention' };
+    if (!TYPES[type]) return res.status(400).json({ error: 'Type de document inconnu' });
+    const f = dossierFilter(s);
+    db.get(`SELECT b.*, po.code_fiche AS op_code, po.nom AS op_nom,
+              (SELECT COALESCE(SUM(volume_kwh),0) FROM cee_operations WHERE beneficiaire_id=b.id) AS cumac
+            FROM beneficiaires b LEFT JOIN partenaire_operations po ON po.id=b.operation_id
+            WHERE ${f.where} AND b.id=?`, [...f.params, req.params.id], (e, b) => {
+      if (e)  return res.status(500).json({ error: e.message });
+      if (!b) return res.status(404).json({ error: 'Dossier hors de votre périmètre' });
+      db.get('SELECT * FROM partenaires WHERE id=?', [s.partenaire_id], (e2, org) => {
+        db.get(`SELECT d.nom AS deleg_nom, pd.prix_mwhc FROM delegataires d
+                LEFT JOIN partenaire_delegataires pd ON pd.delegataire_id=d.id AND pd.partenaire_id=?
+                WHERE d.id=?`, [s.partenaire_id, b.delegataire_id || 0], (e3, deleg) => {
+          getPrixCee(s.partenaire_id, (prixDefaut) => {
+            const prix = (deleg && deleg.prix_mwhc) ? deleg.prix_mwhc : prixDefaut;
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename="${type}-${b.code}.pdf"`);
+            renderDocPdf(res, { type, titre: TYPES[type], b, org: org || {}, deleg: deleg || {},
+              prix, cumac: b.cumac || 0, subvention: Math.round((b.cumac || 0) * prix / 1000) });
+          });
+        });
       });
     });
   });
