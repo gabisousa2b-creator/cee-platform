@@ -455,6 +455,28 @@
           <button class="btn btn-sm btn-primary" id="importBtn" onclick="runImport()"><i class="fas fa-upload me-1"></i>Importer</button>
         </div>
         <div id="importResult" class="mt-3"></div>
+
+        <hr style="border-color:var(--border);margin:24px 0">
+        <div class="fw-semibold mb-2"><i class="fas fa-boxes-stacked me-2" style="color:var(--accent)"></i>Catalogue matériel</div>
+        <div class="alert alert-light border small mb-3"><i class="fas fa-circle-info me-1"></i>Le matériel est rattaché à une opération : au dépôt d'un dossier, seul le matériel de l'opération concernée est proposé. Stock, commandes réelles et paiement seront configurés ultérieurement.</div>
+        <div class="mb-2"><select class="form-select form-select-sm" id="matOpFilter" onchange="renderMateriel()" style="max-width:360px"><option value="">Toutes les opérations</option></select></div>
+        <div id="matAddRow" class="row g-1 mb-2 d-none">
+          <div class="col-md-3"><input class="form-control form-control-sm" id="matNom" placeholder="Nom du matériel *"></div>
+          <div class="col-md-2"><input class="form-control form-control-sm" id="matRef" placeholder="Référence"></div>
+          <div class="col-md-2"><input class="form-control form-control-sm" id="matMarque" placeholder="Marque"></div>
+          <div class="col-md-2"><input class="form-control form-control-sm" id="matCat" placeholder="Catégorie"></div>
+          <div class="col-md-2"><select class="form-select form-select-sm" id="matOp"></select></div>
+          <div class="col-md-1"><button class="btn btn-sm btn-primary w-100" onclick="addMateriel()" title="Ajouter"><i class="fas fa-plus"></i></button></div>
+        </div>
+        <div id="matList" style="max-height:260px;overflow-y:auto"></div>
+
+        <div class="fw-semibold mt-3 mb-2" id="masseTitle"><i class="fas fa-layer-group me-2" style="color:var(--accent)"></i>Affecter du matériel en masse</div>
+        <div id="masseRow" class="row g-1 d-none">
+          <div class="col-md-4"><select class="form-select form-select-sm" id="masseOp"></select></div>
+          <div class="col-md-4"><select class="form-select form-select-sm" id="masseMat"></select></div>
+          <div class="col-md-2"><input class="form-control form-control-sm" id="masseQte" type="number" min="1" step="1" value="1"></div>
+          <div class="col-md-2"><button class="btn btn-sm btn-primary w-100" onclick="affecterMasse()">Appliquer</button></div>
+        </div>
       </div>
     </div>
   </div>
@@ -798,10 +820,13 @@ async function openDetail(id) {
       <a href="/api/partner/dossiers/${b.id}/document/ah" target="_blank" class="btn btn-sm btn-outline-primary"><i class="fas fa-file-pdf me-1"></i>Attestation sur l'honneur</a>
       <a href="/api/partner/dossiers/${b.id}/document/convention" target="_blank" class="btn btn-sm btn-outline-primary"><i class="fas fa-file-pdf me-1"></i>Attestation de convention</a>
     </div>
+    <div class="sec-title">Matériel à commander</div>
+    <div id="matCmdBox"></div>
     <div class="alert alert-light mt-3 mb-0" style="font-size:.78rem">
-      <i class="fas fa-circle-info me-1"></i>Les pièces « Bénéficiaire » apparaissent dans l'espace du bénéficiaire ; les pièces « Partenaire » restent internes (le bénéficiaire ne les voit pas). Les documents PDF sont pré-remplis depuis le dossier.
+      <i class="fas fa-circle-info me-1"></i>Les pièces « Bénéficiaire » apparaissent dans l'espace du bénéficiaire ; les pièces « Partenaire » restent internes. Documents PDF pré-remplis. Le matériel proposé dépend de l'opération du dossier.
     </div>`;
   loadDossierPieces(b.id);
+  loadDossierMateriel(b.id);
 }
 function closeDetail() {
   document.getElementById('detailPanel').classList.remove('open');
@@ -856,6 +881,40 @@ async function saveDossierPieces() {
   const pieces = dossierPieces.filter(p => (p.nom||'').trim());
   const r = await fetch(`/api/partner/dossiers/${currentDossierId}/pieces`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ pieces }) });
   if (r.ok) showToast('Pièces requises enregistrées');
+  else showToast('Erreur', 'danger');
+}
+// ── Matériel à commander (par dossier) ──
+let dossierMateriel = [];
+async function loadDossierMateriel(id) {
+  const box = document.getElementById('matCmdBox');
+  if (!box) return;
+  box.innerHTML = '<div style="color:var(--t3);font-size:.82rem"><i class="fas fa-spinner fa-spin"></i></div>';
+  try {
+    dossierMateriel = await (await fetch(`/api/partner/dossiers/${id}/materiel`)).json();
+    if (!Array.isArray(dossierMateriel)) dossierMateriel = [];
+  } catch(e) { dossierMateriel = []; }
+  renderDossierMateriel();
+}
+function renderDossierMateriel() {
+  const box = document.getElementById('matCmdBox');
+  if (!box) return;
+  if (!dossierMateriel.length) {
+    box.innerHTML = '<div style="color:var(--t3);font-size:.8rem;padding:6px">Aucun matériel disponible pour cette opération. Ajoute du matériel au catalogue depuis le Tableau de bord.</div>';
+    return;
+  }
+  box.innerHTML = dossierMateriel.map((m, i) => `
+    <div class="aop-row">
+      <input type="number" class="form-control form-control-sm" style="width:72px" min="0" step="1" value="${m.quantite||''}" oninput="dossierMateriel[${i}].quantite=this.value" placeholder="Qté">
+      <span style="flex:1;min-width:140px;font-size:.84rem"><strong>${escH(m.nom)}</strong>${m.marque?` <span style="color:var(--t3)">· ${escH(m.marque)}</span>`:''}</span>
+      <span style="font-size:.72rem;color:var(--t3)">${escH(m.reference||'')}${m.unite?(' / '+escH(m.unite)):''}</span>
+    </div>`).join('') +
+    `<button class="btn btn-sm btn-primary mt-2" onclick="saveDossierMateriel()"><i class="fas fa-save me-1"></i>Enregistrer le matériel</button>`;
+}
+async function saveDossierMateriel() {
+  if (!currentDossierId) return;
+  const items = dossierMateriel.filter(m => parseFloat(m.quantite) > 0).map(m => ({ materiel_id:m.id, quantite:m.quantite }));
+  const r = await fetch(`/api/partner/dossiers/${currentDossierId}/materiel`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ items }) });
+  if (r.ok) showToast('Matériel du dossier enregistré');
   else showToast('Erreur', 'danger');
 }
 
@@ -1291,6 +1350,66 @@ async function openDashModal() {
   document.getElementById('fVille').innerHTML = '<option value="">Toutes les villes</option>' + optHtml([...villes].sort().map(v=>[v,v]));
   document.getElementById('emmyOp').innerHTML = '<option value="">Toutes les opérations</option>' + optHtml(opItems);
   renderDash();
+  loadMaterielSection();
+}
+// ── Catalogue matériel ──
+let materielData = [], dashOps = [];
+async function loadMaterielSection() {
+  try { dashOps = await (await fetch('/api/partner/operations')).json(); if (!Array.isArray(dashOps)) dashOps = []; }
+  catch(e) { dashOps = []; }
+  const opOpts = dashOps.map(o => `<option value="${o.id}">${escH(o.code_fiche)} — ${escH(clip(o.nom,30))}</option>`).join('');
+  document.getElementById('matOpFilter').innerHTML = '<option value="">Toutes les opérations</option>' + opOpts;
+  document.getElementById('matOp').innerHTML = '<option value="">— Opération —</option>' + opOpts;
+  document.getElementById('masseOp').innerHTML = '<option value="">Opération…</option>' + opOpts;
+  const isAdmin = myRole === 'admin_partenaire';
+  document.getElementById('matAddRow').classList.toggle('d-none', !isAdmin);
+  document.getElementById('masseRow').classList.toggle('d-none', !isAdmin);
+  document.getElementById('masseTitle').classList.toggle('d-none', !isAdmin);
+  await loadMateriel();
+}
+async function loadMateriel() {
+  try { materielData = await (await fetch('/api/partner/materiel')).json(); if (!Array.isArray(materielData)) materielData = []; }
+  catch(e) { materielData = []; }
+  renderMateriel();
+}
+function renderMateriel() {
+  const fop = document.getElementById('matOpFilter').value;
+  const list = fop ? materielData.filter(m => String(m.operation_id) === fop) : materielData;
+  const isAdmin = myRole === 'admin_partenaire';
+  const box = document.getElementById('matList');
+  box.innerHTML = list.length
+    ? `<table class="tbl-p"><thead><tr><th>Matériel</th><th>Référence</th><th>Opération</th>${isAdmin?'<th></th>':''}</tr></thead><tbody>` +
+      list.map(m => `<tr>
+        <td><strong>${escH(m.nom)}</strong>${m.marque||m.categorie?`<div style="font-size:.7rem;color:var(--t3)">${escH([m.marque,m.categorie].filter(Boolean).join(' · '))}</div>`:''}</td>
+        <td style="color:var(--t2)">${escH(m.reference||'—')}</td>
+        <td>${m.operation_code?`<span class="op-chip">${escH(m.operation_code)}</span>`:'<span style="color:var(--t3);font-size:.74rem">Toutes</span>'}</td>
+        ${isAdmin?`<td><button class="btn btn-sm btn-link p-0" style="color:var(--danger)" onclick="deleteMateriel(${m.id})" title="Retirer"><i class="fas fa-trash"></i></button></td>`:''}
+      </tr>`).join('') + '</tbody></table>'
+    : '<div style="color:var(--t3);font-size:.82rem;padding:8px">Aucun matériel au catalogue.</div>';
+  const mm = document.getElementById('masseMat');
+  if (mm) mm.innerHTML = '<option value="">Matériel…</option>' + materielData.map(m => `<option value="${m.id}">${escH(m.nom)}</option>`).join('');
+}
+async function addMateriel() {
+  const g = id => document.getElementById(id).value.trim();
+  const body = { nom:g('matNom'), reference:g('matRef'), marque:g('matMarque'), categorie:g('matCat'),
+    operation_id: document.getElementById('matOp').value || null };
+  if (!body.nom) { showToast('Nom du matériel requis', 'danger'); return; }
+  const r = await fetch('/api/partner/materiel', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  if (r.ok) { showToast('Matériel ajouté'); ['matNom','matRef','matMarque','matCat'].forEach(id => document.getElementById(id).value=''); loadMateriel(); }
+  else showToast('Erreur', 'danger');
+}
+async function deleteMateriel(id) {
+  const r = await fetch('/api/partner/materiel/' + id, { method:'DELETE' });
+  if (r.ok) { showToast('Matériel retiré'); loadMateriel(); } else showToast('Erreur', 'danger');
+}
+async function affecterMasse() {
+  const body = { operation_id: document.getElementById('masseOp').value,
+    materiel_id: document.getElementById('masseMat').value, quantite: document.getElementById('masseQte').value };
+  if (!body.operation_id || !body.materiel_id) { showToast('Opération et matériel requis', 'danger'); return; }
+  const r = await fetch('/api/partner/materiel/affecter-masse', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok && d.success) showToast(`Matériel affecté à ${d.count} dossier(s)`);
+  else showToast(d.error || 'Erreur', 'danger');
 }
 function renderDash() {
   const fop = document.getElementById('fOp').value;

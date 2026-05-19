@@ -1686,6 +1686,28 @@ db.serialize(() => {
     ordre           INTEGER DEFAULT 0,
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+  // ── Catalogue matériel — articles disponibles, rattachés à une opération ──────
+  db.run(`CREATE TABLE IF NOT EXISTS materiel (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    partenaire_id INTEGER NOT NULL,
+    operation_id  INTEGER,
+    nom           TEXT NOT NULL,
+    reference     TEXT DEFAULT '',
+    marque        TEXT DEFAULT '',
+    categorie     TEXT DEFAULT '',
+    unite         TEXT DEFAULT 'unité',
+    actif         INTEGER DEFAULT 1,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  // Matériel sélectionné pour un dossier (commande à venir — stock/paiement ultérieurs)
+  db.run(`CREATE TABLE IF NOT EXISTS dossier_materiel (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    beneficiaire_id INTEGER NOT NULL,
+    materiel_id     INTEGER NOT NULL,
+    quantite        REAL DEFAULT 1,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(beneficiaire_id, materiel_id)
+  )`);
   // Opération choisie au dépôt d'un dossier (id partenaire_operations)
   db.run(`ALTER TABLE beneficiaires ADD COLUMN operation_id INTEGER`, () => {});
 
@@ -2936,6 +2958,104 @@ app.delete('/api/partner/cdc', requireRole('admin_partenaire'), (req, res) => {
     if (!did || !oid) return res.status(400).json({ error: 'Délégataire et opération requis' });
     db.run('DELETE FROM cdc_pieces WHERE partenaire_id=? AND delegataire_id=? AND operation_id=?',
       [s.partenaire_id, did, oid], err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+  });
+});
+
+// ── Catalogue matériel + sélection par dossier ───────────────────────────────
+app.get('/api/partner/materiel', requirePartner, (req, res) => {
+  partnerScope(req, res, (s) => {
+    const opId = parseInt(req.query.operation_id) || null;
+    let where = 'm.partenaire_id=?'; const params = [s.partenaire_id];
+    if (opId) { where += ' AND m.operation_id=?'; params.push(opId); }
+    db.all(`SELECT m.id,m.operation_id,m.nom,m.reference,m.marque,m.categorie,m.unite,m.actif,
+              po.code_fiche AS operation_code, po.nom AS operation_nom
+            FROM materiel m LEFT JOIN partenaire_operations po ON po.id=m.operation_id
+            WHERE ${where} ORDER BY po.code_fiche, m.nom COLLATE NOCASE`, params,
+      (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows || []));
+  });
+});
+app.post('/api/partner/materiel', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    const m = req.body;
+    if (!m.nom || !String(m.nom).trim()) return res.status(400).json({ error: 'Nom du matériel requis' });
+    db.run(`INSERT INTO materiel (partenaire_id,operation_id,nom,reference,marque,categorie,unite,actif)
+            VALUES (?,?,?,?,?,?,?,1)`,
+      [s.partenaire_id, parseInt(m.operation_id) || null, String(m.nom).trim(), m.reference||'', m.marque||'',
+       m.categorie||'', m.unite||'unité'],
+      function(err) { err ? res.status(500).json({ error: err.message }) : res.json({ success: true, id: this.lastID }); });
+  });
+});
+app.put('/api/partner/materiel/:id', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    const m = req.body, sets = [], vals = [];
+    ['nom','reference','marque','categorie','unite'].forEach(k => {
+      if (m[k] !== undefined) { sets.push(k + '=?'); vals.push(String(m[k] || '')); }
+    });
+    if (m.operation_id !== undefined) { sets.push('operation_id=?'); vals.push(parseInt(m.operation_id) || null); }
+    if (m.actif !== undefined)        { sets.push('actif=?');        vals.push(m.actif ? 1 : 0); }
+    if (!sets.length) return res.status(400).json({ error: 'Aucune modification' });
+    vals.push(req.params.id, s.partenaire_id);
+    db.run(`UPDATE materiel SET ${sets.join(',')} WHERE id=? AND partenaire_id=?`, vals,
+      err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+  });
+});
+app.delete('/api/partner/materiel/:id', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    db.run('DELETE FROM materiel WHERE id=? AND partenaire_id=?', [req.params.id, s.partenaire_id],
+      err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+  });
+});
+// Matériel d'un dossier — catalogue disponible pour son opération + quantités sélectionnées
+app.get('/api/partner/dossiers/:id/materiel', requirePartner, (req, res) => {
+  partnerScope(req, res, (s) => {
+    const f = dossierFilter(s);
+    db.get(`SELECT b.id,b.operation_id FROM beneficiaires b WHERE ${f.where} AND b.id=?`,
+      [...f.params, req.params.id], (e, b) => {
+        if (e)  return res.status(500).json({ error: e.message });
+        if (!b) return res.status(404).json({ error: 'Dossier hors de votre périmètre' });
+        db.all(`SELECT m.id,m.nom,m.reference,m.marque,m.categorie,m.unite,
+                  (SELECT quantite FROM dossier_materiel WHERE beneficiaire_id=? AND materiel_id=m.id) AS quantite
+                FROM materiel m
+                WHERE m.partenaire_id=? AND m.actif=1 AND (m.operation_id=? OR m.operation_id IS NULL)
+                ORDER BY m.nom COLLATE NOCASE`,
+          [b.id, s.partenaire_id, b.operation_id], (e2, rows) =>
+            e2 ? res.status(500).json({ error: e2.message }) : res.json(rows || []));
+      });
+  });
+});
+app.put('/api/partner/dossiers/:id/materiel', requirePartner, (req, res) => {
+  partnerScope(req, res, (s) => {
+    const f = dossierFilter(s);
+    db.get(`SELECT b.id FROM beneficiaires b WHERE ${f.where} AND b.id=?`, [...f.params, req.params.id], (e, b) => {
+      if (e)  return res.status(500).json({ error: e.message });
+      if (!b) return res.status(404).json({ error: 'Dossier hors de votre périmètre' });
+      const items = Array.isArray(req.body.items) ? req.body.items : [];
+      db.run('DELETE FROM dossier_materiel WHERE beneficiaire_id=?', [b.id], (e2) => {
+        if (e2) return res.status(500).json({ error: e2.message });
+        const valid = items.filter(it => parseInt(it.materiel_id) && parseFloat(it.quantite) > 0);
+        if (!valid.length) return res.json({ success: true });
+        const st = db.prepare('INSERT OR REPLACE INTO dossier_materiel (beneficiaire_id,materiel_id,quantite) VALUES (?,?,?)');
+        valid.forEach(it => st.run(b.id, parseInt(it.materiel_id), parseFloat(it.quantite)));
+        st.finalize(err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+      });
+    });
+  });
+});
+// Affectation de matériel en masse — à tous les dossiers d'une opération
+app.post('/api/partner/materiel/affecter-masse', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    const opId = parseInt(req.body.operation_id), matId = parseInt(req.body.materiel_id);
+    const qte = parseFloat(req.body.quantite) || 1;
+    if (!opId || !matId) return res.status(400).json({ error: 'Opération et matériel requis' });
+    db.all('SELECT id FROM beneficiaires WHERE partenaire=? AND operation_id=? AND archived=0',
+      [s.partenaire_nom, opId], (e, rows) => {
+        if (e) return res.status(500).json({ error: e.message });
+        const ids = (rows || []).map(r => r.id);
+        if (!ids.length) return res.json({ success: true, count: 0 });
+        const st = db.prepare('INSERT OR REPLACE INTO dossier_materiel (beneficiaire_id,materiel_id,quantite) VALUES (?,?,?)');
+        ids.forEach(id => st.run(id, matId, qte));
+        st.finalize(err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true, count: ids.length }));
+      });
   });
 });
 
