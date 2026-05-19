@@ -930,6 +930,12 @@ app.get('/api/portal/dossier', requireBeneficiary, (req, res) => {
   });
 });
 
+// Pièces à fournir par le bénéficiaire (cahier des charges) — il ne voit que les siennes
+app.get('/api/portal/pieces', requireBeneficiary, (req, res) => {
+  db.all("SELECT id,nom,obligatoire,fourni,ordre FROM dossier_pieces WHERE beneficiaire_id=? AND fourni_par='beneficiaire' ORDER BY ordre,id",
+    [req.session.beneficiaireId], (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows || []));
+});
+
 // Upload bénéficiaire : PDF uniquement + analyse IA
 app.post('/api/portal/documents', requireBeneficiary, (req, res, next) => {
   uploadBenef.single('file')(req, res, err => {
@@ -1668,6 +1674,17 @@ db.serialize(() => {
     base.forEach((p, i) => st.run(p[0], p[1], p[2], i));
     st.finalize();
   });
+  // Pièces requises d'un dossier — instanciées depuis le cahier des charges
+  db.run(`CREATE TABLE IF NOT EXISTS dossier_pieces (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    beneficiaire_id INTEGER NOT NULL,
+    nom             TEXT NOT NULL,
+    fourni_par      TEXT DEFAULT 'partenaire',
+    obligatoire     INTEGER DEFAULT 1,
+    fourni          INTEGER DEFAULT 0,
+    ordre           INTEGER DEFAULT 0,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
   // Opération choisie au dépôt d'un dossier (id partenaire_operations)
   db.run(`ALTER TABLE beneficiaires ADD COLUMN operation_id INTEGER`, () => {});
 
@@ -2197,6 +2214,59 @@ app.get('/api/partner/dossiers/:id', requirePartner, (req, res) => {
                   commission_mode: rc.mode });
               });
           });
+      });
+    });
+  });
+});
+
+// ── Pièces requises d'un dossier (cahier des charges instancié) ──────────────
+app.get('/api/partner/dossiers/:id/pieces', requirePartner, (req, res) => {
+  partnerScope(req, res, (s) => {
+    const f = dossierFilter(s);
+    db.get(`SELECT b.id FROM beneficiaires b WHERE ${f.where} AND b.id=?`, [...f.params, req.params.id], (e, b) => {
+      if (e)  return res.status(500).json({ error: e.message });
+      if (!b) return res.status(404).json({ error: 'Dossier hors de votre périmètre' });
+      db.all('SELECT id,nom,fourni_par,obligatoire,fourni,ordre FROM dossier_pieces WHERE beneficiaire_id=? ORDER BY ordre,id',
+        [b.id], (e2, rows) => e2 ? res.status(500).json({ error: e2.message }) : res.json(rows || []));
+    });
+  });
+});
+app.post('/api/partner/dossiers/:id/pieces/generer', requirePartner, (req, res) => {
+  partnerScope(req, res, (s) => {
+    const f = dossierFilter(s);
+    db.get(`SELECT b.id,b.delegataire_id,b.operation_id FROM beneficiaires b WHERE ${f.where} AND b.id=?`,
+      [...f.params, req.params.id], (e, b) => {
+        if (e)  return res.status(500).json({ error: e.message });
+        if (!b) return res.status(404).json({ error: 'Dossier hors de votre périmètre' });
+        getCdc(s.partenaire_id, b.delegataire_id, b.operation_id, (e2, cdc) => {
+          if (e2) return res.status(500).json({ error: e2.message });
+          db.run('DELETE FROM dossier_pieces WHERE beneficiaire_id=?', [b.id], (e3) => {
+            if (e3) return res.status(500).json({ error: e3.message });
+            const st = db.prepare('INSERT INTO dossier_pieces (beneficiaire_id,nom,fourni_par,obligatoire,ordre) VALUES (?,?,?,?,?)');
+            cdc.pieces.forEach((p, i) => st.run(b.id, p.nom, p.fourni_par, p.obligatoire ? 1 : 0, i));
+            st.finalize(err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true, count: cdc.pieces.length }));
+          });
+        });
+      });
+  });
+});
+app.put('/api/partner/dossiers/:id/pieces', requirePartner, (req, res) => {
+  partnerScope(req, res, (s) => {
+    const f = dossierFilter(s);
+    db.get(`SELECT b.id FROM beneficiaires b WHERE ${f.where} AND b.id=?`, [...f.params, req.params.id], (e, b) => {
+      if (e)  return res.status(500).json({ error: e.message });
+      if (!b) return res.status(404).json({ error: 'Dossier hors de votre périmètre' });
+      const pieces = Array.isArray(req.body.pieces) ? req.body.pieces : [];
+      db.run('DELETE FROM dossier_pieces WHERE beneficiaire_id=?', [b.id], (e2) => {
+        if (e2) return res.status(500).json({ error: e2.message });
+        if (!pieces.length) return res.json({ success: true });
+        const st = db.prepare('INSERT INTO dossier_pieces (beneficiaire_id,nom,fourni_par,obligatoire,fourni,ordre) VALUES (?,?,?,?,?,?)');
+        pieces.forEach((p, i) => {
+          const nom = String(p.nom || '').trim();
+          if (!nom) return;
+          st.run(b.id, nom, p.fourni_par === 'beneficiaire' ? 'beneficiaire' : 'partenaire', p.obligatoire ? 1 : 0, p.fourni ? 1 : 0, i);
+        });
+        st.finalize(err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
       });
     });
   });

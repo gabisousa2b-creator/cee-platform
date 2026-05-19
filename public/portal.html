@@ -144,6 +144,9 @@
     <!-- Coordonnées bénéficiaire à confirmer -->
     <div id="coordSection" class="mb-4"></div>
 
+    <!-- Pièces demandées (cahier des charges) -->
+    <div id="reqPiecesSection" class="mb-4"></div>
+
     <!-- Required documents -->
     <h6 class="fw-bold mb-3"><i class="fas fa-paperclip me-2 text-success"></i>Pièces justificatives</h6>
 
@@ -298,8 +301,32 @@ async function loadDossier() {
   renderPartenaire(d.partenaire);
   renderCoordonnees(d);
   renderProgress(d);
+  renderRequiredPieces();
   renderDocs(d.documents);
   renderComments(d.commentaires);
+}
+
+// ── Pièces demandées pour le dossier (cahier des charges) ─────────────────────
+async function renderRequiredPieces() {
+  const el = document.getElementById('reqPiecesSection');
+  if (!el) return;
+  let pieces = [];
+  try { pieces = await (await fetch('/api/portal/pieces')).json(); } catch(e) { pieces = []; }
+  if (!Array.isArray(pieces) || !pieces.length) { el.innerHTML = ''; return; }
+  const esc = s => (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const rows = pieces.map(p => {
+    const ok = !!p.fourni;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border)">
+      <i class="fas fa-${ok?'circle-check':'circle'}" style="color:${ok?'var(--success)':'var(--t3)'};font-size:1rem"></i>
+      <span style="flex:1;font-size:.9rem;color:var(--t1)">${esc(p.nom)}</span>
+      ${p.obligatoire?'<span style="font-size:.68rem;font-weight:700;color:var(--warning)">Obligatoire</span>':'<span style="font-size:.68rem;color:var(--t3)">Optionnel</span>'}
+      <span style="font-size:.72rem;font-weight:600;color:${ok?'var(--success)':'var(--t2)'};min-width:74px;text-align:right">${ok?'Reçu':'En attente'}</span>
+    </div>`;
+  }).join('');
+  el.innerHTML = `
+    <h6 class="fw-bold mb-2"><i class="fas fa-list-check me-2 text-success"></i>Pièces demandées pour votre dossier</h6>
+    <div style="background:var(--glass-fill);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);border:1px solid var(--border-light);border-radius:var(--r-lg);overflow:hidden">${rows}</div>
+    <div class="text-muted mt-2" style="font-size:.8rem"><i class="fas fa-circle-info me-1"></i>Déposez les pièces en attente via la section ci-dessous.</div>`;
 }
 
 // ── Coordonnées bénéficiaire ──────────────────────────────────────────────────

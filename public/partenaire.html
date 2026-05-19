@@ -789,13 +789,67 @@ async function openDetail(id) {
     <div class="sec-title">Pièces justificatives</div>
     ${docsHtml}
     ${opsHtml}
+    <div class="sec-title">Pièces requises — cahier des charges</div>
+    <div id="piecesReqBox"></div>
     <div class="alert alert-light mt-3 mb-0" style="font-size:.78rem">
-      <i class="fas fa-circle-info me-1"></i>Vue en lecture seule. Pour toute action, contactez votre interlocuteur EchoWAI.
+      <i class="fas fa-circle-info me-1"></i>Les pièces « Bénéficiaire » apparaissent dans l'espace du bénéficiaire ; les pièces « Partenaire » restent internes (le bénéficiaire ne les voit pas).
     </div>`;
+  loadDossierPieces(b.id);
 }
 function closeDetail() {
   document.getElementById('detailPanel').classList.remove('open');
   document.getElementById('overlay').classList.remove('show');
+}
+
+// ── Pièces requises du dossier ──
+let dossierPieces = [], currentDossierId = null;
+async function loadDossierPieces(id) {
+  currentDossierId = id;
+  const box = document.getElementById('piecesReqBox');
+  if (!box) return;
+  box.innerHTML = '<div style="color:var(--t3);font-size:.82rem"><i class="fas fa-spinner fa-spin"></i></div>';
+  try {
+    dossierPieces = await (await fetch(`/api/partner/dossiers/${id}/pieces`)).json();
+    if (!Array.isArray(dossierPieces)) dossierPieces = [];
+  } catch(e) { dossierPieces = []; }
+  renderDossierPieces();
+}
+function renderDossierPieces() {
+  const box = document.getElementById('piecesReqBox');
+  if (!box) return;
+  const rows = dossierPieces.length ? dossierPieces.map((p, i) => `
+    <div class="aop-row">
+      <input type="checkbox" ${p.fourni?'checked':''} onchange="dossierPieces[${i}].fourni=this.checked?1:0" title="Pièce fournie">
+      <input class="form-control form-control-sm" style="flex:1;min-width:150px" value="${escAttr(p.nom)}" oninput="dossierPieces[${i}].nom=this.value" placeholder="Nom du document">
+      <select class="form-select form-select-sm" style="width:auto" onchange="dossierPieces[${i}].fourni_par=this.value">
+        <option value="partenaire" ${p.fourni_par==='partenaire'?'selected':''}>Partenaire</option>
+        <option value="beneficiaire" ${p.fourni_par==='beneficiaire'?'selected':''}>Bénéficiaire</option>
+      </select>
+      <label style="font-size:.7rem;color:var(--t3);display:flex;align-items:center;gap:3px;cursor:pointer"><input type="checkbox" ${p.obligatoire?'checked':''} onchange="dossierPieces[${i}].obligatoire=this.checked?1:0">Oblig.</label>
+      <button class="btn btn-sm btn-link p-0" style="color:var(--danger)" onclick="dossierPieces.splice(${i},1);renderDossierPieces()" title="Retirer"><i class="fas fa-trash"></i></button>
+    </div>`).join('')
+    : '<div style="color:var(--t3);font-size:.8rem;padding:6px">Aucune pièce — génère depuis le cahier des charges ou ajoute manuellement.</div>';
+  box.innerHTML = `
+    <div class="d-flex gap-1 flex-wrap mb-2">
+      <button class="btn btn-sm btn-outline-primary" onclick="genererDossierPieces()"><i class="fas fa-wand-magic-sparkles me-1"></i>Générer depuis le cahier des charges</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="dossierPieces.push({nom:'',fourni_par:'partenaire',obligatoire:1,fourni:0});renderDossierPieces()"><i class="fas fa-plus me-1"></i>Pièce</button>
+    </div>
+    ${rows}
+    <button class="btn btn-sm btn-primary mt-2" onclick="saveDossierPieces()"><i class="fas fa-save me-1"></i>Enregistrer les pièces</button>`;
+}
+async function genererDossierPieces() {
+  if (!currentDossierId) return;
+  const r = await fetch(`/api/partner/dossiers/${currentDossierId}/pieces/generer`, { method:'POST' });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok && d.success) { showToast(`${d.count} pièce(s) générée(s) depuis le cahier des charges`); loadDossierPieces(currentDossierId); }
+  else showToast(d.error || 'Erreur', 'danger');
+}
+async function saveDossierPieces() {
+  if (!currentDossierId) return;
+  const pieces = dossierPieces.filter(p => (p.nom||'').trim());
+  const r = await fetch(`/api/partner/dossiers/${currentDossierId}/pieces`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ pieces }) });
+  if (r.ok) showToast('Pièces requises enregistrées');
+  else showToast('Erreur', 'danger');
 }
 
 // ── Dépôt de dossier ──
