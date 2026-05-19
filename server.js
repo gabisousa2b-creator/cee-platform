@@ -544,6 +544,43 @@ app.post('/api/admin/login', (req, res) => {
 app.post('/api/admin/logout',     (req, res) => { req.session.destroy(); res.json({ success:true }); });
 app.get('/api/admin/check-auth',  (req, res) => res.json({ authenticated: !!req.session.isAdmin }));
 
+// ── Connexion unifiée — portail unique compte.echowai.com (admin / partenaire / apporteur) ──
+app.post('/api/login', (req, res) => {
+  const ip = req.ip || req.connection.remoteAddress || 'unknown';
+  if (!checkRateLimit(ip)) return res.status(429).json({ error: 'Trop de tentatives. Réessayez dans 15 minutes.' });
+  const email    = (req.body.email || '').trim();
+  const password = req.body.password || '';
+  if (!password) return res.status(400).json({ error: 'Mot de passe requis' });
+
+  const tryAdmin = () => {
+    if (password === ADMIN_PASSWORD) {
+      req.session.isAdmin = true;
+      resetLoginAttempts(ip);
+      db.run(`INSERT INTO activity_logs (beneficiaire_id, action, details, auteur) VALUES (NULL, 'connexion_admin', 'Connexion admin réussie', 'admin')`);
+      return res.json({ success: true, role: 'super_admin', redirect: '/admin.html' });
+    }
+    return res.status(401).json({ error: 'Identifiants incorrects' });
+  };
+
+  if (!email) return tryAdmin();
+
+  db.get(`SELECT c.*, p.nom AS partenaire_nom FROM comptes c
+          JOIN partenaires p ON p.id=c.partenaire_id
+          WHERE lower(c.email)=lower(?) AND c.actif=1 AND p.actif=1`,
+    [email], (err, c) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (c && verifyPassword(password, c.password_hash)) {
+        resetLoginAttempts(ip);
+        req.session.compteId     = c.id;
+        req.session.role         = c.role;
+        req.session.partenaireId = c.partenaire_id;
+        db.run('UPDATE comptes SET last_login=CURRENT_TIMESTAMP WHERE id=?', [c.id]);
+        return res.json({ success: true, role: c.role, redirect: '/partenaire.html' });
+      }
+      return tryAdmin();
+    });
+});
+
 app.get('/api/admin/stats', requireAdmin, (req, res) => {
   db.get('SELECT COUNT(*) as total FROM beneficiaires WHERE archived=0', [], (err, total) => {
     db.all('SELECT statut, COUNT(*) as count FROM beneficiaires WHERE archived=0 GROUP BY statut', [], (err, byStatut) => {
