@@ -560,18 +560,42 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body p-4">
-        <div class="row g-4">
-          <div class="col-lg-6">
-            <div class="fw-semibold mb-2"><i class="fas fa-list me-2" style="color:var(--accent)"></i>Répertoire national</div>
-            <input type="text" class="form-control form-control-sm mb-2" id="delegSearch" placeholder="Rechercher un délégataire…" oninput="renderDeleg()">
-            <div id="delegRepertoire" style="max-height:380px;overflow-y:auto"></div>
-          </div>
-          <div class="col-lg-6">
-            <div class="fw-semibold mb-2"><i class="fas fa-handshake me-2" style="color:var(--accent)"></i>Mes délégataires <span id="delegCount" style="color:var(--t3);font-weight:400"></span></div>
-            <div id="delegSelection" style="max-height:420px;overflow-y:auto"></div>
-          </div>
+        <div class="d-flex gap-1 flex-wrap mb-3" id="delegTabs">
+          <button class="fpill active" onclick="delegTab('liste',this)"><i class="fas fa-handshake me-1"></i>Mes délégataires</button>
+          <button class="fpill" onclick="delegTab('cdc',this)"><i class="fas fa-clipboard-list me-1"></i>Cahier des charges</button>
         </div>
-        <div class="alert alert-light border small mt-3 mb-0"><i class="fas fa-circle-info me-1"></i>Ajoute les délégataires avec qui tu travailles et saisis le prix du MWhc négocié. Tu pourras rattacher un délégataire à chaque dossier déposé.</div>
+
+        <div id="dt-liste">
+          <div class="row g-4">
+            <div class="col-lg-6">
+              <div class="fw-semibold mb-2"><i class="fas fa-list me-2" style="color:var(--accent)"></i>Répertoire national</div>
+              <input type="text" class="form-control form-control-sm mb-2" id="delegSearch" placeholder="Rechercher un délégataire…" oninput="renderDeleg()">
+              <div id="delegRepertoire" style="max-height:360px;overflow-y:auto"></div>
+            </div>
+            <div class="col-lg-6">
+              <div class="fw-semibold mb-2"><i class="fas fa-handshake me-2" style="color:var(--accent)"></i>Mes délégataires <span id="delegCount" style="color:var(--t3);font-weight:400"></span></div>
+              <div id="delegSelection" style="max-height:400px;overflow-y:auto"></div>
+            </div>
+          </div>
+          <div class="alert alert-light border small mt-3 mb-0"><i class="fas fa-circle-info me-1"></i>Ajoute les délégataires avec qui tu travailles et saisis le prix du MWhc négocié. Tu pourras rattacher un délégataire à chaque dossier déposé.</div>
+        </div>
+
+        <div id="dt-cdc" class="d-none">
+          <div class="alert alert-light border small mb-3"><i class="fas fa-circle-info me-1"></i>Liste des pièces exigées pour un délégataire et une opération. Base standard CEE par défaut — personnalise-la si besoin. Chaque pièce est fournie par le bénéficiaire ou par le partenaire.</div>
+          <div class="row g-2 mb-3">
+            <div class="col-md-6"><label class="form-label">Délégataire</label><select class="form-select form-select-sm" id="cdcDeleg" onchange="loadCdc()"></select></div>
+            <div class="col-md-6"><label class="form-label">Opération</label><select class="form-select form-select-sm" id="cdcOp" onchange="loadCdc()"></select></div>
+          </div>
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+            <span id="cdcStatus"></span>
+            <div class="d-flex gap-1">
+              <button class="btn btn-sm btn-outline-secondary" onclick="addCdcPiece()"><i class="fas fa-plus me-1"></i>Pièce</button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="resetCdc()" title="Revenir à la base standard"><i class="fas fa-rotate-left"></i></button>
+            </div>
+          </div>
+          <div id="cdcList" style="max-height:320px;overflow-y:auto"></div>
+          <button class="btn btn-sm btn-primary mt-3" onclick="saveCdc()"><i class="fas fa-save me-1"></i>Enregistrer le cahier des charges</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1586,6 +1610,81 @@ async function removeDelegataire(pdId) {
   else showToast('Erreur', 'danger');
 }
 
+// ── Cahier des charges ──
+let cdcPieces = [];
+function delegTab(tab, el) {
+  document.querySelectorAll('#delegTabs .fpill').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('dt-liste').classList.toggle('d-none', tab !== 'liste');
+  document.getElementById('dt-cdc').classList.toggle('d-none', tab !== 'cdc');
+  if (tab === 'cdc') initCdcSelects();
+}
+async function initCdcSelects() {
+  const nomById = {}; delegRepertoire.forEach(d => { nomById[d.id] = d.nom; });
+  document.getElementById('cdcDeleg').innerHTML = delegSelection.length
+    ? delegSelection.map(x => `<option value="${x.delegataire_id}">${escH(nomById[x.delegataire_id] || 'Délégataire')}</option>`).join('')
+    : '<option value="">Aucun délégataire — ajoute-en d\'abord</option>';
+  if (!catalogueData || !catalogueData.length) {
+    try { catalogueData = await (await fetch('/api/partner/operations')).json(); } catch(e) { catalogueData = []; }
+    if (!Array.isArray(catalogueData)) catalogueData = [];
+  }
+  document.getElementById('cdcOp').innerHTML = catalogueData.length
+    ? catalogueData.map(o => `<option value="${o.id}">${escH(o.code_fiche)} — ${escH(clip(o.nom,38))}</option>`).join('')
+    : '<option value="">Catalogue vide — ajoute des opérations</option>';
+  loadCdc();
+}
+async function loadCdc() {
+  const did = document.getElementById('cdcDeleg').value;
+  const oid = document.getElementById('cdcOp').value;
+  const box = document.getElementById('cdcList');
+  const status = document.getElementById('cdcStatus');
+  if (!did || !oid) {
+    box.innerHTML = '<div style="color:var(--t3);font-size:.82rem;padding:8px">Sélectionne un délégataire et une opération.</div>';
+    status.textContent = ''; cdcPieces = []; return;
+  }
+  box.innerHTML = '<div class="text-center py-2" style="color:var(--t3)"><i class="fas fa-spinner fa-spin"></i></div>';
+  try {
+    const r = await (await fetch(`/api/partner/cdc?delegataire_id=${did}&operation_id=${oid}`)).json();
+    cdcPieces = (r.pieces || []).map(p => ({ nom: p.nom, fourni_par: p.fourni_par, obligatoire: !!p.obligatoire }));
+    status.innerHTML = r.personnalise
+      ? '<span class="aop-badge">Personnalisé</span>'
+      : '<span style="font-size:.72rem;color:var(--t3)"><i class="fas fa-circle-info me-1"></i>Base standard CEE</span>';
+    renderCdc();
+  } catch(e) { box.innerHTML = '<div class="alert alert-danger">Erreur de chargement.</div>'; }
+}
+function renderCdc() {
+  const box = document.getElementById('cdcList');
+  if (!cdcPieces.length) { box.innerHTML = '<div style="color:var(--t3);font-size:.82rem;padding:8px">Aucune pièce — ajoutes-en une.</div>'; return; }
+  box.innerHTML = cdcPieces.map((p, i) => `
+    <div class="aop-row">
+      <input class="form-control form-control-sm" style="flex:1;min-width:170px" value="${escAttr(p.nom)}" oninput="cdcPieces[${i}].nom=this.value" placeholder="Nom du document">
+      <select class="form-select form-select-sm" style="width:auto" onchange="cdcPieces[${i}].fourni_par=this.value">
+        <option value="partenaire" ${p.fourni_par==='partenaire'?'selected':''}>Partenaire</option>
+        <option value="beneficiaire" ${p.fourni_par==='beneficiaire'?'selected':''}>Bénéficiaire</option>
+      </select>
+      <label style="font-size:.72rem;color:var(--t3);display:flex;align-items:center;gap:4px;cursor:pointer">
+        <input type="checkbox" ${p.obligatoire?'checked':''} onchange="cdcPieces[${i}].obligatoire=this.checked"> Obligatoire</label>
+      <button class="btn btn-sm btn-link p-0" style="color:var(--danger)" onclick="cdcPieces.splice(${i},1);renderCdc()" title="Retirer"><i class="fas fa-trash"></i></button>
+    </div>`).join('');
+}
+function addCdcPiece() { cdcPieces.push({ nom:'', fourni_par:'partenaire', obligatoire:true }); renderCdc(); }
+async function saveCdc() {
+  const did = document.getElementById('cdcDeleg').value, oid = document.getElementById('cdcOp').value;
+  if (!did || !oid) { showToast('Sélectionne délégataire et opération', 'danger'); return; }
+  const pieces = cdcPieces.filter(p => (p.nom||'').trim());
+  const r = await fetch('/api/partner/cdc', { method:'PUT', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ delegataire_id:did, operation_id:oid, pieces }) });
+  if (r.ok) { showToast('Cahier des charges enregistré'); loadCdc(); }
+  else showToast('Erreur', 'danger');
+}
+async function resetCdc() {
+  const did = document.getElementById('cdcDeleg').value, oid = document.getElementById('cdcOp').value;
+  if (!did || !oid) return;
+  const r = await fetch(`/api/partner/cdc?delegataire_id=${did}&operation_id=${oid}`, { method:'DELETE' });
+  if (r.ok) { showToast('Cahier des charges réinitialisé (base standard)'); loadCdc(); }
+  else showToast('Erreur', 'danger');
+}
+
 // ── Helpers ──
 const CEE_STEPS = [['engage','Engagé'],['controle','Contrôle'],['valide','Validé'],['facture','Facturé']];
 const CEE_BADGE = { engage:['Engagé','cee-engage'], controle:['Contrôle','cee-controle'], valide:['Validé','cee-valide'], facture:['Facturé','cee-facture'] };
@@ -1598,6 +1697,7 @@ function ceeStepper(current) {
   }).join('') + '</div>';
 }
 function escH(s) { return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s) { return escH(s).replace(/"/g,'&quot;'); }
 function clip(s, n) { s = (s==null?'':String(s)); return s.length > n ? s.slice(0,n-1)+'…' : s; }
 function fmtDate(dt) { if (!dt) return '—'; return new Date(dt).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit', year:'numeric' }); }
 function fmtKwh(v) { v = +v||0; return v >= 1e6 ? (v/1e6).toFixed(2)+' GWhc' : v >= 1000 ? (v/1000).toFixed(1)+' MWhc' : Math.round(v).toLocaleString('fr-FR')+' kWhc'; }

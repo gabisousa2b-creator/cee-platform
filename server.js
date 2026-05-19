@@ -1638,6 +1638,36 @@ db.serialize(() => {
     noms.forEach(n => st.run(n));
     st.finalize();
   });
+  // ── Cahier des charges — pièces requises par (partenaire × délégataire × opération) ──
+  // Lignes de base : partenaire_id / delegataire_id / operation_id à NULL = standard CEE
+  db.run(`CREATE TABLE IF NOT EXISTS cdc_pieces (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    partenaire_id  INTEGER,
+    delegataire_id INTEGER,
+    operation_id   INTEGER,
+    nom            TEXT NOT NULL,
+    fourni_par     TEXT DEFAULT 'partenaire',
+    obligatoire    INTEGER DEFAULT 1,
+    ordre          INTEGER DEFAULT 0,
+    created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  db.get('SELECT COUNT(*) AS n FROM cdc_pieces WHERE partenaire_id IS NULL', (e, r) => {
+    if (e || !r || r.n) return;
+    const base = [
+      ['Devis signé et daté (antérieur à l\'engagement)', 'partenaire', 1],
+      ['Facture des travaux', 'partenaire', 1],
+      ["Attestation sur l'honneur (AH) signée", 'partenaire', 1],
+      ['Cadre de contribution / attestation de convention', 'partenaire', 1],
+      ['Preuve de réalisation des travaux', 'partenaire', 0],
+      ['Fiche technique / certificat du matériel posé', 'partenaire', 0],
+      ['Extrait KBIS ou RNE du bénéficiaire', 'beneficiaire', 1],
+      ['Liasse fiscale', 'beneficiaire', 1],
+      ['Attestation de vigilance URSSAF', 'beneficiaire', 1]
+    ];
+    const st = db.prepare('INSERT INTO cdc_pieces (partenaire_id,delegataire_id,operation_id,nom,fourni_par,obligatoire,ordre) VALUES (NULL,NULL,NULL,?,?,?,?)');
+    base.forEach((p, i) => st.run(p[0], p[1], p[2], i));
+    st.finalize();
+  });
   // Opération choisie au dépôt d'un dossier (id partenaire_operations)
   db.run(`ALTER TABLE beneficiaires ADD COLUMN operation_id INTEGER`, () => {});
 
@@ -2632,6 +2662,54 @@ app.get('/api/partner/my-delegataires', requirePartner, (req, res) => {
             FROM partenaire_delegataires pd JOIN delegataires d ON d.id=pd.delegataire_id
             WHERE pd.partenaire_id=? AND pd.actif=1 ORDER BY d.nom COLLATE NOCASE`,
       [s.partenaire_id], (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows || []));
+  });
+});
+
+// ── Cahier des charges — pièces requises par (délégataire × opération) ───────
+// Résout le cahier effectif : personnalisé du partenaire sinon base standard
+function getCdc(partenaireId, delegataireId, operationId, cb) {
+  db.all(`SELECT id,nom,fourni_par,obligatoire,ordre FROM cdc_pieces
+          WHERE partenaire_id=? AND delegataire_id=? AND operation_id=? ORDER BY ordre,id`,
+    [partenaireId, delegataireId, operationId], (e, custom) => {
+      if (e) return cb(e);
+      if (custom && custom.length) return cb(null, { personnalise: true, pieces: custom });
+      db.all(`SELECT id,nom,fourni_par,obligatoire,ordre FROM cdc_pieces
+              WHERE partenaire_id IS NULL AND delegataire_id IS NULL AND operation_id IS NULL ORDER BY ordre,id`,
+        [], (e2, base) => e2 ? cb(e2) : cb(null, { personnalise: false, pieces: base || [] }));
+    });
+}
+app.get('/api/partner/cdc', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    const did = parseInt(req.query.delegataire_id), oid = parseInt(req.query.operation_id);
+    if (!did || !oid) return res.status(400).json({ error: 'Délégataire et opération requis' });
+    getCdc(s.partenaire_id, did, oid, (e, r) => e ? res.status(500).json({ error: e.message }) : res.json(r));
+  });
+});
+app.put('/api/partner/cdc', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    const did = parseInt(req.body.delegataire_id), oid = parseInt(req.body.operation_id);
+    if (!did || !oid) return res.status(400).json({ error: 'Délégataire et opération requis' });
+    const pieces = Array.isArray(req.body.pieces) ? req.body.pieces : [];
+    db.run('DELETE FROM cdc_pieces WHERE partenaire_id=? AND delegataire_id=? AND operation_id=?',
+      [s.partenaire_id, did, oid], (e) => {
+        if (e) return res.status(500).json({ error: e.message });
+        if (!pieces.length) return res.json({ success: true });
+        const st = db.prepare('INSERT INTO cdc_pieces (partenaire_id,delegataire_id,operation_id,nom,fourni_par,obligatoire,ordre) VALUES (?,?,?,?,?,?,?)');
+        pieces.forEach((p, i) => {
+          const nom = String(p.nom || '').trim();
+          if (!nom) return;
+          st.run(s.partenaire_id, did, oid, nom, p.fourni_par === 'beneficiaire' ? 'beneficiaire' : 'partenaire', p.obligatoire ? 1 : 0, i);
+        });
+        st.finalize(err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+      });
+  });
+});
+app.delete('/api/partner/cdc', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    const did = parseInt(req.query.delegataire_id), oid = parseInt(req.query.operation_id);
+    if (!did || !oid) return res.status(400).json({ error: 'Délégataire et opération requis' });
+    db.run('DELETE FROM cdc_pieces WHERE partenaire_id=? AND delegataire_id=? AND operation_id=?',
+      [s.partenaire_id, did, oid], err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
   });
 });
 
