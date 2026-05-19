@@ -3221,6 +3221,110 @@ app.delete('/api/partner/commandes/:id', requireRole('admin_partenaire'), (req, 
   });
 });
 
+// Bon de commande / bon de livraison PDF
+function renderCommandePdf(res, ctx) {
+  const { type, c, lignes, org } = ctx;
+  const INK = '#181c24', SOFT = '#5c6470', RULE = '#cdd2db', BAND = '#1f2632';
+  const eur = n => (Math.round((+n||0)*100)/100).toLocaleString('fr-FR') + ' €';
+  const today = new Date().toLocaleDateString('fr-FR');
+  const M = 56, isBC = type === 'bc';
+  const TITRE = isBC ? 'BON DE COMMANDE' : 'BON DE LIVRAISON';
+  const LIV = { entrepot:'Entrepôt', beneficiaire:'Chez le bénéficiaire', partenaire:'Chez le partenaire', chantier:'Sur le chantier' };
+
+  const doc = new PDFDocument({ size:'A4', margin:M, info:{ Title: TITRE + ' ' + c.reference, Author: org.nom || '' } });
+  doc.pipe(res);
+  const W = doc.page.width - 2 * M, R = M + W;
+
+  doc.font('Helvetica-Bold').fontSize(13).fillColor(INK).text(org.nom || 'Émetteur', M, M, { width: W*0.56 });
+  doc.font('Helvetica').fontSize(8.5).fillColor(SOFT);
+  [org.adresse, [org.code_postal,org.ville].filter(Boolean).join(' '), org.siret && ('SIRET ' + org.siret), org.telephone]
+    .filter(Boolean).forEach(l => doc.text(l, { width: W*0.56 }));
+  const lb = doc.y;
+  doc.font('Helvetica-Bold').fontSize(18).fillColor(INK).text(TITRE, M, M, { width: W, align:'right' });
+  doc.font('Helvetica').fontSize(9).fillColor(SOFT);
+  doc.text('Référence  ' + c.reference, { width: W, align:'right' });
+  doc.text('Date  ' + today, { width: W, align:'right' });
+  let y = Math.max(lb, doc.y) + 18;
+  doc.moveTo(M, y).lineWidth(1).strokeColor(RULE).lineTo(R, y).stroke();
+  y += 20;
+
+  doc.font('Helvetica-Bold').fontSize(8).fillColor(SOFT).text('LIVRAISON', M, y); y = doc.y + 3;
+  doc.font('Helvetica').fontSize(9.5).fillColor(INK).text(LIV[c.livraison_type] || c.livraison_type || '—', M, y, { width: W }); y = doc.y;
+  if (c.livraison_adresse) { doc.fontSize(8.5).fillColor(SOFT).text(c.livraison_adresse, M, y, { width: W }); y = doc.y; }
+  y += 18;
+
+  const w0 = isBC ? W*0.42 : W*0.66, w1 = isBC ? W*0.13 : W*0.34, w2 = W*0.16, w3 = W*0.10;
+  const w4 = W - w0 - w1 - w2 - w3;
+  const c1 = M+w0, c2 = c1+w1, c3 = c2+w2, c4 = c3+w3;
+  doc.rect(M, y, W, 19).fill(BAND);
+  doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#ffffff');
+  doc.text('DÉSIGNATION', M+7, y+6, { width: w0-10 });
+  doc.text('QUANTITÉ', c1, y+6, { width: w1-7, align: isBC?'right':'left' });
+  if (isBC) {
+    doc.text('PRIX U. HT', c2, y+6, { width: w2-7, align:'right' });
+    doc.text('TVA', c3, y+6, { width: w3-7, align:'right' });
+    doc.text('TOTAL HT', c4, y+6, { width: w4-7, align:'right' });
+  }
+  y += 19;
+  let totHT = 0, totTVA = 0;
+  (lignes || []).forEach(l => {
+    const lineHT = (+l.quantite||0) * (+l.prix_unitaire||0);
+    totHT += lineHT; totTVA += lineHT * (+l.tva||0) / 100;
+    doc.rect(M, y, W, 24).lineWidth(.6).strokeColor(RULE).stroke();
+    doc.font('Helvetica').fontSize(8.5).fillColor(INK).text(l.nom || '—', M+7, y+8, { width: w0-12 });
+    doc.text(String(l.quantite || 0), c1, y+8, { width: w1-7, align: isBC?'right':'left' });
+    if (isBC) {
+      doc.text(eur(l.prix_unitaire), c2, y+8, { width: w2-7, align:'right' });
+      doc.text((+l.tva||0) + ' %', c3, y+8, { width: w3-7, align:'right' });
+      doc.text(eur(lineHT), c4, y+8, { width: w4-7, align:'right' });
+    }
+    y += 24;
+  });
+  y += 16;
+
+  if (isBC) {
+    const tw = W*0.42, tx = R-tw;
+    const row = (lab, val, strong) => {
+      if (strong) { doc.rect(tx, y, tw, 24).fill(BAND); }
+      doc.font(strong?'Helvetica-Bold':'Helvetica').fontSize(strong?10:9).fillColor(strong?'#ffffff':INK);
+      doc.text(lab, tx+10, y + (strong?8:2), { width: tw*0.5 });
+      doc.text(val, tx+tw*0.5, y + (strong?8:2), { width: tw*0.5-10, align:'right' });
+      y += strong ? 24 : 16;
+    };
+    row('Total HT', eur(totHT));
+    row('TVA', eur(totTVA));
+    row('TOTAL TTC', eur(totHT + totTVA), true);
+  } else {
+    doc.font('Helvetica').fontSize(8.5).fillColor(SOFT).text('Réception — date et signature :', M, y); y = doc.y + 6;
+    doc.rect(M, y, W*0.5, 72).lineWidth(.8).strokeColor(RULE).stroke();
+  }
+
+  const fy = doc.page.height - M - 24;
+  doc.moveTo(M, fy).lineWidth(.7).strokeColor(RULE).lineTo(R, fy).stroke();
+  const legal = [org.nom, org.siret && ('SIRET ' + org.siret), [org.code_postal,org.ville].filter(Boolean).join(' ')]
+    .filter(Boolean).join('   —   ');
+  doc.font('Helvetica').fontSize(7).fillColor(SOFT).text(legal || '', M, fy+6, { width: W, align:'center' });
+  doc.end();
+}
+app.get('/api/partner/commandes/:id/document/:type', requireRole('admin_partenaire'), (req, res) => {
+  partnerScope(req, res, (s) => {
+    const type = String(req.params.type || '').toLowerCase();
+    if (type !== 'bc' && type !== 'bl') return res.status(400).json({ error: 'Type de document inconnu' });
+    db.get('SELECT * FROM commandes WHERE id=? AND partenaire_id=?', [req.params.id, s.partenaire_id], (e, c) => {
+      if (e)  return res.status(500).json({ error: e.message });
+      if (!c) return res.status(404).json({ error: 'Commande introuvable' });
+      db.all('SELECT * FROM commande_lignes WHERE commande_id=?', [c.id], (e2, lignes) => {
+        if (e2) return res.status(500).json({ error: e2.message });
+        db.get('SELECT * FROM partenaires WHERE id=?', [s.partenaire_id], (e3, org) => {
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', `attachment; filename="${type}-${c.reference}.pdf"`);
+          renderCommandePdf(res, { type, c, lignes: lignes || [], org: org || {} });
+        });
+      });
+    });
+  });
+});
+
 // ── Catalogue d'opérations (Admin Partenaire) ────────────────────────────────
 app.get('/api/partner/operations', requireRole('admin_partenaire'), (req, res) => {
   partnerScope(req, res, (s) => {
