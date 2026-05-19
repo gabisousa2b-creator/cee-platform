@@ -541,27 +541,29 @@
       </div>
     </div>
     <nav class="p-2 flex-grow-1 mt-1" style="overflow-y:auto">
-      <div class="sidebar-section-label">CRM</div>
+      <div class="sidebar-section-label">Pilotage</div>
       <div class="nav-item-s active" data-section="dashboard" onclick="showSection('dashboard')"><i class="fas fa-gauge-high fa-fw"></i> Tableau de bord</div>
-      <div class="nav-item-s" data-section="beneficiaires" onclick="showSection('beneficiaires')"><i class="fas fa-users fa-fw"></i> Bénéficiaires</div>
-      <div class="nav-item-s" data-section="partenaires" onclick="showSection('partenaires')"><i class="fas fa-handshake fa-fw"></i> Partenaires</div>
-      <div class="nav-item-s" data-section="operations" onclick="showSection('operations')"><i class="fas fa-bolt fa-fw"></i> Opérations CEE</div>
-      <div class="nav-item-s" data-section="materiel" onclick="showSection('materiel')"><i class="fas fa-boxes-stacked fa-fw"></i> Catalogue matériel</div>
       <div class="nav-item-s" data-section="taches" onclick="showSection('taches')">
         <i class="fas fa-check-square fa-fw"></i> Tâches
         <span class="notif-badge d-none" id="tachesBadge">0</span>
       </div>
+      <div class="sidebar-section-label" style="margin-top:10px">Suivi des dossiers</div>
+      <div class="nav-item-s" data-section="beneficiaires" onclick="showSection('beneficiaires')"><i class="fas fa-users fa-fw"></i> Bénéficiaires</div>
+      <div class="nav-item-s" data-section="partenaires" onclick="showSection('partenaires')"><i class="fas fa-handshake fa-fw"></i> Partenaires</div>
+      <div class="sidebar-section-label" style="margin-top:10px">Catalogues</div>
+      <div class="nav-item-s" data-section="operations" onclick="showSection('operations')"><i class="fas fa-bolt fa-fw"></i> Opérations CEE</div>
+      <div class="nav-item-s" data-section="materiel" onclick="showSection('materiel')"><i class="fas fa-boxes-stacked fa-fw"></i> Catalogue matériel</div>
       <div class="sidebar-section-label" style="margin-top:10px">Communication</div>
-      <div class="nav-item-s" data-section="emails" onclick="showSection('emails')"><i class="fas fa-paper-plane fa-fw"></i> Envoi de mails</div>
       <div class="nav-item-s" data-section="notifications" onclick="showSection('notifications')" id="notifNavItem">
         <i class="fas fa-bell fa-fw"></i> Messagerie
         <span class="notif-badge d-none" id="notifBadge">0</span>
       </div>
+      <div class="nav-item-s" data-section="emails" onclick="showSection('emails')"><i class="fas fa-paper-plane fa-fw"></i> Envoi de mails</div>
       <div class="sidebar-section-label" style="margin-top:10px">Outils CEE</div>
       <div class="nav-item-s" onclick="window.location='/simulateur-pro.html'"><i class="fas fa-calculator fa-fw"></i> Simulateur Pro</div>
-      <div class="nav-item-s" data-section="biblio_fiches" id="navBiblio" onclick="showSection('biblio_fiches')"><i class="fas fa-book-open fa-fw"></i> Biblio. fiches</div>
-      <div class="nav-item-s" data-section="veille" onclick="showSection('veille')"><i class="fas fa-radar fa-fw"></i> Veille réglementaire</div>
       <div class="nav-item-s" data-section="devis" onclick="showSection('devis')"><i class="fas fa-file-invoice-dollar fa-fw"></i> Devis &amp; Factures</div>
+      <div class="nav-item-s" data-section="biblio_fiches" id="navBiblio" onclick="showSection('biblio_fiches')"><i class="fas fa-book-open fa-fw"></i> Bibliothèque de fiches</div>
+      <div class="nav-item-s" data-section="veille" onclick="showSection('veille')"><i class="fas fa-radar fa-fw"></i> Veille réglementaire</div>
     </nav>
     <div class="sidebar-footer">
       <button class="btn btn-sm btn-outline-secondary w-100" onclick="logout()"><i class="fas fa-right-from-bracket me-2"></i>Déconnexion</button>
