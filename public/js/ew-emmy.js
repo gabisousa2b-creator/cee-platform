@@ -50,7 +50,9 @@
       'width:' + Math.round(280 * scale) + 'px;' +
       'max-width:100%;' +
       'height:' + Math.round(64 * scale) + 'px;' +
-      'vertical-align:middle;';
+      'vertical-align:middle;overflow:hidden;' +
+      'opacity:0;transition:opacity .35s ease-out, width .25s ease-out, height .25s ease-out;';
+    ifr.setAttribute('scrolling', 'no');
     return ifr;
   }
 
@@ -74,6 +76,8 @@
         var nw = Math.max(80, Math.min(520, d.width));
         if (reset || nw > ifr.offsetWidth) ifr.style.width = nw + 'px';
       }
+      // First message → content ready, fade iframe in.
+      ifr.style.opacity = '1';
       break;
     }
   });

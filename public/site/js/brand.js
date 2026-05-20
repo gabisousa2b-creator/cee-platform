@@ -138,6 +138,7 @@ const Wordmark = ({
   const ref = React.useRef(null);
   const [h, setH] = React.useState(Math.round(70 * scale));
   const [w, setW] = React.useState(Math.round(320 * scale));
+  const [ready, setReady] = React.useState(false);
   // onDark = "host bg is dark, render the logo in white". The default text
   // color is var(--bone) (dark navy) on a LIGHT bg — so we trigger dark
   // mode only when a true white text color is passed.
@@ -162,6 +163,8 @@ const Wordmark = ({
         var nw = Math.min(640, d.width);
         setW(reset ? nw : function (p) { return Math.max(p, nw); });
       }
+      // First size message → iframe is mounted with real content; reveal.
+      setReady(true);
     }
     window.addEventListener("message", onMsg);
     return function () { window.removeEventListener("message", onMsg); };
@@ -172,6 +175,7 @@ const Wordmark = ({
     title: "EchoWAI",
     "aria-label": "Logo EchoWAI",
     loading: "eager",
+    scrolling: "no",
     style: {
       display: "block",
       width: w + "px",
@@ -180,7 +184,10 @@ const Wordmark = ({
       border: 0,
       background: "transparent",
       colorScheme: "normal",
-      verticalAlign: "middle"
+      verticalAlign: "middle",
+      opacity: ready ? 1 : 0,
+      transition: "opacity .35s ease-out, width .25s ease-out, height .25s ease-out",
+      overflow: "hidden"
     }
   });
 };
