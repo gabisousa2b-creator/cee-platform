@@ -223,23 +223,56 @@ function boot() {
   // descendant — including SVGs with pointer-events:none on a sibling —
   // still bubbles up and triggers navigation.
   const TARGET = "/";
-  const HOME_PATHS = new Set(["/", "/index.html", ""]);
+  const HOME_PATHS = new Set(["/", "/index.html"]);
   function navigate(openInNewTab) {
     try {
-      if (openInNewTab) window.open(TARGET, "_blank");
-      else window.parent.location.href = TARGET;
-    } catch (e) { window.location.href = TARGET; }
+      if (openInNewTab) {
+        if (window.parent && window.parent !== window) {
+          // Open relative to the PARENT's origin so on echowai.com we
+          // land on https://echowai.com/, not the iframe URL.
+          window.open(window.parent.location.origin + TARGET, "_blank");
+        } else {
+          window.open(TARGET, "_blank");
+        }
+        return;
+      }
+      // Same-origin: change parent location. Use href assignment so a
+      // history entry IS created (replace would skip the back button).
+      if (window.parent && window.parent !== window) {
+        window.parent.location.href = window.parent.location.origin + TARGET;
+      } else {
+        window.location.href = TARGET;
+      }
+    } catch (e) {
+      // Cross-origin (rare here) or any other failure: fall back to top
+      // navigation, which bypasses the iframe scope entirely.
+      try { window.top.location.href = TARGET; } catch (e2) { window.location.href = TARGET; }
+    }
   }
-  function parentPath() {
-    try { return window.parent.location.pathname; } catch (e) { return ""; }
+  function isOnHome() {
+    try {
+      const p = window.parent.location.pathname;
+      return HOME_PATHS.has(p);
+    } catch (e) {
+      // If we cannot read the parent's URL (cross-origin) we err on the
+      // side of navigating — better an extra reload than a dead logo.
+      return false;
+    }
   }
-  function isOnHome() { return HOME_PATHS.has(parentPath()); }
-  document.body.addEventListener("click", function (ev) {
+  let navScheduled = false;
+  function handleClick(ev) {
+    if (navScheduled) return;
     if (ev.defaultPrevented) return;
     if (isOnHome()) return; // déjà sur l'accueil → pas de nav, juste l'anim
-    const openInNewTab = ev.ctrlKey || ev.metaKey || ev.button === 1;
+    const openInNewTab = ev.ctrlKey || ev.metaKey || ev.button === 1 || ev.shiftKey;
+    navScheduled = true;
     setTimeout(function () { navigate(openInNewTab); }, 220);
-  });
+  }
+  // Capture phase on window so the click is caught BEFORE any inner
+  // <button> could swallow it via stopPropagation. Backup listener on
+  // body (bubble) in case capture is suppressed by something exotic.
+  window.addEventListener("click", handleClick, true);
+  document.body.addEventListener("click", handleClick);
   const rootEl = document.getElementById("root");
   rootEl.setAttribute("role", "link");
   rootEl.setAttribute("aria-label", "EchoWAI — retour à l'accueil");
