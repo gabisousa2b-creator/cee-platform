@@ -213,23 +213,30 @@ function boot() {
   }
   // Wire the whole iframe as a link to the host's main page. The iframe
   // captures clicks so we can't put an <a> in the parent; instead we
-  // intercept the click here and navigate the parent (same origin → no
-  // permission issue). middle-click / ctrl-click → open in new tab.
+  // intercept the click here. We DON'T preventDefault so the underlying
+  // lab component (Bracket Burst, Click Stagger, Click Discharge…) gets
+  // to play its own click animation. If the host is already on '/', we
+  // skip navigation altogether — the animation is the only response.
+  // Otherwise we wait ~380 ms so the user actually sees the animation
+  // before the page reloads.
+  const TARGET = "/";
+  const HOME_PATHS = new Set(["/", "/index.html"]);
+  function navigate(openInNewTab) {
+    try {
+      if (openInNewTab) window.open(TARGET, "_blank");
+      else window.parent.location.href = TARGET;
+    } catch (e) { window.location.href = TARGET; }
+  }
+  function parentPath() {
+    try { return window.parent.location.pathname; } catch (e) { return ""; }
+  }
   const rootEl = document.getElementById("root");
   rootEl.addEventListener("click", function (ev) {
-    // Let nested interactive elements (the L_ components have hover/click
-    // micro-interactions) do their thing first; navigate on plain clicks.
+    // Always let the embedded component handle the click first (animation).
     if (ev.defaultPrevented) return;
-    const target = "/";
-    try {
-      if (ev.ctrlKey || ev.metaKey || ev.button === 1) {
-        window.open(target, "_blank");
-      } else {
-        window.parent.location.href = target;
-      }
-    } catch (e) {
-      window.location.href = target;
-    }
+    if (HOME_PATHS.has(parentPath())) return; // déjà sur l'accueil → pas de nav
+    const openInNewTab = ev.ctrlKey || ev.metaKey || ev.button === 1;
+    setTimeout(function () { navigate(openInNewTab); }, 380);
   });
   rootEl.setAttribute("role", "link");
   rootEl.setAttribute("aria-label", "EchoWAI — retour à l'accueil");
@@ -237,7 +244,8 @@ function boot() {
   rootEl.addEventListener("keydown", function (ev) {
     if (ev.key === "Enter" || ev.key === " ") {
       ev.preventDefault();
-      try { window.parent.location.href = "/"; } catch (e) { window.location.href = "/"; }
+      if (HOME_PATHS.has(parentPath())) return;
+      setTimeout(function () { navigate(false); }, 380);
     }
   });
   const root = ReactDOM.createRoot(rootEl);
