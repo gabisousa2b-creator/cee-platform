@@ -553,13 +553,24 @@ const BeneficiairePage = ({
   className: "r-cols-3",
   style: {
     display: "grid",
-    gridTemplateColumns: "1fr",
+    gridTemplateColumns: "repeat(3, 1fr)",
     gap: 18
   }
 }, [{
-  t: "Espace partenaire",
-  d: "Apporteurs d'affaires : déposez des dossiers, gérez votre équipe et votre catalogue d'opérations.",
-  action: "Accéder"
+  t: "Espace mandataire",
+  d: "Apporteurs d'affaires et mandataires : déposez des dossiers, gérez votre équipe et votre catalogue d'opérations.",
+  action: "Accéder",
+  go: "login"
+}, {
+  t: "Espace obligé",
+  d: "Fournisseurs d'énergie soumis à obligation CEE : visualisez les dossiers reçus, validez ou refusez les primes.",
+  action: "Accéder",
+  go: "/oblige"
+}, {
+  t: "Espace délégataire",
+  d: "Délégataires CEE : suivez les dossiers qui vous sont confiés par les apporteurs, marquez leur avancement.",
+  action: "Accéder",
+  go: "/delegataire"
 }].map(s => /*#__PURE__*/React.createElement(HoverLift, {
   key: s.t,
   style: {
@@ -593,7 +604,7 @@ const BeneficiairePage = ({
   }
 }, /*#__PURE__*/React.createElement(Btn, {
   variant: "link",
-  onClick: () => onNavigate("login")
+  onClick: () => { if (s.go === "login") return onNavigate("login"); window.location.href = s.go; }
 }, s.action, " \u2192")))))));
 
 // ─────────────────────────────────────────────────────────

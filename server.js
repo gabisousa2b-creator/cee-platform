@@ -266,6 +266,8 @@ app.use((req, res, next) => {
 app.get('/beneficiaire', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'portal.html')));
 // Espace obligé — accessible via /oblige
 app.get('/oblige', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'oblige.html')));
+// Espace délégataire — accessible via /delegataire
+app.get('/delegataire', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'delegataire.html')));
 
 app.use(express.static(PUBLIC_DIR));
 app.use(session({
@@ -356,6 +358,7 @@ const requireAdmin       = (req, res, next) => req.session.isAdmin        ? next
 const requireBeneficiary = (req, res, next) => req.session.beneficiaireId ? next() : res.status(401).json({ error: 'Non autorisé' });
 const requirePartner     = (req, res, next) => req.session.compteId       ? next() : res.status(401).json({ error: 'Non autorisé' });
 const requireOblige      = (req, res, next) => req.session.obligeId       ? next() : res.status(401).json({ error: 'Non autorisé' });
+const requireDelegataire = (req, res, next) => req.session.delegataireId  ? next() : res.status(401).json({ error: 'Non autorisé' });
 // ── RBAC — rôles : super_admin · admin_partenaire · apporteur ─────────────────
 function sessionRole(req) { return req.session.isAdmin ? 'super_admin' : (req.session.role || null); }
 function requireRole(...roles) {
@@ -1674,6 +1677,37 @@ db.serialize(() => {
     seeds.forEach(s => st.run(s.rs, s.email, s.type, s.kwhc, s.siret, seedHash));
     st.finalize();
   });
+
+  // Active 3 comptes délégataires démo (mot de passe par défaut: delegataire2026)
+  // Idempotent : ne fait rien si les comptes existent déjà.
+  setTimeout(() => {
+    const delegSeeds = [
+      { nom: 'Hellio Solutions',    email: 'delegataire.demo@hellio.com' },
+      { nom: 'Effy Connect',        email: 'delegataire.demo@effy.fr' },
+      { nom: 'TotalEnergies Marketing France', email: 'delegataire.demo@totalenergies.fr' },
+    ];
+    const seedHash = hashPassword('delegataire2026');
+    delegSeeds.forEach(s => {
+      db.run(`UPDATE delegataires
+              SET email=?, password_hash=?, compte_actif=1
+              WHERE nom=? AND (compte_actif=0 OR compte_actif IS NULL OR email='' OR email IS NULL)`,
+        [s.email, seedHash, s.nom], () => {});
+    });
+  }, 300);
+  // Colonnes d'authentification + portail pour les délégataires
+  [`ALTER TABLE delegataires ADD COLUMN email TEXT DEFAULT ''`,
+   `ALTER TABLE delegataires ADD COLUMN password_hash TEXT DEFAULT ''`,
+   `ALTER TABLE delegataires ADD COLUMN contact_nom TEXT DEFAULT ''`,
+   `ALTER TABLE delegataires ADD COLUMN contact_tel TEXT DEFAULT ''`,
+   `ALTER TABLE delegataires ADD COLUMN siret TEXT DEFAULT ''`,
+   `ALTER TABLE delegataires ADD COLUMN compte_actif INTEGER DEFAULT 0`,
+   `ALTER TABLE delegataires ADD COLUMN last_login DATETIME`
+  ].forEach(sql => db.run(sql, () => {}));
+  // Statut de suivi côté délégataire pour chaque dossier
+  [`ALTER TABLE beneficiaires ADD COLUMN delegataire_statut TEXT DEFAULT 'non_assigne'`,  // non_assigne, en_traitement, soumis, valide, refuse
+   `ALTER TABLE beneficiaires ADD COLUMN delegataire_traite_at DATETIME`,
+   `ALTER TABLE beneficiaires ADD COLUMN delegataire_notes TEXT DEFAULT ''`
+  ].forEach(sql => db.run(sql, () => {}));
   db.get('SELECT COUNT(*) AS n FROM delegataires', (e, r) => {
     if (e || !r || r.n) return;
     const noms = ["Abokine","ACE Énergie","ACT Commodities France","Aidée","Akéa Énergies","AlphaCEE","Arès",
@@ -3888,6 +3922,132 @@ app.post('/api/admin/obliges', requireAdmin, (req, res) => {
       if (e) return res.status(400).json({ error: e.message });
       res.json({ success: true, id: this.lastID });
     });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── ESPACE DÉLÉGATAIRE ────────────────────────────────────────────────────────
+// Mandataire d'obligé : suit les dossiers que les apporteurs lui ont confiés,
+// marque leur avancement (en traitement / soumis à l'obligé / validé / refusé).
+// Session dédiée : req.session.delegataireId.
+// ═══════════════════════════════════════════════════════════════════════════════
+app.post('/api/delegataire/login', (req, res) => {
+  const ip = req.ip || req.connection.remoteAddress || 'unknown';
+  if (!checkRateLimit(ip)) return res.status(429).json({ error: 'Trop de tentatives. Réessayez dans 15 minutes.' });
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Email et mot de passe requis' });
+  db.get(`SELECT * FROM delegataires WHERE lower(email)=lower(?) AND compte_actif=1 AND actif=1`,
+    [String(email).trim()], (err, d) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!d || !verifyPassword(password, d.password_hash))
+        return res.status(401).json({ error: 'Identifiants incorrects' });
+      resetLoginAttempts(ip);
+      req.session.delegataireId = d.id;
+      db.run('UPDATE delegataires SET last_login=CURRENT_TIMESTAMP WHERE id=?', [d.id]);
+      res.json({ success: true, nom: d.nom });
+    });
+});
+app.post('/api/delegataire/logout',     (req, res) => { req.session.destroy(); res.json({ success: true }); });
+app.get('/api/delegataire/check-auth',  (req, res) => res.json({ authenticated: !!req.session.delegataireId }));
+
+app.get('/api/delegataire/me', requireDelegataire, (req, res) => {
+  db.get('SELECT id, nom, siret, email, contact_nom, contact_tel, last_login, created_at FROM delegataires WHERE id=?',
+    [req.session.delegataireId], (e, d) => {
+      if (e || !d) return res.status(404).json({ error: 'Profil introuvable' });
+      res.json(d);
+    });
+});
+
+app.get('/api/delegataire/stats', requireDelegataire, (req, res) => {
+  db.all(`SELECT b.delegataire_statut AS s,
+                 COUNT(DISTINCT b.id) AS n,
+                 COALESCE(SUM(o.volume_kwh), 0) AS volume,
+                 COALESCE(SUM(o.prime_negociee), 0) AS prime
+          FROM beneficiaires b
+          LEFT JOIN cee_operations o ON o.beneficiaire_id = b.id
+          WHERE b.delegataire_id = ? AND b.archived = 0
+          GROUP BY b.delegataire_statut`,
+    [req.session.delegataireId], (e, rows) => {
+      if (e) return res.status(500).json({ error: e.message });
+      const out = { total: 0, en_traitement: 0, soumis: 0, valide: 0, refuse: 0, volume_cumac_total: 0, prime_total: 0 };
+      (rows || []).forEach(r => {
+        out.total += r.n;
+        out.volume_cumac_total += r.volume || 0;
+        out.prime_total += r.prime || 0;
+        if (r.s === 'en_traitement') out.en_traitement = r.n;
+        if (r.s === 'soumis')        out.soumis        = r.n;
+        if (r.s === 'valide')        out.valide        = r.n;
+        if (r.s === 'refuse')        out.refuse        = r.n;
+      });
+      res.json(out);
+    });
+});
+
+app.get('/api/delegataire/dossiers', requireDelegataire, (req, res) => {
+  const statut = req.query.statut || null;
+  let sql = `SELECT b.id, b.code, b.nom, b.prenom, b.raison_sociale,
+                    b.code_postal, b.ville, b.activite, b.partenaire,
+                    b.delegataire_statut, b.delegataire_traite_at, b.delegataire_notes,
+                    b.statut AS statut_dossier, b.created_at,
+                    COALESCE(SUM(o.volume_kwh), 0)     AS volume_cumac,
+                    COALESCE(SUM(o.prime_negociee), 0) AS subvention
+             FROM beneficiaires b
+             LEFT JOIN cee_operations o ON o.beneficiaire_id = b.id
+             WHERE b.delegataire_id = ? AND b.archived = 0`;
+  const args = [req.session.delegataireId];
+  if (statut) { sql += ' AND b.delegataire_statut = ?'; args.push(statut); }
+  sql += ' GROUP BY b.id ORDER BY b.created_at DESC LIMIT 500';
+  db.all(sql, args, (e, rows) => {
+    if (e) return res.status(500).json({ error: e.message });
+    res.json(rows || []);
+  });
+});
+
+app.get('/api/delegataire/dossiers/:id', requireDelegataire, (req, res) => {
+  db.get(`SELECT b.*,
+                 COALESCE(SUM(o.volume_kwh), 0)     AS volume_cumac,
+                 COALESCE(SUM(o.prime_negociee), 0) AS subvention,
+                 b.statut AS statut_dossier
+          FROM beneficiaires b
+          LEFT JOIN cee_operations o ON o.beneficiaire_id = b.id
+          WHERE b.id = ? AND b.delegataire_id = ?
+          GROUP BY b.id`,
+    [req.params.id, req.session.delegataireId], (e, b) => {
+      if (e) return res.status(500).json({ error: e.message });
+      if (!b) return res.status(404).json({ error: 'Dossier introuvable' });
+      res.json(b);
+    });
+});
+
+// Mise à jour du statut côté délégataire (en_traitement → soumis → valide/refuse).
+app.post('/api/delegataire/dossiers/:id/statut', requireDelegataire, (req, res) => {
+  const { statut, notes } = req.body || {};
+  const ALLOWED = ['en_traitement', 'soumis', 'valide', 'refuse'];
+  if (!ALLOWED.includes(statut)) return res.status(400).json({ error: 'Statut invalide' });
+  db.run(`UPDATE beneficiaires
+          SET delegataire_statut = ?, delegataire_traite_at = CURRENT_TIMESTAMP,
+              delegataire_notes = COALESCE(?, delegataire_notes)
+          WHERE id = ? AND delegataire_id = ?`,
+    [statut, notes != null ? String(notes).slice(0, 1000) : null, req.params.id, req.session.delegataireId],
+    function (e) {
+      if (e) return res.status(500).json({ error: e.message });
+      if (!this.changes) return res.status(404).json({ error: 'Dossier introuvable' });
+      res.json({ success: true });
+    });
+});
+
+app.post('/api/delegataire/change-password', requireDelegataire, (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password) return res.status(400).json({ error: 'Mot de passe actuel et nouveau requis' });
+  if (String(new_password).length < 6)    return res.status(400).json({ error: 'Nouveau mot de passe : 6 caractères minimum' });
+  db.get('SELECT password_hash FROM delegataires WHERE id=? AND compte_actif=1', [req.session.delegataireId], (e, d) => {
+    if (e) return res.status(500).json({ error: e.message });
+    if (!d) return res.status(401).json({ error: 'Session invalide' });
+    if (!verifyPassword(current_password, d.password_hash))
+      return res.status(403).json({ error: 'Mot de passe actuel incorrect' });
+    db.run('UPDATE delegataires SET password_hash=? WHERE id=?',
+      [hashPassword(new_password), req.session.delegataireId],
+      err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+  });
 });
 
 app.listen(PORT, () => {
