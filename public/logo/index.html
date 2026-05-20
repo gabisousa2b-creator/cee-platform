@@ -19,10 +19,11 @@
   /* Theme override via class on <html> */
   html.theme-dark { color: #fff; }
   html.theme-dark .upper, html.theme-dark .mono { color: rgba(255,255,255,.7); }
-  /* Mount container — center logo, no extra chrome */
+  /* Mount container — align logo to left so it hugs the host's left edge.
+     Inline-flex children get measured properly via getBoundingClientRect. */
   #root {
-    display: flex; align-items: center; justify-content: center;
-    width: 100%; height: 100vh; padding: 4px 8px; box-sizing: border-box;
+    display: flex; align-items: center; justify-content: flex-start;
+    width: 100%; height: 100vh; padding: 4px 4px 4px 2px; box-sizing: border-box;
   }
   /* Hide all lab-page demo cards if any leak — only render selected logo */
   .ew-logo-only > * { all: revert; }

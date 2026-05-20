@@ -168,6 +168,7 @@ const Wordmark = ({
     style: {
       display: "block",
       width: w + "px",
+      maxWidth: "100%",
       height: h + "px",
       border: 0,
       background: "transparent",

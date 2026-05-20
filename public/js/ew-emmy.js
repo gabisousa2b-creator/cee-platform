@@ -48,6 +48,7 @@
     ifr.style.cssText =
       'display:block;border:0;background:transparent;color-scheme:normal;' +
       'width:' + Math.round(280 * scale) + 'px;' +
+      'max-width:100%;' +
       'height:' + Math.round(64 * scale) + 'px;' +
       'vertical-align:middle;';
     return ifr;
