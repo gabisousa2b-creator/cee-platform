@@ -15,7 +15,7 @@ function goLogin() {
 // Liste des espaces visibles dans le menu « Votre espace »
 // ─────────────────────────────────────────────────────────
 const SITE_SPACES = [
-  { id: "mandataire",   label: "Mandataire",   sub: "Apporteurs, dépôt de dossiers, équipe",                href: null,             ico: "M19 14h-2v-2h2v2zm0-4h-2V8h2v2zm-4 4h-2v-2h2v2zm0-4h-2V8h2v2zm-4 4H9v-2h2v2zm0-4H9V8h2v2zM7 14H5v-2h2v2zm0-4H5V8h2v2zM3 4v16h18V4H3z" },
+  { id: "mandataire",   label: "Mandataire",   sub: "Apporteurs, dépôt de dossiers, équipe",                href: "/mandataire",    ico: "M19 14h-2v-2h2v2zm0-4h-2V8h2v2zm-4 4h-2v-2h2v2zm0-4h-2V8h2v2zm-4 4H9v-2h2v2zm0-4H9V8h2v2zM7 14H5v-2h2v2zm0-4H5V8h2v2zM3 4v16h18V4H3z" },
   { id: "oblige",       label: "Obligé",       sub: "Validation des primes CEE",                            href: "/oblige",        ico: "M12 2L2 7l10 5 10-5-10-5zm0 8L2 5v6l10 5 10-5V5l-10 5z" },
   { id: "delegataire",  label: "Délégataire",  sub: "Suivi des dossiers confiés",                           href: "/delegataire",   ico: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
   { id: "beneficiaire", label: "Bénéficiaire", sub: "Suivi de votre dossier",                               href: "/beneficiaire",  ico: "M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4zm0 2c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4z" },

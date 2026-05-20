@@ -268,6 +268,8 @@ app.get('/beneficiaire', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'porta
 app.get('/oblige', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'oblige.html')));
 // Espace délégataire — accessible via /delegataire
 app.get('/delegataire', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'delegataire.html')));
+// Espace mandataire — accessible via /mandataire (alias enrichi de compte.html)
+app.get('/mandataire', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'mandataire.html')));
 
 app.use(express.static(PUBLIC_DIR));
 app.use(session({

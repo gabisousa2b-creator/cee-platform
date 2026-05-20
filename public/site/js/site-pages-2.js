@@ -560,7 +560,7 @@ const BeneficiairePage = ({
   t: "Espace mandataire",
   d: "Apporteurs d'affaires et mandataires : déposez des dossiers, gérez votre équipe et votre catalogue d'opérations.",
   action: "Accéder",
-  go: "login"
+  go: "/mandataire"
 }, {
   t: "Espace obligé",
   d: "Fournisseurs d'énergie soumis à obligation CEE : visualisez les dossiers reçus, validez ou refusez les primes.",
