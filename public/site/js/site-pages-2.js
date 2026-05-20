@@ -553,16 +553,12 @@ const BeneficiairePage = ({
   className: "r-cols-3",
   style: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr",
+    gridTemplateColumns: "1fr",
     gap: 18
   }
 }, [{
   t: "Espace partenaire",
   d: "Apporteurs d'affaires : déposez des dossiers, gérez votre équipe et votre catalogue d'opérations.",
-  action: "Accéder"
-}, {
-  t: "Administration",
-  d: "Pilotage de la plateforme : dossiers, partenaires, fiches d'opérations et paramètres.",
   action: "Accéder"
 }].map(s => /*#__PURE__*/React.createElement(HoverLift, {
   key: s.t,
