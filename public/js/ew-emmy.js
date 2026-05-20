@@ -48,10 +48,31 @@
     ifr.style.cssText =
       'display:block;border:0;background:transparent;color-scheme:normal;' +
       'width:' + Math.round(280 * scale) + 'px;' +
-      'height:' + Math.round(60 * scale) + 'px;' +
+      'height:' + Math.round(64 * scale) + 'px;' +
       'vertical-align:middle;';
     return ifr;
   }
+
+  // Centralized listener for size messages — match iframe by event.source.
+  // Only GROW; never shrink (animations can momentarily measure smaller).
+  var IFRAMES = [];
+  window.addEventListener('message', function (ev) {
+    var d = ev.data;
+    if (!d || d.source !== 'ew-logo-size') return;
+    for (var i = 0; i < IFRAMES.length; i++) {
+      var ifr = IFRAMES[i];
+      if (ifr.contentWindow !== ev.source) continue;
+      if (typeof d.height === 'number') {
+        var nh = Math.max(40, Math.min(220, d.height));
+        if (nh > ifr.offsetHeight) ifr.style.height = nh + 'px';
+      }
+      if (typeof d.width === 'number') {
+        var nw = Math.max(120, Math.min(520, d.width));
+        if (nw > ifr.offsetWidth) ifr.style.width = nw + 'px';
+      }
+      break;
+    }
+  });
 
   function mount(el) {
     if (el.dataset.ewMounted === '1') return;
@@ -61,7 +82,10 @@
     el.style.padding = '0';
     el.style.lineHeight = '0';
     el.style.background = 'transparent';
-    el.appendChild(buildIframe(el));
+    el.style.overflow = 'visible';
+    var ifr = buildIframe(el);
+    IFRAMES.push(ifr);
+    el.appendChild(ifr);
   }
 
   function init() {

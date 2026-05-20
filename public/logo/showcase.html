@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EchoWAI — Atelier logos · propositions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Public+Sans:ital,wght@0,300..700;1,300..700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" />
+<link rel="stylesheet" href="/site/tokens.css" />
+<style>
+  :root { color-scheme: light; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-display, "Bricolage Grotesque", system-ui);
+    color: var(--ink, #0a1f3d);
+    background: #f7f5ee;
+    background-image:
+      radial-gradient(1200px 600px at 80% -10%, rgba(46,126,244,.10), transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, rgba(46,126,244,.06), transparent 60%);
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 56px 32px 96px; }
+  .serif { font-family: var(--font-display, "Bricolage Grotesque", serif); }
+  .mono  { font-family: var(--font-mono, "IBM Plex Mono", monospace); }
+  .upper { text-transform: uppercase; letter-spacing: .12em; font-size: 11px; color: var(--muted, #6b7280); }
+  h1 { font-size: clamp(38px, 6vw, 72px); line-height: .98; letter-spacing: -.035em; font-weight: 500; margin: 12px 0 14px; }
+  h2 { font-size: 26px; letter-spacing: -.02em; margin: 0; font-weight: 500; }
+  p.lead { font-size: 17px; line-height: 1.55; color: #475569; max-width: 720px; margin: 0; }
+  section { margin-top: 64px; }
+
+  /* Sticky EMMY pill */
+  .emmy-pill {
+    position: fixed; right: 20px; top: 20px; z-index: 50;
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border-radius: 999px;
+    background: rgba(255,255,255,.85); backdrop-filter: blur(8px);
+    border: 1px solid rgba(46,126,244,.18);
+    box-shadow: 0 6px 24px rgba(10,31,61,.08);
+    font-family: var(--font-mono, "IBM Plex Mono", monospace);
+    font-size: 12px; color: var(--ink, #0a1f3d);
+  }
+  .emmy-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--volt, #2E7EF4); animation: ew-pulse 2.4s ease-in-out infinite; }
+
+  /* Card grid */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 18px; margin-top: 22px; }
+  .card {
+    background: #ffffff;
+    border: 1px solid rgba(10,31,61,.08);
+    border-radius: 12px; overflow: hidden;
+    display: flex; flex-direction: column;
+    transition: transform .25s ease, box-shadow .25s ease;
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 14px 40px rgba(10,31,61,.08); }
+  .card .head { padding: 14px 18px 0; display: flex; align-items: baseline; justify-content: space-between; }
+  .card .num  { color: var(--volt, #2E7EF4); font-family: var(--font-mono, "IBM Plex Mono", monospace); font-size: 11px; font-weight: 600; }
+  .card .vol  { color: var(--bone-mute, #94a3b8); font-family: var(--font-mono, "IBM Plex Mono", monospace); font-size: 10px; }
+  .card .name { padding: 4px 18px 14px; font-family: var(--font-display); font-size: 19px; letter-spacing: -.018em; font-weight: 500; }
+  .card .stage {
+    padding: 28px 18px; min-height: 130px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(180deg, #fbfaf6 0%, #f5f1ea 100%);
+    border-top: 1px solid rgba(10,31,61,.06);
+    border-bottom: 1px solid rgba(10,31,61,.06);
+  }
+  .card .stage-dark {
+    background: linear-gradient(180deg, #0a1f3d 0%, #050d1f 100%);
+    padding: 22px 18px; min-height: 90px;
+    display: flex; align-items: center; justify-content: center;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+  }
+  .card .why { padding: 14px 18px 16px; font-size: 13px; line-height: 1.5; color: #475569; }
+
+  /* Featured panel (top pick) */
+  .feature {
+    margin-top: 26px;
+    padding: 44px 36px;
+    background: linear-gradient(135deg, rgba(46,126,244,.06), rgba(46,126,244,.02));
+    border: 1px solid rgba(46,126,244,.18);
+    border-radius: 16px;
+    display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px;
+    align-items: center;
+  }
+  .feature .stage-l { min-height: 200px; display: flex; align-items: center; justify-content: center; padding: 24px;
+    background: #ffffff; border-radius: 12px; border: 1px solid rgba(10,31,61,.06);
+  }
+  .feature h3 { margin: 0 0 8px; font-size: 30px; letter-spacing: -.02em; font-weight: 500; }
+  .feature p  { margin: 0; color: #475569; line-height: 1.55; }
+  .feature .micro { margin-top: 14px; font-family: var(--font-mono, "IBM Plex Mono", monospace); font-size: 11px; color: var(--muted, #6b7280); }
+
+  /* Variant strip — same logo, 3 sizes / 2 themes */
+  .variants { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
+  .variant { padding: 16px; border: 1px solid rgba(10,31,61,.06); border-radius: 8px; background: #fff;
+    display: flex; align-items: center; justify-content: center; min-height: 80px; }
+  .variant.dark { background: #0a1f3d; }
+
+  /* Buttons row */
+  .pickrow { display: flex; gap: 10px; flex-wrap: wrap; margin: 22px 0 0; }
+  .pickrow button {
+    appearance: none; border: 1px solid rgba(10,31,61,.16); background: #fff;
+    color: var(--ink, #0a1f3d); padding: 9px 14px; border-radius: 8px;
+    font-family: var(--font-mono, "IBM Plex Mono", monospace); font-size: 11px; cursor: pointer;
+    transition: all .2s ease;
+  }
+  .pickrow button:hover { border-color: var(--volt, #2E7EF4); color: var(--volt, #2E7EF4); }
+  .pickrow button.active { background: var(--volt, #2E7EF4); color: #fff; border-color: var(--volt, #2E7EF4); }
+
+  /* Existing logos compare section */
+  .compare-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 18px; }
+  .compare-card { padding: 18px; background: #fff; border: 1px solid rgba(10,31,61,.06); border-radius: 8px;
+    display: flex; flex-direction: column; gap: 12px; }
+  .compare-card .label { font-family: var(--font-mono, "IBM Plex Mono", monospace); font-size: 10px; color: var(--bone-mute, #94a3b8); display: flex; justify-content: space-between; }
+  .compare-card .live { min-height: 70px; display: flex; align-items: center; justify-content: center; background: #fbfaf6; border-radius: 6px; padding: 14px; }
+
+  /* Mockup contexts */
+  .mockups { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 24px; }
+  .mock { border-radius: 12px; overflow: hidden; border: 1px solid rgba(10,31,61,.08); background: #fff; }
+  .mock-header { padding: 16px 20px; border-bottom: 1px solid rgba(10,31,61,.06); display: flex; align-items: center; gap: 18px; }
+  .mock-header.dark { background: #0a1f3d; border-color: rgba(255,255,255,.08); color: #fff; }
+  .mock-body { padding: 24px 20px; color: #475569; font-size: 13px; line-height: 1.55; }
+  .mock-nav-links { display: flex; gap: 16px; font-size: 12px; color: var(--muted, #6b7280); }
+  .mock-header.dark .mock-nav-links { color: rgba(255,255,255,.7); }
+
+  @keyframes ew-pulse  { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.55;transform:scale(.85)} }
+  @keyframes ew-orbit  { to { offset-distance: 100%; } }
+  @keyframes ew-trail  { 0%{transform:scale(1);opacity:.6} 100%{transform:scale(2.6);opacity:0} }
+  @keyframes ew-jolt   { 0%,92%,100%{transform:translateY(0)} 95%{transform:translateY(-2px) scaleY(1.08)} 97%{transform:translateY(1px)} }
+  @keyframes ew-arc    { 0%{stroke-dasharray:0 60; opacity:.6} 100%{stroke-dasharray:60 0; opacity:0} }
+  @keyframes ew-burst  { 0%{transform:scale(.9);opacity:.9} 100%{transform:scale(1.3);opacity:0} }
+  @keyframes ew-ecg-march { 0%{stroke-dashoffset:200;stroke-dasharray:60 200} 100%{stroke-dashoffset:0} }
+  @keyframes ew-ecg-sweep { 0%{transform:translateX(-60px)} 100%{transform:translateX(200px)} }
+</style>
+</head>
+<body class="theme-serenite density-aere">
+
+<div class="emmy-pill" id="emmyPill">
+  <span class="dot"></span>
+  <span style="letter-spacing:.16em">EMMY</span>
+  <span id="emmyVal" style="font-weight:600">9,10</span>
+  <span>€/MWh</span>
+  <span id="emmyArr" style="color:var(--volt,#2E7EF4);font-weight:700">→</span>
+  <span id="emmySrc" style="color:#94a3b8;font-size:10px;letter-spacing:.06em">· indicatif</span>
+</div>
+
+<div class="wrap">
+  <div class="upper">Atelier logos · échantillon interactif</div>
+  <h1>Six pistes <em style="color:var(--volt,#2E7EF4)">plus signature.</em></h1>
+  <p class="lead">
+    Chaque proposition est branchée sur le même cours EMMY que le site (base réévaluée chaque jour, walk live ±5%).
+    Les composants réagissent au prix et à la tendance — survol, clic, intensité — et restent légers, compacts et
+    lisibles à toutes les tailles (sidebar plateforme → hero vitrine).
+  </p>
+
+  <!-- Featured pick -->
+  <div class="feature">
+    <div class="stage-l" id="featStage"></div>
+    <div>
+      <div class="upper">Proposition mise en avant</div>
+      <h3 id="featName">Live Sparkline</h3>
+      <p id="featWhy">Sparkline EMMY (14 derniers ticks) intégré au logo. Hover = Δ%. Identité info-graphique, data-driven.</p>
+      <div class="micro" id="featMicro">P2 · scale 1.6 · theme light</div>
+      <div class="pickrow" id="featPicker"></div>
+    </div>
+  </div>
+
+  <!-- 6 new proposals grid -->
+  <section>
+    <div class="upper">Propositions · 6 directions</div>
+    <h2 style="margin-top:8px">Les 6 logos améliorés</h2>
+    <div class="grid" id="propGrid"></div>
+  </section>
+
+  <!-- Multi-context mockups for the featured -->
+  <section>
+    <div class="upper">Mises en contexte · proposition mise en avant</div>
+    <h2 style="margin-top:8px">Comment ça vit dans le produit</h2>
+    <div class="mockups">
+      <div class="mock">
+        <div class="mock-header">
+          <div id="mockLightLogo"></div>
+          <div class="mock-nav-links">Accueil · Simulateur · Catalogue · Compte</div>
+        </div>
+        <div class="mock-body">
+          Vitrine echowai.com — navbar claire. Le logo reste compact, le cours EMMY sert de signature discrète sans concurrencer le H1.
+        </div>
+      </div>
+      <div class="mock">
+        <div class="mock-header dark">
+          <div id="mockDarkLogo"></div>
+          <div class="mock-nav-links">Dossiers · Bénéficiaires · Stock · Paramètres</div>
+        </div>
+        <div class="mock-body">
+          Plateforme admin — sidebar sombre. Inversion auto-détectée (luminance du parent). Tracé EMMY conserve sa lisibilité.
+        </div>
+      </div>
+    </div>
+
+    <!-- Variants -->
+    <div class="upper" style="margin-top:34px">Échelle · scale 0.85 / 1.0 / 1.4</div>
+    <div class="variants">
+      <div class="variant" id="varS"></div>
+      <div class="variant" id="varM"></div>
+      <div class="variant" id="varL"></div>
+    </div>
+  </section>
+
+  <!-- Existing 13 — for compare -->
+  <section>
+    <div class="upper">Bibliothèque actuelle · 13 logos en rotation</div>
+    <h2 style="margin-top:8px">Comparaison avec ce qui est déployé</h2>
+    <p style="margin:8px 0 0; font-size:13px; color:var(--bone-soft,#475569); max-width:680px;">
+      Pour mémoire, les 13 logos actuels (rotation 15 min) restent visibles ici à scale 0.9. Si tu souhaites les remplacer par les 6 propositions ci-dessus (ou en mixer une partie), dis-moi lesquelles et je bascule la rotation.
+    </p>
+    <div class="compare-grid" id="compareGrid"></div>
+  </section>
+
+</div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" crossorigin="anonymous"></script>
+
+<!-- EMMY-aware lab files (so existing 13 + new proposals share the same context) -->
+<script type="text/babel" data-presets="react" src="/logo/src/ew-logo-lab-2.jsx"></script>
+<script type="text/babel" data-presets="react" src="/logo/src/ew-logo-lab-3.jsx"></script>
+<script type="text/babel" data-presets="react" src="/logo/src/ew-logo-lab-4.jsx"></script>
+<script type="text/babel" data-presets="react" src="/logo/src/ew-logo-lab-5.jsx"></script>
+<script type="text/babel" data-presets="react" src="/logo/src/ew-logo-lab-6.jsx"></script>
+<script type="text/babel" data-presets="react" src="/logo/src/ew-logo-lab-7.jsx"></script>
+<script type="text/babel" data-presets="react" src="/logo/src/ew-logo-lab-8.jsx"></script>
+<script type="text/babel" data-presets="react" src="/logo/src/ew-logo-lab-9.jsx"></script>
+<script type="text/babel" data-presets="react" src="/logo/proposals.jsx"></script>
+
+<!-- Showcase boot -->
+<script type="text/babel" data-presets="react">
+window.ECHOWAI_CEE_API = "/api/emmy";
+
+function boot() {
+  const need = [
+    "EW_PROPOSALS", "CeePriceProvider", "LOGOS_V5", "LOGOS_V6", "LOGOS_V7",
+    "LOGOS_V8", "LOGOS_V9", "LogoBattery",
+    "LogoLab3Styles", "LogoLab5Styles", "LogoLab6Styles",
+    "LogoLab7Styles", "LogoLab8Styles", "LogoLab9Styles",
+  ];
+  if (need.some(k => !window[k])) {
+    return requestAnimationFrame(boot);
+  }
+
+  const { CeePriceProvider, EW_PROPOSALS, LOGOS_V5, LOGOS_V6, LOGOS_V7, LOGOS_V8, LOGOS_V9, LogoBattery } = window;
+
+  // EMMY pill — read via a tiny consumer
+  const EmmyPillBinder = () => {
+    const e = window.useEmmy();
+    React.useEffect(() => {
+      document.getElementById("emmyVal").textContent = e.last.toFixed(2).replace(".", ",");
+      const arr = document.getElementById("emmyArr");
+      const src = document.getElementById("emmySrc");
+      const hue = e.trend > 0 ? "#16a34a" : e.trend < 0 ? "#ea580c" : "var(--volt,#2E7EF4)";
+      arr.textContent = e.trend > 0 ? "↑" : e.trend < 0 ? "↓" : "→";
+      arr.style.color = hue;
+      src.textContent = e.source === "emmy" ? "· live" : "· indicatif";
+      const dot = document.querySelector(".emmy-pill .dot");
+      if (dot) dot.style.background = hue;
+    });
+    return null;
+  };
+
+  // Selected for the "current rotation" gallery (n + register name)
+  const ROTATION_13 = [
+    { n: "184", from: LOGOS_V8 }, { n: "187", from: LOGOS_V8 }, { n: "200", from: LOGOS_V8 }, { n: "201", from: LOGOS_V8 },
+    { n: "129", from: LOGOS_V7 }, { n: "146", from: LOGOS_V7 },
+    { n: "112", from: LOGOS_V6 },
+    { n: "57",  from: LOGOS_V5 }, { n: "53",  from: LOGOS_V5 },
+    { n: "21",  C: LogoBattery, isGlyph: true },
+    { n: "227", from: LOGOS_V9 }, { n: "244", from: LOGOS_V9 }, { n: "249", from: LOGOS_V9 },
+  ].map(e => {
+    if (e.C) return { n: e.n, C: e.C, name: "Battery (glyph)", isGlyph: true };
+    const hit = e.from.find(x => String(x.n) === e.n);
+    return hit ? { n: e.n, C: hit.C, name: hit.name } : null;
+  }).filter(Boolean);
+
+  // ── Featured panel ──────────────────────────────────────────────
+  const FEATURED = {
+    initial: 1, // P2 — Live Sparkline
+  };
+
+  const App = () => {
+    const [featIdx, setFeatIdx] = React.useState(FEATURED.initial);
+    const feat = EW_PROPOSALS[featIdx];
+
+    // Update text labels for featured pick
+    React.useEffect(() => {
+      document.getElementById("featName").textContent = feat.name;
+      document.getElementById("featWhy").textContent = feat.why;
+      document.getElementById("featMicro").textContent = `${feat.n} · scale 1.6 · theme light`;
+    }, [featIdx]);
+
+    const PickRow = () => (
+      <>
+        {EW_PROPOSALS.map((p, i) => (
+          <button key={p.n} className={i === featIdx ? "active" : ""}
+            onClick={() => setFeatIdx(i)}>
+            {p.n} · {p.name}
+          </button>
+        ))}
+      </>
+    );
+
+    return (
+      <>
+        <EmmyPillBinder />
+        {ReactDOM.createPortal(<feat.C scale={1.6} />, document.getElementById("featStage"))}
+        {ReactDOM.createPortal(<PickRow />, document.getElementById("featPicker"))}
+        {ReactDOM.createPortal(<feat.C scale={0.95} />,        document.getElementById("mockLightLogo"))}
+        {ReactDOM.createPortal(<feat.C scale={0.95} color="#FFFFFF" />, document.getElementById("mockDarkLogo"))}
+        {ReactDOM.createPortal(<feat.C scale={0.85} />, document.getElementById("varS"))}
+        {ReactDOM.createPortal(<feat.C scale={1.0} />,  document.getElementById("varM"))}
+        {ReactDOM.createPortal(<feat.C scale={1.4} />,  document.getElementById("varL"))}
+
+        {EW_PROPOSALS.map((p) => ReactDOM.createPortal(
+          <div className="card" key={p.n}>
+            <div className="head">
+              <span className="num">{p.n}</span>
+              <span className="vol">proposition</span>
+            </div>
+            <div className="name">{p.name}</div>
+            <div className="stage"><p.C scale={1.05} /></div>
+            <div className="stage-dark"><p.C scale={0.9} color="#FFFFFF" /></div>
+            <div className="why">{p.why}</div>
+          </div>,
+          document.getElementById("propGrid")
+        ))}
+
+        {ROTATION_13.map((entry) => ReactDOM.createPortal(
+          <div className="compare-card" key={entry.n}>
+            <div className="label"><span>#{entry.n}</span><span>{entry.name}</span></div>
+            <div className="live"><entry.C scale={0.85} /></div>
+          </div>,
+          document.getElementById("compareGrid")
+        ))}
+      </>
+    );
+  };
+
+  // LabStyles aggregate — render every LogoLab<N>Styles ONCE so the
+  // @keyframes referenced by L_* components actually exist on the page.
+  const LabStyles = () => {
+    const Ss = [
+      window.LogoLab3Styles, window.LogoLab5Styles, window.LogoLab6Styles,
+      window.LogoLab7Styles, window.LogoLab8Styles, window.LogoLab9Styles,
+    ].filter(Boolean);
+    return <>{Ss.map((S, i) => <S key={i} />)}</>;
+  };
+
+  const host = document.createElement("div");
+  document.body.appendChild(host);
+  const root = ReactDOM.createRoot(host);
+  root.render(<CeePriceProvider><LabStyles /><App /></CeePriceProvider>);
+}
+boot();
+</script>
+</body>
+</html>

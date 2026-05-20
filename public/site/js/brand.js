@@ -135,10 +135,13 @@ const Wordmark = ({
   accent = "var(--volt)",
   emmy = true
 }) => {
+  const ref = React.useRef(null);
   const [h, setH] = React.useState(Math.round(70 * scale));
-  const onDark =
-    color === "#FFFFFF" || color === "#fff" ||
-    color === "var(--bone)" || color === "var(--bone-2)";
+  const [w, setW] = React.useState(Math.round(320 * scale));
+  // onDark = "host bg is dark, render the logo in white". The default text
+  // color is var(--bone) (dark navy) on a LIGHT bg — so we trigger dark
+  // mode only when a true white text color is passed.
+  const onDark = color === "#FFFFFF" || color === "#fff" || color === "white";
   const theme = onDark ? "dark" : "light";
   const params = new URLSearchParams({ theme: theme, scale: String(scale) });
   if (color)  params.set("color",  color);
@@ -148,19 +151,23 @@ const Wordmark = ({
     function onMsg(ev) {
       var d = ev.data;
       if (!d || d.source !== "ew-logo-size") return;
-      if (typeof d.height === "number") setH(Math.max(40, Math.min(260, d.height)));
+      // Only apply if THIS iframe is the source
+      if (!ref.current || ev.source !== ref.current.contentWindow) return;
+      if (typeof d.height === "number") setH(function (p) { return Math.max(p, Math.min(260, d.height)); });
+      if (typeof d.width  === "number") setW(function (p) { return Math.max(p, Math.min(640, d.width));  });
     }
     window.addEventListener("message", onMsg);
     return function () { window.removeEventListener("message", onMsg); };
   }, []);
   return /*#__PURE__*/React.createElement("iframe", {
+    ref: ref,
     src: src,
     title: "EchoWAI",
     "aria-label": "Logo EchoWAI",
     loading: "eager",
     style: {
       display: "block",
-      width: Math.round(320 * scale) + "px",
+      width: w + "px",
       height: h + "px",
       border: 0,
       background: "transparent",

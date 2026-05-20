@@ -19,7 +19,7 @@ const SELECTED = [
   { n: "112", from: "LOGOS_V6", kind: "wordmark", name: "Bracket Burst" },
   { n: "57",  from: "LOGOS_V5", kind: "wordmark", name: "Underline Sweep" },
   { n: "53",  from: "LOGOS_V5", kind: "wordmark", name: "Drop In" },
-  { n: "21",  from: null,        kind: "glyph",    component: "LogoBattery", name: "Battery" },
+  { n: "21",  from: null,        kind: "needs-emmy", component: "LogoBattery", name: "Battery" },
   { n: "227", from: "LOGOS_V9", kind: "wordmark", name: "Hue Rotate" },
   { n: "244", from: "LOGOS_V9", kind: "wordmark", name: "Levitate" },
   { n: "249", from: "LOGOS_V9", kind: "wordmark", name: "Swap Colors" },
@@ -42,24 +42,28 @@ function currentSlot() {
   return Math.floor(Date.now() / 900000) % SELECTED.length;
 }
 
-// Glyph wrapper — pairs the SVG with our text wordmark + EMMY sub-line
-const GlyphWordmark = ({ Glyph, scale = 1, color = "var(--ink)", accent = "var(--volt)" }) => {
+// Pour les logos qui n'embarquent pas leur propre ligne EMMY (vol3 par ex.),
+// on les enveloppe dans un stack vertical avec une sub-line discrète en bas.
+const EmmyStackWrapper = ({ Logo, scale = 1, color = "var(--ink)", accent = "var(--volt)" }) => {
   const e = window.useEmmy ? window.useEmmy() : { last: 9.10, trend: 0, source: "indicative" };
   const hue = window.emmyHue ? window.emmyHue(e.trend) : accent;
+  const onDark = color === "#FFFFFF" || color === "#fff" || color === "white";
   return (
-    <div style={{ display: "inline-flex", alignItems: "center", gap: 10 * scale }}>
-      <Glyph scale={0.9 * scale} color={color} accent={accent} />
-      <div style={{ display: "inline-flex", flexDirection: "column" }}>
-        <span className="serif" style={{
-          fontSize: 28 * scale, lineHeight: 1, letterSpacing: "-0.035em",
-          fontWeight: 500, color,
-        }}>echo<span style={{ color: accent }}>wai</span></span>
-        <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 3 }}>
-          <span style={{ width: 4, height: 4, borderRadius: "50%", background: hue }} className="volt-dot" />
-          <span className="mono" style={{ fontSize: 9 * scale, color: "var(--muted)", letterSpacing: ".06em" }}>
-            EMMY · {e.last.toFixed(2)} €/MWh {e.trend > 0 ? "↑" : e.trend < 0 ? "↓" : "→"}
-          </span>
-        </div>
+    <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 4 * scale }}>
+      <Logo scale={scale} color={color} accent={accent} />
+      <div className="mono" style={{
+        display: "inline-flex", alignItems: "center", gap: 5,
+        fontSize: 9 * scale, letterSpacing: ".06em",
+        color: onDark ? "rgba(255,255,255,.6)" : "var(--muted, #5B6B85)",
+        whiteSpace: "nowrap",
+      }}>
+        <span style={{ width: 4 * scale, height: 4 * scale, borderRadius: "50%", background: hue, animation: "volt-pulse 2.4s ease-in-out infinite" }} />
+        <span style={{ letterSpacing: ".15em" }}>EMMY</span>
+        <span style={{ color: onDark ? "rgba(255,255,255,.92)" : "var(--ink, #0a1f3d)", fontWeight: 600 }}>
+          {e.last.toFixed(2).replace(".", ",")}
+        </span>
+        <span>€/MWh</span>
+        <span style={{ color: hue, fontWeight: 700 }}>{e.trend > 0 ? "↑" : e.trend < 0 ? "↓" : "→"}</span>
       </div>
     </div>
   );
@@ -96,17 +100,50 @@ const App = () => {
     return () => clearTimeout(t);
   }, [slot, slotOverride]);
 
-  // Notify parent when slot rotates (analytics + auto-fit)
+  // Notify parent when slot rotates (analytics + continuous auto-fit).
+  // We watch the rendered element with ResizeObserver and keep the MAX size
+  // seen during the slot lifetime — animations that grow (Bracket Burst,
+  // Letter Flip…) push width up; we never shrink back to avoid clipping.
   React.useEffect(() => {
     try { window.parent.postMessage({ source: "ew-logo", slot, n: SELECTED[slot]?.n }, "*"); } catch (e) {}
-    // Auto-fit: measure root after paint and tell parent the height
-    const id = requestAnimationFrame(() => {
-      const r = document.getElementById("root");
-      if (!r) return;
-      const h = Math.ceil(r.firstChild?.getBoundingClientRect().height || 60);
-      try { window.parent.postMessage({ source: "ew-logo-size", height: h + 8 }, "*"); } catch (e) {}
-    });
-    return () => cancelAnimationFrame(id);
+    const r = document.getElementById("root");
+    if (!r) return;
+    let maxW = 0, maxH = 0;
+    let raf = 0;
+    const post = () => {
+      try { window.parent.postMessage({ source: "ew-logo-size", width: maxW, height: maxH }, "*"); } catch (e) {}
+    };
+    // The first children of #root are the LogoLab<N>Styles (display:none
+    // <style> elements). The actual logo is the last visible child — pick
+    // the last child with a non-zero bounding rect.
+    const findLogo = () => {
+      const kids = r.children;
+      for (let i = kids.length - 1; i >= 0; i--) {
+        const k = kids[i];
+        if (k.tagName === "STYLE") continue;
+        return k;
+      }
+      return null;
+    };
+    const measure = () => {
+      const child = findLogo();
+      if (!child) return;
+      const rect = child.getBoundingClientRect();
+      const w = Math.max(rect.width, child.scrollWidth) + 32;
+      const h = Math.max(rect.height, child.scrollHeight) + 14;
+      const grew = w > maxW + 0.5 || h > maxH + 0.5;
+      if (grew) { maxW = Math.max(maxW, w); maxH = Math.max(maxH, h); post(); }
+    };
+    const ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(measure); });
+    ro.observe(r);
+    const logo0 = findLogo();
+    if (logo0) ro.observe(logo0);
+    // Initial sweep — re-measure for the first second so growing animations
+    // settle before we lock the upper bound.
+    const t1 = setTimeout(measure, 80);
+    const t2 = setTimeout(measure, 400);
+    const t3 = setTimeout(measure, 900);
+    return () => { ro.disconnect(); cancelAnimationFrame(raf); clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [slot]);
 
   const entry = SELECTED[slot];
@@ -125,15 +162,40 @@ const App = () => {
   }
 
   const CeePriceProvider = window.CeePriceProvider;
-  const inner = entry.kind === "glyph"
-    ? <GlyphWordmark Glyph={C} scale={scale} color={fg} accent={ax} />
+  // LabStyles renders the <style> components from every lab volume so the
+  // @keyframes referenced by L_* / Logo* components actually exist in the
+  // document. Without these, animations referenced by name silently no-op.
+  const styleComponents = [
+    window.LogoStyles,        // vol1 (base motion + paint helpers)
+    window.LogoLab2Styles,    // vol2
+    window.LogoLab3Styles,    // vol3 (spinSlow, ripple, batFill, …)
+    window.LogoLab5Styles,    // vol5 (typewrite, underlineSweep, …)
+    window.LogoLab6Styles,    // vol6 (wipeIn, burstIn, …)
+    window.LogoLab7Styles,    // vol7 (orbitPath, ringDouble, …)
+    window.LogoLab8Styles,    // vol8 (letterFlipUp, shimmerSweep, …)
+    window.LogoLab9Styles,    // vol9 (morphHue, flickerOn, …)
+  ].filter(Boolean);
+  const inner = entry.kind === "needs-emmy"
+    ? <EmmyStackWrapper Logo={C} scale={scale} color={fg} accent={ax} />
     : <C scale={scale} color={fg} accent={ax} />;
-  return <CeePriceProvider>{inner}</CeePriceProvider>;
+  return (
+    <CeePriceProvider>
+      {styleComponents.map((S, i) => <S key={i} />)}
+      {inner}
+    </CeePriceProvider>
+  );
 };
 
-// Boot — wait for lab files (registries on window) before mount
+// Boot — wait for lab files (registries on window) before mount.
+// We need both the L_ components AND every LogoLab<N>Styles so the
+// keyframes those components reference actually get into the document.
 function boot() {
-  const need = ["LOGOS_V5", "LOGOS_V6", "LOGOS_V7", "LOGOS_V8", "LOGOS_V9", "CeePriceProvider", "useEmmy", "LogoBattery"];
+  const need = [
+    "LOGOS_V5", "LOGOS_V6", "LOGOS_V7", "LOGOS_V8", "LOGOS_V9",
+    "CeePriceProvider", "useEmmy", "LogoBattery",
+    "LogoLab3Styles", "LogoLab5Styles", "LogoLab6Styles",
+    "LogoLab7Styles", "LogoLab8Styles", "LogoLab9Styles",
+  ];
   const missing = need.filter(k => !window[k]);
   if (missing.length) {
     // try again next frame
