@@ -12,6 +12,123 @@ function goLogin() {
 }
 
 // ─────────────────────────────────────────────────────────
+// Liste des espaces visibles dans le menu « Votre espace »
+// ─────────────────────────────────────────────────────────
+const SITE_SPACES = [
+  { id: "mandataire",   label: "Mandataire",   sub: "Apporteurs, dépôt de dossiers, équipe",                href: null,             ico: "M19 14h-2v-2h2v2zm0-4h-2V8h2v2zm-4 4h-2v-2h2v2zm0-4h-2V8h2v2zm-4 4H9v-2h2v2zm0-4H9V8h2v2zM7 14H5v-2h2v2zm0-4H5V8h2v2zM3 4v16h18V4H3z" },
+  { id: "oblige",       label: "Obligé",       sub: "Validation des primes CEE",                            href: "/oblige",        ico: "M12 2L2 7l10 5 10-5-10-5zm0 8L2 5v6l10 5 10-5V5l-10 5z" },
+  { id: "delegataire",  label: "Délégataire",  sub: "Suivi des dossiers confiés",                           href: "/delegataire",   ico: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
+  { id: "beneficiaire", label: "Bénéficiaire", sub: "Suivi de votre dossier",                               href: "/beneficiaire",  ico: "M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4zm0 2c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4z" },
+];
+
+// SpaceMenu — bouton « Votre espace » + dropdown élégant qui liste les profils.
+// Comportement : ouvre au clic ET au hover (delay sortie 180 ms pour confort).
+const SpaceMenu = ({ compact = false }) => {
+  const [open, setOpen] = React.useState(false);
+  const closeT = React.useRef(null);
+  const onEnter = () => { if (closeT.current) clearTimeout(closeT.current); setOpen(true); };
+  const onLeave = () => { closeT.current = setTimeout(() => setOpen(false), 180); };
+  React.useEffect(() => {
+    function onDoc(e) { if (!e.target.closest || !e.target.closest("[data-space-menu]")) setOpen(false); }
+    document.addEventListener("click", onDoc);
+    return () => document.removeEventListener("click", onDoc);
+  }, []);
+  const go = (s) => {
+    setOpen(false);
+    if (!s.href) return goLogin();
+    window.location.href = s.href;
+  };
+  return /*#__PURE__*/React.createElement("span", {
+    "data-space-menu": "true",
+    onMouseEnter: onEnter,
+    onMouseLeave: onLeave,
+    style: { position: "relative", display: "inline-block" }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setOpen(o => !o),
+    "aria-haspopup": "menu",
+    "aria-expanded": open,
+    style: {
+      display: "inline-flex", alignItems: "center", gap: 8,
+      background: "var(--volt)", color: "#fff",
+      border: 0, borderRadius: 999,
+      padding: compact ? "10px 16px" : "11px 18px",
+      fontFamily: "var(--font-display)",
+      fontSize: 14, fontWeight: 500, letterSpacing: "-0.01em",
+      cursor: "pointer",
+      boxShadow: open ? "0 12px 32px -8px rgba(46,126,244,.42)" : "0 6px 18px -6px rgba(46,126,244,.32)",
+      transition: "transform .25s var(--ease-out-quart), box-shadow .25s ease, background .25s ease",
+      transform: open ? "translateY(-1px)" : "translateY(0)",
+    }
+  },
+    /*#__PURE__*/React.createElement("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", "aria-hidden": true },
+      /*#__PURE__*/React.createElement("path", { d: "M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4zm0 2c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4z", fill: "currentColor", opacity: 0.95 })
+    ),
+    /*#__PURE__*/React.createElement("span", null, "Votre espace"),
+    /*#__PURE__*/React.createElement("svg", {
+      width: 11, height: 11, viewBox: "0 0 24 24", fill: "none", "aria-hidden": true,
+      style: { transition: "transform .25s ease", transform: open ? "rotate(180deg)" : "rotate(0)" }
+    }, /*#__PURE__*/React.createElement("path", { d: "M6 9l6 6 6-6", stroke: "currentColor", strokeWidth: "2.4", strokeLinecap: "round", strokeLinejoin: "round" }))
+  ),
+  open && /*#__PURE__*/React.createElement("div", {
+    role: "menu",
+    style: {
+      position: "absolute", top: "calc(100% + 10px)", right: 0,
+      minWidth: 296, padding: 8,
+      background: "var(--card)",
+      border: "1px solid var(--rule-on)",
+      borderRadius: 12,
+      boxShadow: "0 32px 80px -28px rgba(10,31,61,.30), 0 8px 24px -10px rgba(10,31,61,.18)",
+      zIndex: 60,
+      animation: "spaceMenuRise .22s var(--ease-out-quart) both",
+    }
+  },
+    /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: ".12em",
+        color: "var(--muted)", textTransform: "uppercase",
+        padding: "8px 12px 6px",
+      }
+    }, "Choisissez votre profil"),
+    SITE_SPACES.map(s => /*#__PURE__*/React.createElement("button", {
+      key: s.id,
+      role: "menuitem",
+      onClick: () => go(s),
+      style: {
+        display: "flex", alignItems: "center", gap: 12,
+        width: "100%", padding: "11px 12px",
+        background: "transparent", border: 0, borderRadius: 8,
+        cursor: "pointer", textAlign: "left",
+        transition: "background .15s ease, transform .15s ease",
+        color: "var(--ink)",
+      },
+      onMouseEnter: (e) => { e.currentTarget.style.background = "var(--card-2)"; e.currentTarget.style.transform = "translateX(2px)"; },
+      onMouseLeave: (e) => { e.currentTarget.style.background = "transparent";   e.currentTarget.style.transform = "translateX(0)"; }
+    },
+      /*#__PURE__*/React.createElement("span", {
+        style: {
+          flex: "0 0 36px", width: 36, height: 36, borderRadius: 8,
+          background: "var(--volt-glow)", color: "var(--volt)",
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+        }
+      }, /*#__PURE__*/React.createElement("svg", { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", "aria-hidden": true },
+          /*#__PURE__*/React.createElement("path", { d: s.ico, fill: s.id === "delegataire" ? "none" : "currentColor", stroke: s.id === "delegataire" ? "currentColor" : "none", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }))),
+      /*#__PURE__*/React.createElement("span", { style: { display: "flex", flexDirection: "column", gap: 2, minWidth: 0 } },
+        /*#__PURE__*/React.createElement("span", { style: { fontFamily: "var(--font-display)", fontSize: 14.5, fontWeight: 500, letterSpacing: "-0.01em" } }, s.label),
+        /*#__PURE__*/React.createElement("span", { style: { fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--bone-soft)" } }, s.sub)
+      ),
+      /*#__PURE__*/React.createElement("span", { style: { marginLeft: "auto", color: "var(--bone-mute)", fontSize: 14 } }, "→")
+    ))
+  ));
+};
+// Keyframe pour l'apparition du menu
+if (typeof document !== "undefined" && !document.getElementById("space-menu-kf")) {
+  const _kf = document.createElement("style");
+  _kf.id = "space-menu-kf";
+  _kf.textContent = "@keyframes spaceMenuRise { from { opacity: 0; transform: translateY(-6px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }";
+  document.head.appendChild(_kf);
+}
+
+// ─────────────────────────────────────────────────────────
 // Site Top Nav — sticky, navigates between views
 // ─────────────────────────────────────────────────────────
 const SiteNav = ({
@@ -149,12 +266,7 @@ const SiteNav = ({
     }
   }, "\u2318K")), /*#__PURE__*/React.createElement("span", {
     className: "hide-on-mobile"
-  }, /*#__PURE__*/React.createElement(Btn, {
-    variant: "primary",
-    arrow: true,
-    magnetic: true,
-    onClick: goLogin
-  }, "Espace partenaire")), /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement(SpaceMenu, null)), /*#__PURE__*/React.createElement("button", {
     onClick: onCmdK,
     className: "only-on-mobile",
     "aria-label": "Rechercher",
@@ -268,17 +380,34 @@ const SiteNav = ({
     }
   }, l.label))), /*#__PURE__*/React.createElement("div", {
     className: "mobile-drawer-actions"
-  }, /*#__PURE__*/React.createElement(Btn, {
-    variant: "primary",
-    arrow: true,
-    full: true,
-    onClick: goLogin
-  }, "Espace partenaire"), /*#__PURE__*/React.createElement(Btn, {
-    variant: "secondary",
-    arrow: true,
-    full: true,
-    onClick: () => go("simulateur")
-  }, "Simuler ma prime"))));
+  },
+    SITE_SPACES.map(s => /*#__PURE__*/React.createElement("button", {
+      key: s.id,
+      onClick: () => { setMobileOpen(false); if (s.href) window.location.href = s.href; else goLogin(); },
+      style: {
+        display: "flex", alignItems: "center", gap: 12, width: "100%",
+        background: "var(--card-2)", border: "1px solid var(--rule-on)",
+        borderRadius: 10, padding: "12px 14px",
+        fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 500,
+        color: "var(--ink)", cursor: "pointer", textAlign: "left",
+      }
+    },
+      /*#__PURE__*/React.createElement("span", {
+        style: { width: 32, height: 32, borderRadius: 6, background: "var(--volt-glow)", color: "var(--volt)",
+          display: "inline-flex", alignItems: "center", justifyContent: "center" }
+      }, /*#__PURE__*/React.createElement("svg", { width: 16, height: 16, viewBox: "0 0 24 24" },
+          /*#__PURE__*/React.createElement("path", { d: s.ico, fill: s.id === "delegataire" ? "none" : "currentColor", stroke: s.id === "delegataire" ? "currentColor" : "none", strokeWidth: "2" }))),
+      /*#__PURE__*/React.createElement("span", { style: { display: "flex", flexDirection: "column", gap: 2 } },
+        /*#__PURE__*/React.createElement("span", null, "Espace " + s.label.toLowerCase()),
+        /*#__PURE__*/React.createElement("span", { style: { fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--bone-soft)" } }, s.sub)
+      )
+    )),
+    /*#__PURE__*/React.createElement(Btn, {
+      variant: "secondary",
+      arrow: true,
+      full: true,
+      onClick: () => go("simulateur")
+    }, "Simuler ma prime"))));
 };
 
 // ─────────────────────────────────────────────────────────
