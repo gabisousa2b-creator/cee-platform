@@ -102,20 +102,26 @@ const App = () => {
 
   // Notify parent when slot rotates (analytics + continuous auto-fit).
   // We watch the rendered element with ResizeObserver and keep the MAX size
-  // seen during the slot lifetime — animations that grow (Bracket Burst,
-  // Letter Flip…) push width up; we never shrink back to avoid clipping.
+  // seen during the current slot — animations that grow (Bracket Burst,
+  // Letter Flip…) push width up; we never shrink mid-slot to avoid clipping.
+  // Parent receives the slot index too, so it can RESET its size when the
+  // slot changes (otherwise a previous wide slot would lock the iframe
+  // wider than the next slot needs).
   React.useEffect(() => {
     try { window.parent.postMessage({ source: "ew-logo", slot, n: SELECTED[slot]?.n }, "*"); } catch (e) {}
     const r = document.getElementById("root");
     if (!r) return;
     let maxW = 0, maxH = 0;
     let raf = 0;
-    const post = () => {
-      try { window.parent.postMessage({ source: "ew-logo-size", width: maxW, height: maxH }, "*"); } catch (e) {}
+    const post = (kind) => {
+      try {
+        window.parent.postMessage({
+          source: "ew-logo-size",
+          width: maxW, height: maxH,
+          slot: slot, kind: kind || "grow",
+        }, "*");
+      } catch (e) {}
     };
-    // The first children of #root are the LogoLab<N>Styles (display:none
-    // <style> elements). The actual logo is the last visible child — pick
-    // the last child with a non-zero bounding rect.
     const findLogo = () => {
       const kids = r.children;
       for (let i = kids.length - 1; i >= 0; i--) {
@@ -125,25 +131,28 @@ const App = () => {
       }
       return null;
     };
-    const measure = () => {
+    const measure = (forceReset) => {
       const child = findLogo();
       if (!child) return;
       const rect = child.getBoundingClientRect();
-      const w = Math.max(rect.width, child.scrollWidth) + 32;
-      const h = Math.max(rect.height, child.scrollHeight) + 14;
+      // +2 px each side as visual breathing room; iframe content is the
+      // entire logo (text + EMMY sub-line) — no extra padding needed.
+      const w = Math.ceil(Math.max(rect.width, child.scrollWidth)) + 4;
+      const h = Math.ceil(Math.max(rect.height, child.scrollHeight)) + 2;
+      if (forceReset) { maxW = w; maxH = h; post("reset"); return; }
       const grew = w > maxW + 0.5 || h > maxH + 0.5;
-      if (grew) { maxW = Math.max(maxW, w); maxH = Math.max(maxH, h); post(); }
+      if (grew) { maxW = Math.max(maxW, w); maxH = Math.max(maxH, h); post("grow"); }
     };
-    const ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(measure); });
+    const ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => measure(false)); });
     ro.observe(r);
     const logo0 = findLogo();
     if (logo0) ro.observe(logo0);
-    // Initial sweep — re-measure for the first second so growing animations
-    // settle before we lock the upper bound.
-    const t1 = setTimeout(measure, 80);
-    const t2 = setTimeout(measure, 400);
-    const t3 = setTimeout(measure, 900);
-    return () => { ro.disconnect(); cancelAnimationFrame(raf); clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    // First measure: RESET so the parent shrinks back if the new slot is
+    // narrower than the previous one. Subsequent measures only grow.
+    const t0 = setTimeout(() => measure(true), 30);
+    const t1 = setTimeout(() => measure(false), 250);
+    const t2 = setTimeout(() => measure(false), 700);
+    return () => { ro.disconnect(); cancelAnimationFrame(raf); clearTimeout(t0); clearTimeout(t1); clearTimeout(t2); };
   }, [slot]);
 
   const entry = SELECTED[slot];

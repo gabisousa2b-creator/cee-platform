@@ -153,8 +153,15 @@ const Wordmark = ({
       if (!d || d.source !== "ew-logo-size") return;
       // Only apply if THIS iframe is the source
       if (!ref.current || ev.source !== ref.current.contentWindow) return;
-      if (typeof d.height === "number") setH(function (p) { return Math.max(p, Math.min(260, d.height)); });
-      if (typeof d.width  === "number") setW(function (p) { return Math.max(p, Math.min(640, d.width));  });
+      var reset = d.kind === "reset";
+      if (typeof d.height === "number") {
+        var nh = Math.min(260, d.height);
+        setH(reset ? nh : function (p) { return Math.max(p, nh); });
+      }
+      if (typeof d.width === "number") {
+        var nw = Math.min(640, d.width);
+        setW(reset ? nw : function (p) { return Math.max(p, nw); });
+      }
     }
     window.addEventListener("message", onMsg);
     return function () { window.removeEventListener("message", onMsg); };
@@ -172,7 +179,8 @@ const Wordmark = ({
       height: h + "px",
       border: 0,
       background: "transparent",
-      colorScheme: "normal"
+      colorScheme: "normal",
+      verticalAlign: "middle"
     }
   });
 };

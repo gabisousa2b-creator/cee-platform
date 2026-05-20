@@ -55,21 +55,24 @@
   }
 
   // Centralized listener for size messages — match iframe by event.source.
-  // Only GROW; never shrink (animations can momentarily measure smaller).
+  // - kind:"reset" (new slot): apply the size as-is so the iframe shrinks
+  //   if the new slot is narrower than the previous one.
+  // - kind:"grow" (animation mid-slot): only grow, never shrink.
   var IFRAMES = [];
   window.addEventListener('message', function (ev) {
     var d = ev.data;
     if (!d || d.source !== 'ew-logo-size') return;
+    var reset = d.kind === 'reset';
     for (var i = 0; i < IFRAMES.length; i++) {
       var ifr = IFRAMES[i];
       if (ifr.contentWindow !== ev.source) continue;
       if (typeof d.height === 'number') {
-        var nh = Math.max(40, Math.min(220, d.height));
-        if (nh > ifr.offsetHeight) ifr.style.height = nh + 'px';
+        var nh = Math.max(28, Math.min(220, d.height));
+        if (reset || nh > ifr.offsetHeight) ifr.style.height = nh + 'px';
       }
       if (typeof d.width === 'number') {
-        var nw = Math.max(120, Math.min(520, d.width));
-        if (nw > ifr.offsetWidth) ifr.style.width = nw + 'px';
+        var nw = Math.max(80, Math.min(520, d.width));
+        if (reset || nw > ifr.offsetWidth) ifr.style.width = nw + 'px';
       }
       break;
     }
