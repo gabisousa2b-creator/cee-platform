@@ -219,11 +219,15 @@ function boot() {
   //  - always lands on the PARENT's origin, never the iframe origin
   // Our only job here is to PREVENT the navigation when the user is
   // already on the home page — so the logo stays fluid and interactive.
-  const HOME_PATHS = new Set(["/", "/index.html"]);
+  // Le site utilise un hash-routing : "/" sans hash et "#/home" sont
+  // l'accueil ; "#/contact", "#/dispositif"… sont d'autres vues.
+  const HOME_HASHES = new Set(["", "#", "#/", "#/home", "#home"]);
+  const HOME_PATHS  = new Set(["/", "/index.html"]);
   function isOnHome() {
     try {
-      const p = window.parent.location.pathname;
-      return HOME_PATHS.has(p);
+      const loc = window.parent.location;
+      if (!HOME_PATHS.has(loc.pathname)) return false;
+      return HOME_HASHES.has(loc.hash || "");
     } catch (e) {
       return false;
     }
@@ -234,9 +238,23 @@ function boot() {
       // Already at /, kill the anchor's default navigation but let
       // any inner button's onClick run normally for the animation.
       ev.preventDefault();
+      return;
     }
-    // Off-home: don't preventDefault. The <a target="_top"> fires
-    // browser-native top navigation to '/' on the parent's origin.
+    // Si on est sur la même pathname mais une autre vue hash-routée
+    // (ex. /#/contact), un anchor href="/" déclenche seulement un
+    // hashchange — la SPA peut louper le re-render selon son listener.
+    // Pour être sûr de ramener l'utilisateur sur l'accueil, on force
+    // un set du hash sur "#/home" + on previent la nav anchor.
+    try {
+      const loc = window.parent.location;
+      if (HOME_PATHS.has(loc.pathname) && !HOME_HASHES.has(loc.hash || "")) {
+        ev.preventDefault();
+        loc.hash = "#/home";
+        return;
+      }
+    } catch (e) { /* cross-origin: laisse l'anchor faire son boulot */ }
+    // Autres cas (admin, partenaire, portal, compte…) : l'anchor
+    // target="_top" navigue vers / sur l'origine du parent.
   });
   // If iframe ever loads as the top document (direct visit to /logo/),
   // the anchor's target="_top" is a no-op self-link. Rewrite to "_self".
