@@ -116,7 +116,13 @@
     .op-chip { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:.71rem; font-weight:600; cursor:pointer; border:1px solid var(--border-light); background:var(--bg-3); color:var(--t2); transition:all .12s; user-select:none; }
     .op-chip:hover { border-color:var(--accent-line); color:var(--t1); }
     .op-chip.on { background:var(--accent-dim); color:var(--accent); border-color:var(--accent-line); }
-    .aop-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:6px; }
+    .aop-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:6px; border-radius:6px; padding:4px; transition:background .25s ease; }
+    @keyframes cdcFlash {
+      0%   { background: rgba(46,126,244,.30); box-shadow: 0 0 0 2px rgba(46,126,244,.45); }
+      40%  { background: rgba(46,126,244,.18); box-shadow: 0 0 0 2px rgba(46,126,244,.22); }
+      100% { background: transparent;         box-shadow: 0 0 0 0 rgba(46,126,244,0); }
+    }
+    .cdc-flash { animation: cdcFlash 1.5s ease-out both; }
     .aop-badge { font-size:.6rem; font-weight:700; color:var(--accent); background:var(--accent-dim); border:1px solid var(--accent-line); padding:2px 7px; border-radius:10px; }
     .kpi-box { background:var(--bg-3); border:1px solid var(--border); border-radius:var(--r-sm); padding:12px 14px; text-align:center; height:100%; }
     .kpi-v { font-size:1.15rem; font-weight:700; color:var(--t1); letter-spacing:-.02em; }
@@ -2074,7 +2080,21 @@ function renderCdc() {
       <button class="btn btn-sm btn-link p-0" style="color:var(--danger)" onclick="cdcPieces.splice(${i},1);renderCdc()" title="Retirer"><i class="fas fa-trash"></i></button>
     </div>`).join('');
 }
-function addCdcPiece() { cdcPieces.unshift({ nom:'', fourni_par:'partenaire', obligatoire:true }); renderCdc(); }
+function addCdcPiece() {
+  cdcPieces.unshift({ nom:'', fourni_par:'partenaire', obligatoire:true });
+  renderCdc();
+  // Flash + focus la nouvelle ligne (toujours en première position)
+  requestAnimationFrame(() => {
+    const box = document.getElementById('cdcList');
+    const row = box && box.firstElementChild;
+    if (!row) return;
+    row.classList.add('cdc-flash');
+    const input = row.querySelector('input.form-control');
+    if (input) input.focus();
+    row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    setTimeout(() => row.classList.remove('cdc-flash'), 1600);
+  });
+}
 async function saveCdc() {
   const did = document.getElementById('cdcDeleg').value, oid = document.getElementById('cdcOp').value;
   if (!did || !oid) { showToast('Sélectionne délégataire et opération', 'danger'); return; }
