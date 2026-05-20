@@ -211,16 +211,19 @@ function boot() {
     requestAnimationFrame(boot);
     return;
   }
-  // Wire the whole iframe as a link to the host's main page. The iframe
-  // captures clicks so we can't put an <a> in the parent; instead we
-  // intercept the click here. We DON'T preventDefault so the underlying
-  // lab component (Bracket Burst, Click Stagger, Click Discharge…) gets
-  // to play its own click animation. If the host is already on '/', we
-  // skip navigation altogether — the animation is the only response.
-  // Otherwise we wait ~380 ms so the user actually sees the animation
-  // before the page reloads.
+  // Wire the whole iframe as a link to the host's main page.
+  // - On non-home pages: click navigates parent to '/'. We schedule the
+  //   nav 220 ms after the click so the lab component's click animation
+  //   (Bracket Burst, Click Discharge, Click Stagger…) has time to fire
+  //   visually. We DON'T preventDefault so that animation runs.
+  // - On home ('/' or '/index.html'): we never navigate, the click only
+  //   triggers the component's own animation — the logo stays fluide et
+  //   interactif sans recharger inutilement la page.
+  // Listener is attached to BODY (not just #root) so a click on any
+  // descendant — including SVGs with pointer-events:none on a sibling —
+  // still bubbles up and triggers navigation.
   const TARGET = "/";
-  const HOME_PATHS = new Set(["/", "/index.html"]);
+  const HOME_PATHS = new Set(["/", "/index.html", ""]);
   function navigate(openInNewTab) {
     try {
       if (openInNewTab) window.open(TARGET, "_blank");
@@ -230,22 +233,22 @@ function boot() {
   function parentPath() {
     try { return window.parent.location.pathname; } catch (e) { return ""; }
   }
-  const rootEl = document.getElementById("root");
-  rootEl.addEventListener("click", function (ev) {
-    // Always let the embedded component handle the click first (animation).
+  function isOnHome() { return HOME_PATHS.has(parentPath()); }
+  document.body.addEventListener("click", function (ev) {
     if (ev.defaultPrevented) return;
-    if (HOME_PATHS.has(parentPath())) return; // déjà sur l'accueil → pas de nav
+    if (isOnHome()) return; // déjà sur l'accueil → pas de nav, juste l'anim
     const openInNewTab = ev.ctrlKey || ev.metaKey || ev.button === 1;
-    setTimeout(function () { navigate(openInNewTab); }, 380);
+    setTimeout(function () { navigate(openInNewTab); }, 220);
   });
+  const rootEl = document.getElementById("root");
   rootEl.setAttribute("role", "link");
   rootEl.setAttribute("aria-label", "EchoWAI — retour à l'accueil");
   rootEl.setAttribute("tabindex", "0");
   rootEl.addEventListener("keydown", function (ev) {
     if (ev.key === "Enter" || ev.key === " ") {
       ev.preventDefault();
-      if (HOME_PATHS.has(parentPath())) return;
-      setTimeout(function () { navigate(false); }, 380);
+      if (isOnHome()) return;
+      setTimeout(function () { navigate(false); }, 220);
     }
   });
   const root = ReactDOM.createRoot(rootEl);
