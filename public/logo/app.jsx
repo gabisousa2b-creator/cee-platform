@@ -211,7 +211,36 @@ function boot() {
     requestAnimationFrame(boot);
     return;
   }
-  const root = ReactDOM.createRoot(document.getElementById("root"));
+  // Wire the whole iframe as a link to the host's main page. The iframe
+  // captures clicks so we can't put an <a> in the parent; instead we
+  // intercept the click here and navigate the parent (same origin → no
+  // permission issue). middle-click / ctrl-click → open in new tab.
+  const rootEl = document.getElementById("root");
+  rootEl.addEventListener("click", function (ev) {
+    // Let nested interactive elements (the L_ components have hover/click
+    // micro-interactions) do their thing first; navigate on plain clicks.
+    if (ev.defaultPrevented) return;
+    const target = "/";
+    try {
+      if (ev.ctrlKey || ev.metaKey || ev.button === 1) {
+        window.open(target, "_blank");
+      } else {
+        window.parent.location.href = target;
+      }
+    } catch (e) {
+      window.location.href = target;
+    }
+  });
+  rootEl.setAttribute("role", "link");
+  rootEl.setAttribute("aria-label", "EchoWAI — retour à l'accueil");
+  rootEl.setAttribute("tabindex", "0");
+  rootEl.addEventListener("keydown", function (ev) {
+    if (ev.key === "Enter" || ev.key === " ") {
+      ev.preventDefault();
+      try { window.parent.location.href = "/"; } catch (e) { window.location.href = "/"; }
+    }
+  });
+  const root = ReactDOM.createRoot(rootEl);
   root.render(<App />);
 }
 boot();
