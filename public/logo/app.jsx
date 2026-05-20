@@ -211,79 +211,38 @@ function boot() {
     requestAnimationFrame(boot);
     return;
   }
-  // Wire the whole iframe as a link to the host's main page.
-  // - On non-home pages: click navigates parent to '/'. We schedule the
-  //   nav 220 ms after the click so the lab component's click animation
-  //   (Bracket Burst, Click Discharge, Click Stagger…) has time to fire
-  //   visually. We DON'T preventDefault so that animation runs.
-  // - On home ('/' or '/index.html'): we never navigate, the click only
-  //   triggers the component's own animation — the logo stays fluide et
-  //   interactif sans recharger inutilement la page.
-  // Listener is attached to BODY (not just #root) so a click on any
-  // descendant — including SVGs with pointer-events:none on a sibling —
-  // still bubbles up and triggers navigation.
-  const TARGET = "/";
+  // #root is a native <a href="/" target="_top">. The browser handles
+  // top-level navigation natively, which:
+  //  - works without scripted setTimeout (no user-activation issues)
+  //  - sends a proper history entry, supports Ctrl/Cmd-click and
+  //    middle-click natively
+  //  - always lands on the PARENT's origin, never the iframe origin
+  // Our only job here is to PREVENT the navigation when the user is
+  // already on the home page — so the logo stays fluid and interactive.
   const HOME_PATHS = new Set(["/", "/index.html"]);
-  function navigate(openInNewTab) {
-    try {
-      if (openInNewTab) {
-        if (window.parent && window.parent !== window) {
-          // Open relative to the PARENT's origin so on echowai.com we
-          // land on https://echowai.com/, not the iframe URL.
-          window.open(window.parent.location.origin + TARGET, "_blank");
-        } else {
-          window.open(TARGET, "_blank");
-        }
-        return;
-      }
-      // Same-origin: change parent location. Use href assignment so a
-      // history entry IS created (replace would skip the back button).
-      if (window.parent && window.parent !== window) {
-        window.parent.location.href = window.parent.location.origin + TARGET;
-      } else {
-        window.location.href = TARGET;
-      }
-    } catch (e) {
-      // Cross-origin (rare here) or any other failure: fall back to top
-      // navigation, which bypasses the iframe scope entirely.
-      try { window.top.location.href = TARGET; } catch (e2) { window.location.href = TARGET; }
-    }
-  }
   function isOnHome() {
     try {
       const p = window.parent.location.pathname;
       return HOME_PATHS.has(p);
     } catch (e) {
-      // If we cannot read the parent's URL (cross-origin) we err on the
-      // side of navigating — better an extra reload than a dead logo.
       return false;
     }
   }
-  let navScheduled = false;
-  function handleClick(ev) {
-    if (navScheduled) return;
-    if (ev.defaultPrevented) return;
-    if (isOnHome()) return; // déjà sur l'accueil → pas de nav, juste l'anim
-    const openInNewTab = ev.ctrlKey || ev.metaKey || ev.button === 1 || ev.shiftKey;
-    navScheduled = true;
-    setTimeout(function () { navigate(openInNewTab); }, 220);
-  }
-  // Capture phase on window so the click is caught BEFORE any inner
-  // <button> could swallow it via stopPropagation. Backup listener on
-  // body (bubble) in case capture is suppressed by something exotic.
-  window.addEventListener("click", handleClick, true);
-  document.body.addEventListener("click", handleClick);
   const rootEl = document.getElementById("root");
-  rootEl.setAttribute("role", "link");
-  rootEl.setAttribute("aria-label", "EchoWAI — retour à l'accueil");
-  rootEl.setAttribute("tabindex", "0");
-  rootEl.addEventListener("keydown", function (ev) {
-    if (ev.key === "Enter" || ev.key === " ") {
+  rootEl.addEventListener("click", function (ev) {
+    if (isOnHome()) {
+      // Already at /, kill the anchor's default navigation but let
+      // any inner button's onClick run normally for the animation.
       ev.preventDefault();
-      if (isOnHome()) return;
-      setTimeout(function () { navigate(false); }, 220);
     }
+    // Off-home: don't preventDefault. The <a target="_top"> fires
+    // browser-native top navigation to '/' on the parent's origin.
   });
+  // If iframe ever loads as the top document (direct visit to /logo/),
+  // the anchor's target="_top" is a no-op self-link. Rewrite to "_self".
+  if (window.parent === window) {
+    rootEl.setAttribute("target", "_self");
+  }
   const root = ReactDOM.createRoot(rootEl);
   root.render(<App />);
 }

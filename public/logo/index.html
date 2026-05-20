@@ -20,12 +20,15 @@
   html.theme-dark { color: #fff; }
   html.theme-dark .upper, html.theme-dark .mono { color: rgba(255,255,255,.7); }
   /* Mount container — align logo to top-left so it hugs the host's edge.
-     No padding so the host iframe sits exactly on its content rectangle. */
+     No padding so the host iframe sits exactly on its content rectangle.
+     #root is an <a target="_top" href="/"> — browser navigates the top-
+     level frame natively on click, no script needed. */
   #root {
     display: inline-flex; align-items: flex-start; justify-content: flex-start;
     padding: 0; margin: 0;
+    color: inherit; text-decoration: none;
   }
-  /* Whole iframe behaves as a link to / — pointer cursor everywhere. */
+  /* Whole iframe behaves as a link — pointer cursor everywhere. */
   html, body, #root, #root * { cursor: pointer; }
   /* Hide all lab-page demo cards if any leak — only render selected logo */
   .ew-logo-only > * { all: revert; }
@@ -44,7 +47,7 @@
 </style>
 </head>
 <body class="theme-serenite density-aere">
-<div id="root" class="ew-logo-only"></div>
+<a id="root" class="ew-logo-only" href="/" target="_top" rel="noopener" aria-label="EchoWAI — accueil"></a>
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
