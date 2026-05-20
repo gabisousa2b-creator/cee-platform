@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EchoWAI Logo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Public+Sans:ital,wght@0,300..700;1,300..700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" />
+<link rel="stylesheet" href="/site/tokens.css" />
+<style>
+  /* Transparent host — let parent decide bg */
+  html, body { margin: 0; padding: 0; background: transparent; }
+  body {
+    font-family: var(--font-display, "Bricolage Grotesque", system-ui, sans-serif);
+    color: var(--ink);
+    overflow: hidden;
+  }
+  /* Theme override via class on <html> */
+  html.theme-dark { color: #fff; }
+  html.theme-dark .upper, html.theme-dark .mono { color: rgba(255,255,255,.7); }
+  /* Mount container — center logo, no extra chrome */
+  #root {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; height: 100vh; padding: 4px 8px; box-sizing: border-box;
+  }
+  /* Hide all lab-page demo cards if any leak — only render selected logo */
+  .ew-logo-only > * { all: revert; }
+
+  /* Helpers re-declared (vol files reference these globally) */
+  .serif { font-family: var(--font-display, "Bricolage Grotesque", serif); }
+  .mono  { font-family: var(--font-mono, "IBM Plex Mono", monospace); }
+  .upper { text-transform: uppercase; letter-spacing: .08em; font-size: 11px; }
+
+  /* Animations referenced across lab files — keep minimal local copy */
+  @keyframes ewTick { 0%{transform:translateY(0);opacity:1} 50%{transform:translateY(-2px);opacity:.6} 100%{transform:translateY(0);opacity:1} }
+  @keyframes orbitDot { to { offset-distance: 100%; } }
+  @keyframes trailFade { 0%{transform:scale(1);opacity:.6} 100%{transform:scale(2.6);opacity:0} }
+  @keyframes volt-pulse { 0%,100%{opacity:1}50%{opacity:.55} }
+  .volt-dot { animation: volt-pulse 2.4s ease-in-out infinite; }
+</style>
+</head>
+<body class="theme-serenite density-aere">
+<div id="root" class="ew-logo-only"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js" crossorigin="anonymous"></script>
+
+<!-- Lab files: order matters (vol2 declares hook, vol4 declares provider+helpers, vol5+ register their L_ components) -->
+<script type="text/babel" data-presets="react" src="/logo/src/ew-logo-lab-2.jsx"></script>
+<script type="text/babel" data-presets="react" src="/logo/src/ew-logo-lab-3.jsx"></script>
+<script type="text/babel" data-presets="react" src="/logo/src/ew-logo-lab-4.jsx"></script>
+<script type="text/babel" data-presets="react" src="/logo/src/ew-logo-lab-5.jsx"></script>
+<script type="text/babel" data-presets="react" src="/logo/src/ew-logo-lab-6.jsx"></script>
+<script type="text/babel" data-presets="react" src="/logo/src/ew-logo-lab-7.jsx"></script>
+<script type="text/babel" data-presets="react" src="/logo/src/ew-logo-lab-8.jsx"></script>
+<script type="text/babel" data-presets="react" src="/logo/src/ew-logo-lab-9.jsx"></script>
+
+<!-- App: picks current slot, renders chosen logo -->
+<script type="text/babel" data-presets="react" src="/logo/app.jsx"></script>
+</body>
+</html>

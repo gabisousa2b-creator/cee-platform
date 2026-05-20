@@ -1818,7 +1818,8 @@ function emmyToday(cb) {
   });
 }
 app.get('/api/emmy', (req, res) => {
-  emmyToday(d => res.json(d));
+  // base = jour ; price/value = alias attendus par le hook du logo widget
+  emmyToday(d => res.json({ ...d, price: d.base, value: d.base }));
 });
 
 // ── Routes Fiches CEE ─────────────────────────────────────────────────────────

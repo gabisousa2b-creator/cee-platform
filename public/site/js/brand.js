@@ -135,82 +135,40 @@ const Wordmark = ({
   accent = "var(--volt)",
   emmy = true
 }) => {
-  const e = useEmmy();
-  const tc = emmyColor(e.trend);
-  const onDark = color === "#FFFFFF" || color === "#fff";
-  return /*#__PURE__*/React.createElement("span", {
-    style: {
-      display: "inline-flex",
-      flexDirection: "column",
-      alignItems: "flex-start"
+  const [h, setH] = React.useState(Math.round(70 * scale));
+  const onDark =
+    color === "#FFFFFF" || color === "#fff" ||
+    color === "var(--bone)" || color === "var(--bone-2)";
+  const theme = onDark ? "dark" : "light";
+  const params = new URLSearchParams({ theme: theme, scale: String(scale) });
+  if (color)  params.set("color",  color);
+  if (accent) params.set("accent", accent);
+  const src = "/logo/?" + params.toString();
+  React.useEffect(function () {
+    function onMsg(ev) {
+      var d = ev.data;
+      if (!d || d.source !== "ew-logo-size") return;
+      if (typeof d.height === "number") setH(Math.max(40, Math.min(260, d.height)));
     }
-  }, /*#__PURE__*/React.createElement("span", {
+    window.addEventListener("message", onMsg);
+    return function () { window.removeEventListener("message", onMsg); };
+  }, []);
+  return /*#__PURE__*/React.createElement("iframe", {
+    src: src,
+    title: "EchoWAI",
+    "aria-label": "Logo EchoWAI",
+    loading: "eager",
     style: {
-      position: "relative",
-      display: "inline-block",
-      padding: `${8 * scale}px ${14 * scale}px ${4 * scale}px`
+      display: "block",
+      width: Math.round(320 * scale) + "px",
+      height: h + "px",
+      border: 0,
+      background: "transparent",
+      colorScheme: "normal"
     }
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "serif",
-    style: {
-      fontSize: 28 * scale,
-      lineHeight: 1,
-      letterSpacing: "-0.035em",
-      fontWeight: 500,
-      color
-    }
-  }, "echo", /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: accent
-    }
-  }, "wai")), /*#__PURE__*/React.createElement("span", {
-    "aria-hidden": true,
-    style: {
-      position: "absolute",
-      left: 0,
-      top: 0,
-      width: 6.5 * scale,
-      height: 6.5 * scale,
-      borderRadius: "50%",
-      background: tc,
-      offsetPath: `ellipse(${64 * scale}px ${17 * scale}px at 50% 50%)`,
-      animation: "orbitDot 5.2s linear infinite",
-      transition: "background .6s ease",
-      boxShadow: `0 0 ${6 * scale}px ${tc}`
-    }
-  })), emmy && /*#__PURE__*/React.createElement("span", {
-    className: "mono ew-tk",
-    style: {
-      display: "inline-flex",
-      alignItems: "baseline",
-      gap: 4 * scale,
-      paddingLeft: 14 * scale,
-      marginTop: -3 * scale,
-      fontSize: 8.4 * scale,
-      letterSpacing: ".02em",
-      whiteSpace: "nowrap",
-      color: onDark ? "rgba(255,255,255,.4)" : "var(--bone-mute)"
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      letterSpacing: ".15em"
-    }
-  }, "EMMY"), /*#__PURE__*/React.createElement("span", {
-    style: {
-      color: onDark ? "rgba(255,255,255,.74)" : "var(--bone-soft)",
-      fontWeight: 600
-    }
-  }, e.price.toFixed(2).replace(".", ",")), /*#__PURE__*/React.createElement("span", null, "\u20AC/MWh"), /*#__PURE__*/React.createElement("span", {
-    key: e.tk,
-    style: {
-      color: tc,
-      fontWeight: 700,
-      fontSize: 9 * scale,
-      display: "inline-block",
-      animation: "tickFlash .5s var(--ease-out-quart)"
-    }
-  }, e.trend > 0 ? "↑" : e.trend < 0 ? "↓" : "→")));
+  });
 };
+
 
 // Brand card — features the wordmark + flowing motif
 const BrandCard = () => /*#__PURE__*/React.createElement("div", {

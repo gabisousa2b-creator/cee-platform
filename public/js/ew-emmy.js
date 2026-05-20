@@ -1,72 +1,89 @@
-/* EchoWAI — cours EMMY (CEE) · base réévaluée chaque jour (serveur),
-   variation live ±5%. Sous-ligne discrète intégrée à chaque .ew-logo. */
+/* EchoWAI — Logo widget injector (platform pages)
+   Replaces every <span class="ew-logo">…</span> with an iframe pointing at /logo/.
+   The iframe contains React+lab JSX that rotates 13 logos every 15 min and
+   renders the EMMY cours sub-line (base réévaluée chaque jour, walk live ±5%).
+
+   This file used to inject a vanilla EMMY ticker — now superseded by /logo/. */
 (function () {
-  var BASE = 9.10, LO = BASE * 0.95, HI = BASE * 1.05;
-  var price = BASE, prev = BASE, trend = 1;
-  var tickers = [];
+  if (window.__EW_LOGO_INIT__) return;
+  window.__EW_LOGO_INIT__ = true;
 
-  function color(t) { return t > 0 ? '#2E8B57' : t < 0 ? '#C2410C' : '#2E7EF4'; }
-
-  function build(logo) {
-    if (logo.parentNode.querySelector('.ew-emmy')) return;
-    var tk = document.createElement('span');
-    tk.className = 'ew-emmy';
-    tk.innerHTML =
-      '<span class="ew-emmy-lab">EMMY</span>' +
-      '<span class="ew-emmy-val">—</span>' +
-      '<span class="ew-emmy-unit">€/MWh</span>' +
-      '<span class="ew-emmy-arr"></span>';
-    logo.parentNode.insertBefore(tk, logo.nextSibling);
-    try {
-      if (getComputedStyle(logo.parentNode).textAlign === 'center')
-        tk.style.margin = '-3px auto 0';
-    } catch (e) {}
-    tickers.push({ tk: tk, logo: logo });
-  }
-
-  function render() {
-    var c = color(trend), val = price.toFixed(2).replace('.', ','),
-        arr = trend > 0 ? '↑' : trend < 0 ? '↓' : '→';
-    for (var i = 0; i < tickers.length; i++) {
-      var o = tickers[i];
-      o.tk.querySelector('.ew-emmy-val').textContent = val;
-      o.tk.querySelector('.ew-emmy-unit').style.color = c;
-      var a = o.tk.querySelector('.ew-emmy-arr');
-      a.textContent = arr; a.style.color = c;
-      a.style.animation = 'none'; void a.offsetWidth; a.style.animation = 'ewTick .5s ease';
-      var dot = o.logo.querySelector('i');
-      if (dot) { dot.style.background = c; dot.style.boxShadow = '0 0 6px ' + c; }
+  function pickTheme(el) {
+    // Explicit override
+    var attr = el.getAttribute('data-theme');
+    if (attr === 'dark' || attr === 'light') return attr;
+    // Heuristic: walk up to find background color
+    var node = el;
+    while (node && node !== document.documentElement) {
+      var bg = getComputedStyle(node).backgroundColor;
+      if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+        // parse rgb(r, g, b…) and compute luminance
+        var m = bg.match(/rgba?\(([^)]+)\)/);
+        if (m) {
+          var p = m[1].split(',').map(parseFloat);
+          var lum = (0.299 * p[0] + 0.587 * p[1] + 0.114 * p[2]) / 255;
+          return lum < 0.55 ? 'dark' : 'light';
+        }
+      }
+      node = node.parentNode;
     }
+    return 'light';
   }
 
-  function step() {
-    prev = price;
-    var d = -(price - BASE) * 0.16 + (Math.random() - 0.5) * 0.072 * BASE;
-    price = Math.min(HI, Math.max(LO, price + d));
-    trend = price > prev ? 1 : price < prev ? -1 : 0;
-    render();
+  function pickScale(el) {
+    // Map element font-size to widget scale (28px ≈ scale 1)
+    var fs = parseFloat(getComputedStyle(el).fontSize) || 21;
+    return Math.max(0.55, Math.min(2.2, fs / 21));
   }
 
-  function applyBase(nb) {
-    if (!(nb > 0)) return;
-    BASE = nb; LO = BASE * 0.95; HI = BASE * 1.05;
-    price = BASE; prev = BASE;
-    render();
+  function buildIframe(el) {
+    var theme = pickTheme(el);
+    var scale = pickScale(el);
+    var params = new URLSearchParams({ theme: theme, scale: String(scale.toFixed(2)) });
+    var ifr = document.createElement('iframe');
+    ifr.src = '/logo/?' + params.toString();
+    ifr.title = 'EchoWAI';
+    ifr.setAttribute('aria-label', 'Logo EchoWAI');
+    ifr.loading = 'eager';
+    ifr.style.cssText =
+      'display:block;border:0;background:transparent;color-scheme:normal;' +
+      'width:' + Math.round(280 * scale) + 'px;' +
+      'height:' + Math.round(60 * scale) + 'px;' +
+      'vertical-align:middle;';
+    return ifr;
   }
-  function fetchBase() {
-    fetch('/api/emmy').then(function (r) { return r.json(); })
-      .then(function (d) { applyBase(d && d.base); }).catch(function () {});
+
+  function mount(el) {
+    if (el.dataset.ewMounted === '1') return;
+    el.dataset.ewMounted = '1';
+    // Clear the text "echo<b>wai</b><i></i>" — iframe takes over
+    el.textContent = '';
+    el.style.padding = '0';
+    el.style.lineHeight = '0';
+    el.style.background = 'transparent';
+    el.appendChild(buildIframe(el));
   }
 
   function init() {
     var logos = document.querySelectorAll('.ew-logo');
-    for (var i = 0; i < logos.length; i++) build(logos[i]);
-    render();
-    fetchBase();
-    setInterval(step, 2400);
-    setInterval(fetchBase, 30 * 60 * 1000); // recharge la base au passage de minuit
+    for (var i = 0; i < logos.length; i++) mount(logos[i]);
   }
 
   if (document.readyState !== 'loading') init();
   else document.addEventListener('DOMContentLoaded', init);
+
+  // Re-mount on dynamically inserted .ew-logo
+  var mo = new MutationObserver(function (muts) {
+    for (var j = 0; j < muts.length; j++) {
+      var added = muts[j].addedNodes;
+      for (var k = 0; k < added.length; k++) {
+        var n = added[k];
+        if (n.nodeType !== 1) continue;
+        if (n.classList && n.classList.contains('ew-logo')) mount(n);
+        var inner = n.querySelectorAll && n.querySelectorAll('.ew-logo');
+        if (inner) for (var l = 0; l < inner.length; l++) mount(inner[l]);
+      }
+    }
+  });
+  mo.observe(document.documentElement, { childList: true, subtree: true });
 })();
