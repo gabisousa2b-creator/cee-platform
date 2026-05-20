@@ -29,7 +29,7 @@ const emmyNorm = (v) => {
   return Math.max(0.05, Math.min(0.95, (v - lo) / (hi - lo)));
 };
 const emmyLabel = (last, trend, source, scale = 1) => (
-  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 0 }}>
     <span style={{ width: 5, height: 5, borderRadius: "50%", background: emmyHue(trend) }} className="volt-dot" />
     <span className="mono" style={{ fontSize: 9.5 * scale, color: "var(--muted)", letterSpacing: ".06em" }}>
       EMMY · {last.toFixed(2)} €/MWh

@@ -49,10 +49,10 @@ const EmmyStackWrapper = ({ Logo, scale = 1, color = "var(--ink)", accent = "var
   const hue = window.emmyHue ? window.emmyHue(e.trend) : accent;
   const onDark = color === "#FFFFFF" || color === "#fff" || color === "white";
   return (
-    <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 4 * scale }}>
+    <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", gap: 0 }}>
       <Logo scale={scale} color={color} accent={accent} />
       <div className="mono" style={{
-        display: "inline-flex", alignItems: "center", gap: 5,
+        display: "inline-flex", alignItems: "center", gap: 4 * scale, marginTop: 0, lineHeight: 1,
         fontSize: 9 * scale, letterSpacing: ".06em",
         color: onDark ? "rgba(255,255,255,.6)" : "var(--muted, #5B6B85)",
         whiteSpace: "nowrap",

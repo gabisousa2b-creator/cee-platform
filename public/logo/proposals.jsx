@@ -11,14 +11,14 @@ const _norm = (v) => {
   return Math.max(0.05, Math.min(0.95, (v - lo) / (hi - lo)));
 };
 
-// ── Sub-line EMMY commune ─────────────────────────────────────────
+// ── Sub-line EMMY commune (collée au wordmark, scale prop.) ───────
 const _EmmySub = ({ scale = 1, onDark = false, accent = "var(--volt)" }) => {
   const e = window.useEmmy ? window.useEmmy() : { last: 9.10, trend: 0, source: "indicative" };
   const hue = _hue(e.trend);
   return (
     <div className="mono" style={{
-      display: "inline-flex", alignItems: "center", gap: 4 * scale, marginTop: 3 * scale,
-      fontSize: 9 * scale, letterSpacing: ".06em",
+      display: "inline-flex", alignItems: "center", gap: 4 * scale, marginTop: 0,
+      fontSize: 9 * scale, letterSpacing: ".06em", lineHeight: 1,
       color: onDark ? "rgba(255,255,255,.6)" : "var(--muted, #6b7280)", whiteSpace: "nowrap",
     }}>
       <span style={{ width: 4 * scale, height: 4 * scale, borderRadius: "50%", background: hue, animation: "ew-pulse 2.4s ease-in-out infinite" }} />

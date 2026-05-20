@@ -15,7 +15,7 @@ const $W = ({ scale = 1, color = "var(--ink)", accent = "var(--volt)", style, ch
 const $Em = ({ scale = 1 }) => {
   const { last, trend, source } = useEmmy();
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 3 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop:0 }}>
       <span style={{ width: 4, height: 4, borderRadius: "50%", background: emmyHue(trend) }} className="volt-dot" />
       <span className="mono" style={{ fontSize: 8.5 * scale, color: "var(--muted)", letterSpacing: ".06em" }}>
         EMMY {last.toFixed(2)} {trend > 0 ? "↑" : trend < 0 ? "↓" : "→"} {source === "emmy" ? "live" : "indic."}
