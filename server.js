@@ -264,6 +264,8 @@ app.use((req, res, next) => {
 });
 // Portail bénéficiaire — accessible sur echowai.com/beneficiaire
 app.get('/beneficiaire', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'portal.html')));
+// Espace obligé — accessible via /oblige
+app.get('/oblige', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'oblige.html')));
 
 app.use(express.static(PUBLIC_DIR));
 app.use(session({
@@ -353,6 +355,7 @@ function generateUniqueCode() {
 const requireAdmin       = (req, res, next) => req.session.isAdmin        ? next() : res.status(401).json({ error: 'Non autorisé' });
 const requireBeneficiary = (req, res, next) => req.session.beneficiaireId ? next() : res.status(401).json({ error: 'Non autorisé' });
 const requirePartner     = (req, res, next) => req.session.compteId       ? next() : res.status(401).json({ error: 'Non autorisé' });
+const requireOblige      = (req, res, next) => req.session.obligeId       ? next() : res.status(401).json({ error: 'Non autorisé' });
 // ── RBAC — rôles : super_admin · admin_partenaire · apporteur ─────────────────
 function sessionRole(req) { return req.session.isAdmin ? 'super_admin' : (req.session.role || null); }
 function requireRole(...roles) {
@@ -1633,6 +1636,44 @@ db.serialize(() => {
     UNIQUE(partenaire_id, delegataire_id)
   )`);
   db.run(`ALTER TABLE beneficiaires ADD COLUMN delegataire_id INTEGER`, () => {});
+
+  // ── Obligés CEE — fournisseurs d'énergie soumis à obligation ─────────────────
+  // Un obligé reçoit les dossiers que les partenaires lui ont attribués et
+  // valide la prime CEE. Auth dédié (session.obligeId), espace propre.
+  db.run(`CREATE TABLE IF NOT EXISTS obliges (
+    id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+    raison_sociale           TEXT NOT NULL,
+    siret                    TEXT DEFAULT '',
+    type                     TEXT DEFAULT 'energie',     -- energie, carburant, autre
+    email                    TEXT NOT NULL UNIQUE,
+    password_hash            TEXT DEFAULT '',
+    contact_nom              TEXT DEFAULT '',
+    contact_tel              TEXT DEFAULT '',
+    kwhc_obligation_annuelle REAL DEFAULT 0,             -- volume CEE annuel à acquérir
+    prix_eur_mwhc            REAL DEFAULT 9.10,          -- prix de référence proposé
+    actif                    INTEGER DEFAULT 1,
+    last_login               DATETIME,
+    created_at               DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  // Lien dossier → obligé : oblige_id sur beneficiaires + statut de validation.
+  [`ALTER TABLE beneficiaires ADD COLUMN oblige_id INTEGER`,
+   `ALTER TABLE beneficiaires ADD COLUMN oblige_statut TEXT DEFAULT 'non_assigne'`,  // non_assigne, en_attente, valide, refuse
+   `ALTER TABLE beneficiaires ADD COLUMN oblige_valide_at DATETIME`,
+   `ALTER TABLE beneficiaires ADD COLUMN oblige_motif_refus TEXT DEFAULT ''`
+  ].forEach(sql => db.run(sql, () => {}));
+  // Seed obligés démo (mot de passe par défaut: oblige2026, à changer en prod)
+  db.get('SELECT COUNT(*) AS n FROM obliges', (e, r) => {
+    if (e || !r || r.n) return;
+    const seedHash = hashPassword('oblige2026');
+    const seeds = [
+      { rs: 'TotalEnergies Marketing France', email: 'oblige.demo@totalenergies.fr', type: 'carburant', kwhc: 25e9, siret: '54205117800012' },
+      { rs: 'EDF SA',                          email: 'oblige.demo@edf.fr',          type: 'energie',   kwhc: 80e9, siret: '55208131766522' },
+      { rs: 'Engie',                           email: 'oblige.demo@engie.fr',        type: 'energie',   kwhc: 45e9, siret: '54210755500021' },
+    ];
+    const st = db.prepare(`INSERT INTO obliges (raison_sociale, email, type, kwhc_obligation_annuelle, siret, password_hash) VALUES (?,?,?,?,?,?)`);
+    seeds.forEach(s => st.run(s.rs, s.email, s.type, s.kwhc, s.siret, seedHash));
+    st.finalize();
+  });
   db.get('SELECT COUNT(*) AS n FROM delegataires', (e, r) => {
     if (e || !r || r.n) return;
     const noms = ["Abokine","ACE Énergie","ACT Commodities France","Aidée","Akéa Énergies","AlphaCEE","Arès",
@@ -3695,6 +3736,158 @@ Tu réponds de façon professionnelle, précise et concise. Tu cites les codes d
     });
     res.json({ content: resp.content[0].text });
   } catch(e) { res.status(500).json({error: e.message}); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── ESPACE OBLIGÉ ─────────────────────────────────────────────────────────────
+// Fournisseur d'énergie soumis à l'obligation CEE. Valide les primes proposées
+// par les partenaires. Session dédiée : req.session.obligeId.
+// ═══════════════════════════════════════════════════════════════════════════════
+app.post('/api/oblige/login', (req, res) => {
+  const ip = req.ip || req.connection.remoteAddress || 'unknown';
+  if (!checkRateLimit(ip)) return res.status(429).json({ error: 'Trop de tentatives. Réessayez dans 15 minutes.' });
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Email et mot de passe requis' });
+  db.get(`SELECT * FROM obliges WHERE lower(email)=lower(?) AND actif=1`,
+    [String(email).trim()], (err, o) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!o || !verifyPassword(password, o.password_hash))
+        return res.status(401).json({ error: 'Identifiants incorrects' });
+      resetLoginAttempts(ip);
+      req.session.obligeId = o.id;
+      db.run('UPDATE obliges SET last_login=CURRENT_TIMESTAMP WHERE id=?', [o.id]);
+      res.json({ success: true, raison_sociale: o.raison_sociale });
+    });
+});
+app.post('/api/oblige/logout',     (req, res) => { req.session.destroy(); res.json({ success: true }); });
+app.get('/api/oblige/check-auth',  (req, res) => res.json({ authenticated: !!req.session.obligeId }));
+
+app.get('/api/oblige/me', requireOblige, (req, res) => {
+  db.get('SELECT id, raison_sociale, siret, type, email, contact_nom, contact_tel, kwhc_obligation_annuelle, prix_eur_mwhc, last_login, created_at FROM obliges WHERE id=?',
+    [req.session.obligeId], (e, o) => {
+      if (e || !o) return res.status(404).json({ error: 'Profil introuvable' });
+      res.json(o);
+    });
+});
+
+app.get('/api/oblige/stats', requireOblige, (req, res) => {
+  // Agrège : nb de dossiers par statut, volume cumac total, prime totale.
+  // Volume/prime viennent de cee_operations (1 dossier → N opérations).
+  db.all(`SELECT b.oblige_statut AS s,
+                 COUNT(DISTINCT b.id) AS n,
+                 COALESCE(SUM(o.volume_kwh), 0) AS volume,
+                 COALESCE(SUM(o.prime_negociee), 0) AS prime
+          FROM beneficiaires b
+          LEFT JOIN cee_operations o ON o.beneficiaire_id = b.id
+          WHERE b.oblige_id = ? AND b.archived = 0
+          GROUP BY b.oblige_statut`,
+    [req.session.obligeId], (e, rows) => {
+      if (e) return res.status(500).json({ error: e.message });
+      const out = { total: 0, en_attente: 0, valide: 0, refuse: 0, volume_cumac_total: 0, prime_total: 0 };
+      (rows || []).forEach(r => {
+        out.total += r.n;
+        out.volume_cumac_total += r.volume || 0;
+        out.prime_total += r.prime || 0;
+        if (r.s === 'en_attente') out.en_attente = r.n;
+        if (r.s === 'valide')     out.valide     = r.n;
+        if (r.s === 'refuse')     out.refuse     = r.n;
+      });
+      res.json(out);
+    });
+});
+
+app.get('/api/oblige/dossiers', requireOblige, (req, res) => {
+  const statut = req.query.statut || null;
+  let sql = `SELECT b.id, b.code, b.nom, b.prenom, b.raison_sociale,
+                    b.code_postal, b.ville, b.activite, b.partenaire,
+                    b.oblige_statut, b.oblige_valide_at, b.oblige_motif_refus,
+                    b.statut AS statut_dossier, b.created_at,
+                    COALESCE(SUM(o.volume_kwh), 0)     AS volume_cumac,
+                    COALESCE(SUM(o.prime_negociee), 0) AS subvention
+             FROM beneficiaires b
+             LEFT JOIN cee_operations o ON o.beneficiaire_id = b.id
+             WHERE b.oblige_id = ? AND b.archived = 0`;
+  const args = [req.session.obligeId];
+  if (statut) { sql += ' AND b.oblige_statut = ?'; args.push(statut); }
+  sql += ' GROUP BY b.id ORDER BY b.created_at DESC LIMIT 500';
+  db.all(sql, args, (e, rows) => {
+    if (e) return res.status(500).json({ error: e.message });
+    res.json(rows || []);
+  });
+});
+
+app.get('/api/oblige/dossiers/:id', requireOblige, (req, res) => {
+  db.get(`SELECT b.*,
+                 COALESCE(SUM(o.volume_kwh), 0)     AS volume_cumac,
+                 COALESCE(SUM(o.prime_negociee), 0) AS subvention,
+                 b.statut AS statut_dossier
+          FROM beneficiaires b
+          LEFT JOIN cee_operations o ON o.beneficiaire_id = b.id
+          WHERE b.id = ? AND b.oblige_id = ?
+          GROUP BY b.id`,
+    [req.params.id, req.session.obligeId], (e, b) => {
+      if (e) return res.status(500).json({ error: e.message });
+      if (!b) return res.status(404).json({ error: 'Dossier introuvable' });
+      res.json(b);
+    });
+});
+
+app.post('/api/oblige/dossiers/:id/valider', requireOblige, (req, res) => {
+  db.run(`UPDATE beneficiaires
+          SET oblige_statut='valide', oblige_valide_at=CURRENT_TIMESTAMP, oblige_motif_refus=''
+          WHERE id=? AND oblige_id=?`,
+    [req.params.id, req.session.obligeId], function (e) {
+      if (e) return res.status(500).json({ error: e.message });
+      if (!this.changes) return res.status(404).json({ error: 'Dossier introuvable' });
+      res.json({ success: true });
+    });
+});
+
+app.post('/api/oblige/dossiers/:id/refuser', requireOblige, (req, res) => {
+  const motif = String((req.body && req.body.motif) || '').slice(0, 500);
+  db.run(`UPDATE beneficiaires
+          SET oblige_statut='refuse', oblige_valide_at=CURRENT_TIMESTAMP, oblige_motif_refus=?
+          WHERE id=? AND oblige_id=?`,
+    [motif, req.params.id, req.session.obligeId], function (e) {
+      if (e) return res.status(500).json({ error: e.message });
+      if (!this.changes) return res.status(404).json({ error: 'Dossier introuvable' });
+      res.json({ success: true });
+    });
+});
+
+app.post('/api/oblige/change-password', requireOblige, (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password) return res.status(400).json({ error: 'Mot de passe actuel et nouveau requis' });
+  if (String(new_password).length < 6)    return res.status(400).json({ error: 'Nouveau mot de passe : 6 caractères minimum' });
+  db.get('SELECT password_hash FROM obliges WHERE id=? AND actif=1', [req.session.obligeId], (e, o) => {
+    if (e) return res.status(500).json({ error: e.message });
+    if (!o) return res.status(401).json({ error: 'Session invalide' });
+    if (!verifyPassword(current_password, o.password_hash))
+      return res.status(403).json({ error: 'Mot de passe actuel incorrect' });
+    db.run('UPDATE obliges SET password_hash=? WHERE id=?',
+      [hashPassword(new_password), req.session.obligeId],
+      err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+  });
+});
+
+// Admin : liste / création / activation des obligés
+app.get('/api/admin/obliges', requireAdmin, (req, res) => {
+  db.all('SELECT id, raison_sociale, siret, type, email, kwhc_obligation_annuelle, prix_eur_mwhc, actif, last_login, created_at FROM obliges ORDER BY raison_sociale',
+    [], (e, rows) => e ? res.status(500).json({ error: e.message }) : res.json(rows || []));
+});
+app.post('/api/admin/obliges', requireAdmin, (req, res) => {
+  const { raison_sociale, email, password, type, siret, kwhc_obligation_annuelle, prix_eur_mwhc, contact_nom, contact_tel } = req.body;
+  if (!raison_sociale || !email || !password)
+    return res.status(400).json({ error: 'raison_sociale, email et password requis' });
+  db.run(`INSERT INTO obliges (raison_sociale, email, password_hash, type, siret, kwhc_obligation_annuelle, prix_eur_mwhc, contact_nom, contact_tel)
+          VALUES (?,?,?,?,?,?,?,?,?)`,
+    [raison_sociale, String(email).trim().toLowerCase(), hashPassword(password),
+     type || 'energie', siret || '', parseFloat(kwhc_obligation_annuelle) || 0,
+     parseFloat(prix_eur_mwhc) || 9.10, contact_nom || '', contact_tel || ''],
+    function (e) {
+      if (e) return res.status(400).json({ error: e.message });
+      res.json({ success: true, id: this.lastID });
+    });
 });
 
 app.listen(PORT, () => {
