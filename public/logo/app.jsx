@@ -211,40 +211,55 @@ function boot() {
     requestAnimationFrame(boot);
     return;
   }
-  // #root is a native <a href="/" target="_top">. The browser handles
-  // top-level navigation natively, which:
-  //  - works without scripted setTimeout (no user-activation issues)
-  //  - sends a proper history entry, supports Ctrl/Cmd-click and
-  //    middle-click natively
-  //  - always lands on the PARENT's origin, never the iframe origin
-  // Our only job here is to PREVENT the navigation when the user is
-  // already on the home page — so the logo stays fluid and interactive.
-  // Le site utilise un hash-routing : "/" sans hash et "#/home" sont
-  // l'accueil ; "#/contact", "#/dispositif"… sont d'autres vues.
+  // #root est un <a href="/" target="_top">. Comportement :
+  //  - sur la vitrine ailleurs que l'accueil → l'anchor navigue
+  //    nativement vers / (browser-native, pas de setTimeout fragile).
+  //  - sur l'accueil (/, /#/home…) → preventDefault, le click joue
+  //    seulement l'animation du composant lab interne.
+  //  - sur les tableaux de bord (oblige, delegataire, admin,
+  //    partenaire, portal/beneficiaire, compte) → preventDefault
+  //    aussi : pas de navigation, le logo reste un visuel.
   const HOME_HASHES = new Set(["", "#", "#/", "#/home", "#home"]);
   const HOME_PATHS  = new Set(["/", "/index.html"]);
+  // Préfixes de pathname considérés comme « tableau de bord ».
+  // On y désactive la navigation au click et le cursor:pointer.
+  const DASHBOARD_PREFIXES = [
+    "/admin", "/partenaire", "/portal",
+    "/oblige", "/delegataire", "/beneficiaire", "/compte",
+  ];
   function isOnHome() {
     try {
       const loc = window.parent.location;
       if (!HOME_PATHS.has(loc.pathname)) return false;
       return HOME_HASHES.has(loc.hash || "");
-    } catch (e) {
-      return false;
-    }
+    } catch (e) { return false; }
+  }
+  function isOnDashboard() {
+    try {
+      const p = window.parent.location.pathname;
+      return DASHBOARD_PREFIXES.some(prefix =>
+        p === prefix || p === prefix + ".html" || p.startsWith(prefix + "/")
+      );
+    } catch (e) { return false; }
   }
   const rootEl = document.getElementById("root");
+  // Si on est sur un dashboard, on retire le cursor pointer + role link
+  // pour que le logo soit clairement décoratif et non interactif.
+  if (isOnDashboard()) {
+    document.documentElement.style.cursor = "default";
+    document.body.style.cursor = "default";
+    rootEl.style.cursor = "default";
+    rootEl.removeAttribute("href");
+    rootEl.removeAttribute("target");
+    rootEl.removeAttribute("aria-label");
+  }
   rootEl.addEventListener("click", function (ev) {
-    if (isOnHome()) {
-      // Already at /, kill the anchor's default navigation but let
-      // any inner button's onClick run normally for the animation.
-      ev.preventDefault();
-      return;
-    }
-    // Si on est sur la même pathname mais une autre vue hash-routée
-    // (ex. /#/contact), un anchor href="/" déclenche seulement un
-    // hashchange — la SPA peut louper le re-render selon son listener.
-    // Pour être sûr de ramener l'utilisateur sur l'accueil, on force
-    // un set du hash sur "#/home" + on previent la nav anchor.
+    // Dashboards : pas de nav, juste l'animation interne
+    if (isOnDashboard()) { ev.preventDefault(); return; }
+    // Accueil : pas de nav non plus
+    if (isOnHome())      { ev.preventDefault(); return; }
+    // Hash route différente sur la même pathname (ex. /#/contact) :
+    // l'anchor href="/" ne ferait qu'un hashchange — on force #/home.
     try {
       const loc = window.parent.location;
       if (HOME_PATHS.has(loc.pathname) && !HOME_HASHES.has(loc.hash || "")) {
@@ -252,12 +267,11 @@ function boot() {
         loc.hash = "#/home";
         return;
       }
-    } catch (e) { /* cross-origin: laisse l'anchor faire son boulot */ }
-    // Autres cas (admin, partenaire, portal, compte…) : l'anchor
-    // target="_top" navigue vers / sur l'origine du parent.
+    } catch (e) { /* cross-origin → laisse l'anchor naviguer */ }
+    // Autres cas : l'anchor target="_top" navigue vers / nativement.
   });
-  // If iframe ever loads as the top document (direct visit to /logo/),
-  // the anchor's target="_top" is a no-op self-link. Rewrite to "_self".
+  // Cas iframe chargée comme top document (visite directe /logo/) :
+  // target="_top" devient un no-op, on bascule en _self.
   if (window.parent === window) {
     rootEl.setAttribute("target", "_self");
   }
