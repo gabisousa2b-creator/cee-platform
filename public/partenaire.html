@@ -2074,7 +2074,7 @@ function renderCdc() {
       <button class="btn btn-sm btn-link p-0" style="color:var(--danger)" onclick="cdcPieces.splice(${i},1);renderCdc()" title="Retirer"><i class="fas fa-trash"></i></button>
     </div>`).join('');
 }
-function addCdcPiece() { cdcPieces.push({ nom:'', fourni_par:'partenaire', obligatoire:true }); renderCdc(); }
+function addCdcPiece() { cdcPieces.unshift({ nom:'', fourni_par:'partenaire', obligatoire:true }); renderCdc(); }
 async function saveCdc() {
   const did = document.getElementById('cdcDeleg').value, oid = document.getElementById('cdcOp').value;
   if (!did || !oid) { showToast('Sélectionne délégataire et opération', 'danger'); return; }
