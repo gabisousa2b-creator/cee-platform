@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EchoWAI — Propositions favicon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" />
+<link rel="stylesheet" href="/site/tokens.css" />
+<style>
+  html, body { margin: 0; padding: 0; background: #f7f5ee; color: var(--ink,#0a1f3d); font-family: "Bricolage Grotesque", system-ui, sans-serif; }
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 56px 32px 96px; }
+  .upper { text-transform: uppercase; letter-spacing: .12em; font-size: 11px; color: #6b7280; }
+  h1 { font-size: 56px; line-height: .98; letter-spacing: -.035em; font-weight: 500; margin: 10px 0 18px; }
+  p.lead { font-size: 16px; line-height: 1.55; color: #475569; max-width: 720px; margin: 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 18px; margin-top: 36px; }
+  .card {
+    background: #fff; border: 1px solid rgba(10,31,61,.08); border-radius: 12px; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .card .head { padding: 14px 18px 0; display: flex; align-items: baseline; justify-content: space-between; }
+  .card .num  { color: var(--volt,#2E7EF4); font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600; }
+  .card .name { padding: 4px 18px 12px; font-size: 19px; letter-spacing: -.018em; font-weight: 500; }
+  .card .stage {
+    padding: 24px 18px; min-height: 130px;
+    background: linear-gradient(180deg, #fbfaf6 0%, #f0ece2 100%);
+    border-top: 1px solid rgba(10,31,61,.06);
+    border-bottom: 1px solid rgba(10,31,61,.06);
+    display: flex; align-items: center; justify-content: center; gap: 22px;
+  }
+  .card .stage.dark {
+    background: #0a1f3d;
+  }
+  .stage .pill {
+    display: inline-flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .stage .pill .label { font-family: "IBM Plex Mono", monospace; font-size: 9px; letter-spacing: .08em; color: #94a3b8; }
+  .stage.dark .pill .label { color: rgba(255,255,255,.45); }
+  .stage svg { display: block; }
+  .stage .ico-16 svg, .stage .ico-16 img { width: 16px; height: 16px; }
+  .stage .ico-32 svg, .stage .ico-32 img { width: 32px; height: 32px; }
+  .stage .ico-64 svg, .stage .ico-64 img { width: 64px; height: 64px; }
+  .browser {
+    padding: 14px 18px; background: #f6f3eb; border-bottom: 1px solid rgba(10,31,61,.06);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .tab {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 10px; background: #fff; border-radius: 6px 6px 0 0; border: 1px solid rgba(10,31,61,.1); border-bottom: 0;
+    font-size: 11px; font-family: "IBM Plex Mono", monospace; color: #475569;
+  }
+  .tab svg, .tab img { width: 14px; height: 14px; }
+  .card .why { padding: 14px 18px 16px; font-size: 13px; line-height: 1.5; color: #475569; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="upper">Atelier favicon · 6 propositions</div>
+  <h1>Choisis le favicon <em style="color:var(--volt,#2E7EF4)">d'EchoWAI.</em></h1>
+  <p class="lead">
+    Chaque proposition est dessinée en SVG, optimisée pour la lisibilité 16 px (onglet navigateur) et toujours
+    propre en 32 / 64 px. Bleu accent <code style="font-family:'IBM Plex Mono'">#2E7EF4</code> sur fond clair
+    + version sombre pour la barre Safari / mode sombre. Dis-moi le numéro et je l'installe (favicon.ico +
+    apple-touch-icon + link tags).
+  </p>
+
+  <div class="grid" id="grid"></div>
+</div>
+
+<script>
+// ── 6 SVG proposals ────────────────────────────────────────────
+const accent = "#2E7EF4";
+const ink    = "#0A1F3D";
+const PROPS = [
+  {
+    n: "F1",
+    name: "Echo Waves",
+    why: "Trois arcs concentriques qui se propagent depuis un point — l'écho littéral du nom. Lecture instantanée, marche en 16 px, hommage subtil au sonar du Logo Lab vol.1.",
+    svg: (fg, accent) => `
+      <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="10" cy="16" r="3" fill="${accent}"/>
+        <path d="M 14 9 A 9 9 0 0 1 14 23" fill="none" stroke="${accent}" stroke-width="2.4" stroke-linecap="round"/>
+        <path d="M 20 5 A 14 14 0 0 1 20 27" fill="none" stroke="${accent}" stroke-width="2.4" stroke-linecap="round" opacity="0.65"/>
+        <path d="M 26 1 A 19 19 0 0 1 26 31" fill="none" stroke="${accent}" stroke-width="2.4" stroke-linecap="round" opacity="0.3"/>
+      </svg>`,
+  },
+  {
+    n: "F2",
+    name: "Voltage Bolt",
+    why: "Éclair stylisé avec retour de courant. Évoque énergie + CEE. Forme reconnaissable même très petite, fonctionne en monochrome ou avec accent.",
+    svg: (fg, accent) => `
+      <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M 18 2 L 8 17 L 14 17 L 11 30 L 24 13 L 17 13 L 20 2 Z" fill="${accent}" stroke="${fg}" stroke-width="1.4" stroke-linejoin="round"/>
+      </svg>`,
+  },
+  {
+    n: "F3",
+    name: "Orbital Dot",
+    why: "Hommage au logo #125 « Orbital Dot ». Anneau fin + point accent. Identité site-wide cohérente. Le point reste visible même en 16 px.",
+    svg: (fg, accent) => `
+      <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <ellipse cx="16" cy="16" rx="13" ry="7" fill="none" stroke="${fg}" stroke-width="2"/>
+        <circle cx="29" cy="16" r="3.6" fill="${accent}"/>
+      </svg>`,
+  },
+  {
+    n: "F4",
+    name: "EW Monogram",
+    why: "Lettres E + W combinées en un seul glyphe géométrique. Très distinct, identifie instantanément la marque, fonctionne en grayscale pour les contextes mono.",
+    svg: (fg, accent) => `
+      <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="3" y="4" width="3.6" height="24" fill="${fg}"/>
+        <rect x="3" y="4" width="14" height="3.6" fill="${fg}"/>
+        <rect x="3" y="14.2" width="11" height="3.6" fill="${fg}"/>
+        <rect x="3" y="24.4" width="14" height="3.6" fill="${fg}"/>
+        <path d="M 18 4 L 22 28 L 24.5 14 L 27 28 L 31 4" fill="none" stroke="${accent}" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+      </svg>`,
+  },
+  {
+    n: "F5",
+    name: "Echo Drop",
+    why: "Une goutte d'énergie qui rebondit dans des ripples. Métaphore organique de la prime CEE qui se propage. Très tactile, doux, mémorable.",
+    svg: (fg, accent) => `
+      <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <ellipse cx="16" cy="24" rx="13" ry="2" fill="${accent}" opacity="0.18"/>
+        <ellipse cx="16" cy="24" rx="9" ry="1.4" fill="${accent}" opacity="0.35"/>
+        <ellipse cx="16" cy="24" rx="5" ry="1" fill="${accent}" opacity="0.6"/>
+        <path d="M 16 3 C 12 11, 10 16, 16 21 C 22 16, 20 11, 16 3 Z" fill="${accent}" stroke="${fg}" stroke-width="1.2"/>
+      </svg>`,
+  },
+  {
+    n: "F6",
+    name: "Spark Cell",
+    why: "Une mini cellule de batterie avec un éclair en surcharge. Compactage énergie + tension. Visuel franc, idéal pour un service tech / énergétique.",
+    svg: (fg, accent) => `
+      <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="3" y="8" width="22" height="16" rx="2.5" fill="none" stroke="${fg}" stroke-width="2"/>
+        <rect x="25" y="12" width="3" height="8" rx="1" fill="${fg}"/>
+        <path d="M 14 11 L 9 17 L 13 17 L 11 22 L 17 14 L 13 14 L 15 11 Z" fill="${accent}"/>
+      </svg>`,
+  },
+];
+
+const grid = document.getElementById("grid");
+for (const p of PROPS) {
+  const svgL = p.svg(ink,   accent);
+  const svgD = p.svg("#fff", accent);
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = `
+    <div class="head"><span class="num">${p.n}</span><span style="font-size:10px;color:#94a3b8">SVG · 32 viewBox</span></div>
+    <div class="name">${p.name}</div>
+    <div class="browser">
+      <div class="tab">${svgL}<span>echowai.com</span></div>
+      <div class="tab" style="opacity:.75">${svgL}<span>simulateur</span></div>
+    </div>
+    <div class="stage">
+      <div class="pill"><span class="ico-16">${svgL}</span><span class="label">16</span></div>
+      <div class="pill"><span class="ico-32">${svgL}</span><span class="label">32</span></div>
+      <div class="pill"><span class="ico-64">${svgL}</span><span class="label">64</span></div>
+    </div>
+    <div class="stage dark">
+      <div class="pill"><span class="ico-16">${svgD}</span><span class="label">16</span></div>
+      <div class="pill"><span class="ico-32">${svgD}</span><span class="label">32</span></div>
+      <div class="pill"><span class="ico-64">${svgD}</span><span class="label">64</span></div>
+    </div>
+    <div class="why">${p.why}</div>
+  `;
+  grid.appendChild(card);
+}
+</script>
+</body>
+</html>
