@@ -798,7 +798,7 @@ async function loadMe() {
     const p = await r.json();
     myRole = p.role; myPrix = p.prix_eur_mwh || 0;
     document.getElementById('partnerName').textContent = p.partenaire_nom + (p.compte_nom && p.compte_nom !== p.partenaire_nom ? ' · ' + p.compte_nom : '');
-    document.getElementById('roleBadge').textContent = myRole === 'admin_partenaire' ? 'Admin Partenaire' : 'Apporteur';
+    document.getElementById('roleBadge').textContent = myRole === 'admin_partenaire' ? 'Mandataire' : 'Apporteur';
     document.getElementById('tauxInfo').textContent = '(' + myPrix.toLocaleString('fr-FR') + ' €/MWh)';
     document.getElementById('btnTeam').classList.toggle('d-none', myRole !== 'admin_partenaire');
     document.getElementById('btnCatalogue').classList.toggle('d-none', myRole !== 'admin_partenaire');
@@ -1123,7 +1123,7 @@ document.getElementById('depositForm').addEventListener('submit', async e => {
   } else { err.textContent = d.error || 'Erreur'; err.classList.remove('d-none'); }
 });
 
-// ── Équipe (Admin Partenaire) ──
+// ── Équipe (Mandataire) ──
 function openTeam() {
   document.getElementById('teamError').classList.add('d-none');
   ['tNom','tEmail','tPw'].forEach(id => document.getElementById(id).value = '');
@@ -1295,7 +1295,7 @@ async function toggleOpForApporteur(apporteurId, opId) {
   else showToast('Erreur', 'danger');
 }
 
-// ── Catalogue d'opérations (Admin Partenaire) ──
+// ── Catalogue d'opérations (Mandataire) ──
 const SECTORS = [['','Tous'],['BAR','Résidentiel'],['BAT','Tertiaire'],['IND','Industrie'],['AGRI','Agriculture'],['RES','Réseaux'],['TRA','Transport']];
 async function openCatalogue() {
   catSecteur = '';
