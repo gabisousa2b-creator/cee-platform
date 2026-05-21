@@ -3969,6 +3969,30 @@ function _initNotifTables() {
 }
 _initNotifTables();
 
+// Règles d'auto-validation Obligé : si volume_max_kwhc + RGE valide → auto-validation
+db.run(`CREATE TABLE IF NOT EXISTS oblige_autovalid (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  oblige_id       INTEGER NOT NULL,
+  enabled         INTEGER DEFAULT 0,
+  volume_max_kwhc REAL DEFAULT 1000000,           -- seuil sous lequel auto-valider
+  require_rge     INTEGER DEFAULT 1,              -- nécessite RGE actif installateur
+  require_controle INTEGER DEFAULT 0,             -- nécessite contrôle OK
+  updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+)`);
+// Marketplace droits à apport entre délégataires (offres d'achat/vente de volumes)
+db.run(`CREATE TABLE IF NOT EXISTS marketplace_offres (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  delegataire_id  INTEGER NOT NULL,
+  type            TEXT NOT NULL,                  -- 'achat' ou 'vente'
+  volume_kwhc     REAL NOT NULL,
+  prix_eur_mwhc   REAL NOT NULL,
+  fiche_code      TEXT DEFAULT '',                -- optionnel : filtre par fiche
+  region          TEXT DEFAULT '',                -- optionnel : filtre régional
+  notes           TEXT DEFAULT '',
+  statut          TEXT DEFAULT 'ouverte',         -- ouverte, conclu, fermee
+  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+)`);
+
 function _enqueueNotif({ audience_type, audience_id = null, titre, message = '', type = 'info', url = '' }, cb) {
   db.run(`INSERT INTO notifications (audience_type, audience_id, titre, message, type, url) VALUES (?,?,?,?,?,?)`,
     [audience_type, audience_id, titre, message, type, url], cb || (() => {}));
@@ -4055,6 +4079,50 @@ app.get('/api/oblige/me', requireOblige, (req, res) => {
 app.get('/api/oblige/obligation', requireOblige, (req, res) => {
   _computeObligation(req.session.obligeId, (data) => res.json(data));
 });
+// Règles auto-validation Obligé : GET + PUT
+app.get('/api/oblige/autovalid', requireOblige, (req, res) => {
+  db.get('SELECT * FROM oblige_autovalid WHERE oblige_id=?', [req.session.obligeId], (e, r) => {
+    if (e) return res.status(500).json({ error: e.message });
+    res.json(r || { oblige_id: req.session.obligeId, enabled: 0, volume_max_kwhc: 1000000, require_rge: 1, require_controle: 0 });
+  });
+});
+app.put('/api/oblige/autovalid', requireOblige, (req, res) => {
+  const { enabled, volume_max_kwhc, require_rge, require_controle } = req.body || {};
+  db.get('SELECT id FROM oblige_autovalid WHERE oblige_id=?', [req.session.obligeId], (e, r) => {
+    if (e) return res.status(500).json({ error: e.message });
+    const params = [enabled ? 1 : 0, parseFloat(volume_max_kwhc) || 0, require_rge ? 1 : 0, require_controle ? 1 : 0];
+    if (r) {
+      db.run(`UPDATE oblige_autovalid SET enabled=?, volume_max_kwhc=?, require_rge=?, require_controle=?, updated_at=CURRENT_TIMESTAMP WHERE oblige_id=?`,
+        [...params, req.session.obligeId], err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+    } else {
+      db.run(`INSERT INTO oblige_autovalid (oblige_id, enabled, volume_max_kwhc, require_rge, require_controle) VALUES (?,?,?,?,?)`,
+        [req.session.obligeId, ...params], err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+    }
+  });
+});
+
+// Marketplace droits à apport — délégataire
+app.get('/api/marketplace/offres', requireDelegataire, (req, res) => {
+  db.all(`SELECT mo.*, d.nom AS delegataire_nom
+          FROM marketplace_offres mo
+          LEFT JOIN delegataires d ON d.id=mo.delegataire_id
+          WHERE mo.statut='ouverte' ORDER BY mo.created_at DESC LIMIT 100`,
+    [], (e, rows) => e ? res.status(500).json({ error: e.message }) : res.json(rows || []));
+});
+app.post('/api/marketplace/offres', requireDelegataire, (req, res) => {
+  const { type, volume_kwhc, prix_eur_mwhc, fiche_code, region, notes } = req.body || {};
+  if (!['achat', 'vente'].includes(type)) return res.status(400).json({ error: 'type achat|vente requis' });
+  if (!(parseFloat(volume_kwhc) > 0) || !(parseFloat(prix_eur_mwhc) > 0)) return res.status(400).json({ error: 'volume et prix > 0' });
+  db.run(`INSERT INTO marketplace_offres (delegataire_id, type, volume_kwhc, prix_eur_mwhc, fiche_code, region, notes) VALUES (?,?,?,?,?,?,?)`,
+    [req.session.delegataireId, type, parseFloat(volume_kwhc), parseFloat(prix_eur_mwhc), fiche_code || '', region || '', notes || ''],
+    function (err) { err ? res.status(500).json({ error: err.message }) : res.json({ success: true, id: this.lastID }); });
+});
+app.delete('/api/marketplace/offres/:id', requireDelegataire, (req, res) => {
+  db.run('UPDATE marketplace_offres SET statut=? WHERE id=? AND delegataire_id=?',
+    ['fermee', req.params.id, req.session.delegataireId],
+    function (e) { e ? res.status(500).json({ error: e.message }) : res.json({ success: true }); });
+});
+
 app.get('/api/oblige/cashflow', requireOblige, (req, res) => {
   // Calendrier versement primes : groupé par mois (validés non encore versés)
   db.all(`SELECT strftime('%Y-%m', b.oblige_valide_at) AS mois,
