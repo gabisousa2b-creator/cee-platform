@@ -568,7 +568,8 @@
       <div class="nav-item-s" data-section="biblio_fiches" id="navBiblio" onclick="showSection('biblio_fiches')"><i class="fas fa-book-open fa-fw"></i> Bibliothèque de fiches</div>
       <div class="nav-item-s" data-section="veille" onclick="showSection('veille')"><i class="fas fa-radar fa-fw"></i> Veille réglementaire</div>
       <div class="sidebar-section-label" style="margin-top:10px">Super-admin</div>
-      <div class="nav-item-s" onclick="window.location='/admin-roles'"><i class="fas fa-users-cog fa-fw"></i> Gestion des rôles</div>
+      <div class="nav-item-s" onclick="window.location='/partenaires'" style="background:rgba(46,126,244,.08);color:var(--accent)"><i class="fas fa-users fa-fw"></i> Tous les partenaires</div>
+      <div class="nav-item-s" onclick="window.location='/admin-roles'"><i class="fas fa-users-cog fa-fw"></i> Création par formulaire</div>
       <div class="nav-item-s" onclick="window.location='/kanban'"><i class="fas fa-columns fa-fw"></i> Pipeline Kanban</div>
       <div class="nav-item-s" onclick="window.location='/carte'"><i class="fas fa-map-location-dot fa-fw"></i> Cartographie</div>
       <div class="nav-item-s" onclick="window.location='/elearning'"><i class="fas fa-graduation-cap fa-fw"></i> Centre d'apprentissage</div>
@@ -4089,7 +4090,7 @@ dropZone.addEventListener('drop', e => {
   .ew-form-msg.ok { color: #166534; }
   .ew-form-msg.err { color: #991b1b; }
 </style>
-<button class="fab-create" id="fabCreate" title="Créer un compte" aria-label="Créer un compte">
+<button class="fab-create" id="fabCreate" title="Créer un partenaire" aria-label="Créer un partenaire">
   <svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
 </button>
 <script>
@@ -4158,8 +4159,8 @@ function openCreateModal() {
   const back = document.createElement('div'); back.className = 'ew-modal-back';
   back.innerHTML = `
     <div class="ew-modal-box">
-      <h3>Créer un compte</h3>
-      <p>Sélectionne le rôle puis renseigne les informations. Le compte est immédiatement actif.</p>
+      <h3>Créer un partenaire</h3>
+      <p>Un partenaire = un profil. Sélectionne son type, renseigne les infos. Le compte est immédiatement actif et tu pourras t'y connecter en tant que super-admin.</p>
       <div class="ew-role-grid" id="ewRoleGrid"></div>
       <div class="ew-form-grid" id="ewFormGrid"></div>
       <div class="ew-form-msg" id="ewFormMsg"></div>

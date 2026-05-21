@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EchoWAI Admin — Partenaires unifiés</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="manifest" href="/site.webmanifest" />
+<meta name="theme-color" content="#2E7EF4" />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="/css/echowai.css">
+<style>
+  body { font-family: 'Bricolage Grotesque', system-ui; background: #f1f5f9; color: var(--ink, #0a1f3d); margin: 0; }
+  .topbar { background: #fff; padding: 14px 28px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; border-bottom: 1px solid rgba(10,31,61,.08); }
+  .topbar .ew-logo { grid-column: 2; justify-self: center; font-size: 1.35rem; }
+  .topbar .right { grid-column: 3; justify-self: end; display: flex; gap: 14px; align-items: center; }
+  .btn-back { background: #fff; border: 1px solid rgba(10,31,61,.16); border-radius: 8px; padding: 7px 12px; font-size: 12px; color: #475569; text-decoration: none; }
+  .container { padding: 32px 28px; max-width: 1320px; margin: 0 auto; }
+  h1 { font-size: 30px; letter-spacing: -.02em; font-weight: 500; margin: 0 0 6px; }
+  .lead { color: #475569; font-size: 14px; margin: 0 0 22px; max-width: 720px; line-height: 1.55; }
+  .filters { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; align-items: center; }
+  .filters input { flex: 1; min-width: 220px; padding: 9px 14px; border: 1px solid rgba(10,31,61,.12); border-radius: 8px; font-size: 13px; }
+  .filters select { padding: 9px 14px; border: 1px solid rgba(10,31,61,.12); border-radius: 8px; font-size: 13px; background: #fff; }
+  .filters input:focus, .filters select:focus { outline: none; border-color: var(--accent, #2E7EF4); box-shadow: 0 0 0 3px rgba(46,126,244,.13); }
+  .stats-bar { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin-bottom: 22px; }
+  .stat { background: #fff; border: 1px solid rgba(10,31,61,.08); border-radius: 10px; padding: 12px 14px; }
+  .stat .num { font-size: 22px; font-weight: 600; color: var(--ink); letter-spacing: -.02em; }
+  .stat .lbl { font-family: 'IBM Plex Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: #94a3b8; }
+  table.list { width: 100%; background: #fff; border: 1px solid rgba(10,31,61,.08); border-radius: 12px; overflow: hidden; border-collapse: separate; border-spacing: 0; }
+  table.list th { background: #f6f3eb; padding: 11px 14px; text-align: left; font-family: 'IBM Plex Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; font-weight: 600; }
+  table.list td { padding: 11px 14px; font-size: 13px; border-top: 1px solid rgba(10,31,61,.05); }
+  table.list tr:hover td { background: #fafaf6; cursor: pointer; }
+  .type-pill { display: inline-flex; padding: 3px 9px; border-radius: 999px; font-size: 10.5px; font-family: 'IBM Plex Mono', monospace; font-weight: 700; }
+  .type-pill.mandataire   { background: #dbeafe; color: #1d4ed8; }
+  .type-pill.oblige       { background: #ede9fe; color: #6d28d9; }
+  .type-pill.delegataire  { background: #dcfce7; color: #166534; }
+  .type-pill.installateur { background: #fed7aa; color: #9a3412; }
+  .type-pill.controleur   { background: #cffafe; color: #155e75; }
+  .status-on  { color: #166534; font-size: 11px; font-family: 'IBM Plex Mono', monospace; }
+  .status-off { color: #991b1b; font-size: 11px; font-family: 'IBM Plex Mono', monospace; }
+  .btn-imp { background: rgba(46,126,244,.12); color: var(--accent, #2E7EF4); border: 0; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; }
+  .btn-imp:hover { background: var(--accent, #2E7EF4); color: #fff; }
+  /* Drawer détail */
+  .drawer-back { position: fixed; inset: 0; background: rgba(10,31,61,.45); z-index: 300; display: none; }
+  .drawer-back.on { display: block; }
+  .drawer { position: fixed; right: 0; top: 0; bottom: 0; width: 520px; max-width: 100vw; background: #fff; box-shadow: -16px 0 40px -10px rgba(10,31,61,.30); z-index: 301; display: none; flex-direction: column; }
+  .drawer.on { display: flex; animation: slideIn .3s ease-out both; }
+  @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+  .drawer-head { padding: 22px 24px; border-bottom: 1px solid rgba(10,31,61,.08); display: flex; justify-content: space-between; align-items: flex-start; }
+  .drawer-head h2 { margin: 0; font-size: 20px; font-weight: 500; }
+  .drawer-head .close { background: transparent; border: 0; font-size: 22px; cursor: pointer; color: #94a3b8; }
+  .drawer-body { flex: 1; overflow-y: auto; padding: 22px 24px; }
+  .drawer-section h4 { font-family: 'IBM Plex Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: #94a3b8; margin: 18px 0 10px; }
+  .drawer-section .row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; border-bottom: 1px solid rgba(10,31,61,.04); }
+  .drawer-section .row .k { color: #6b7280; }
+  .drawer-section .row .v { color: var(--ink); font-weight: 500; }
+  .dossier-card { background: #f8fafc; border-radius: 8px; padding: 10px 12px; margin-bottom: 6px; font-size: 12.5px; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+  .dossier-card .code { font-family: 'IBM Plex Mono', monospace; color: var(--accent, #2E7EF4); font-weight: 600; }
+  .drawer-foot { padding: 16px 24px; border-top: 1px solid rgba(10,31,61,.08); display: flex; gap: 8px; }
+  .btn-pri { background: linear-gradient(135deg, var(--accent, #2E7EF4), #5BA0FF); color: #fff; border: 0; padding: 9px 16px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div></div>
+  <span class="ew-logo">echo<b>wai</b><i></i></span>
+  <div class="right">
+    <span class="ew-notif-host"></span>
+    <a class="btn-back" href="/admin.html"><i class="fas fa-arrow-left me-1"></i>Admin</a>
+  </div>
+</div>
+<div class="container">
+  <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;color:#94a3b8;text-transform:uppercase">Vue unifiée</div>
+  <h1>Tous les partenaires</h1>
+  <p class="lead">Vue centralisée de tous les comptes externes (mandataires, obligés, délégataires, installateurs, contrôleurs). Click sur une ligne pour voir le détail. Le super-admin peut se connecter en tant que n'importe quel partenaire.</p>
+
+  <div class="stats-bar" id="stats"></div>
+
+  <div class="filters">
+    <input id="q" placeholder="Recherche : raison sociale, email, SIRET…">
+    <select id="ftype">
+      <option value="">Tous les types</option>
+      <option value="mandataire">Mandataires</option>
+      <option value="oblige">Obligés</option>
+      <option value="delegataire">Délégataires</option>
+      <option value="installateur">Installateurs</option>
+      <option value="controleur">Contrôleurs</option>
+    </select>
+  </div>
+
+  <div id="tableHost">Chargement…</div>
+</div>
+
+<!-- Drawer détail partenaire -->
+<div class="drawer-back" id="drawerBack"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-head"><h2 id="drwTitle">—</h2><button class="close" onclick="closeDrawer()">×</button></div>
+  <div class="drawer-body" id="drwBody">…</div>
+  <div class="drawer-foot">
+    <button class="btn-pri" id="drwImp"><i class="fas fa-user-secret me-1"></i>Se connecter en tant que ce partenaire</button>
+  </div>
+</div>
+
+<script src="/js/ew-emmy.js" defer></script>
+<script src="/js/ew-notif.js" defer></script>
+<script src="/js/ew-chat.js" defer></script>
+<script>
+const $ = s => document.querySelector(s);
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m])); }
+function fmt(d) { return d ? new Date(d).toLocaleDateString('fr-FR') : '—'; }
+const TYPE_LBL = { mandataire: 'Mandataire', oblige: 'Obligé', delegataire: 'Délégataire', installateur: 'Installateur', controleur: 'Contrôleur' };
+let ALL = [];
+
+async function loadAll() {
+  const r = await fetch('/api/admin/partenaires-unifie');
+  if (!r.ok) { $('#tableHost').innerHTML = '<div style="color:#991b1b">Admin requis — <a href="/admin.html">se connecter</a></div>'; return; }
+  ALL = await r.json();
+  refresh();
+}
+function refresh() {
+  const q = $('#q').value.toLowerCase();
+  const t = $('#ftype').value;
+  const rows = ALL.filter(r => (!t || r.type === t) &&
+    (!q || (r.raison_sociale||'').toLowerCase().includes(q) || (r.email||'').toLowerCase().includes(q)));
+  const byType = {};
+  ALL.forEach(r => { byType[r.type] = (byType[r.type] || 0) + 1; });
+  $('#stats').innerHTML = ['mandataire','oblige','delegataire','installateur','controleur'].map(t =>
+    `<div class="stat"><div class="num">${byType[t]||0}</div><div class="lbl">${TYPE_LBL[t]}s</div></div>`).join('');
+  if (!rows.length) { $('#tableHost').innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8">Aucun partenaire.</div>'; return; }
+  $('#tableHost').innerHTML = '<table class="list"><thead><tr><th>Type</th><th>Raison sociale</th><th>Email</th><th style="text-align:right">Dossiers</th><th>Dernière connexion</th><th>Statut</th><th></th></tr></thead><tbody>'
+    + rows.map(r => `<tr onclick="openDrawer('${r.type}', ${r.profil_id})">
+        <td><span class="type-pill ${r.type}">${TYPE_LBL[r.type]}</span></td>
+        <td><strong>${esc(r.raison_sociale)}</strong></td>
+        <td>${esc(r.email||'')}</td>
+        <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700">${r.nb_dossiers||0}</td>
+        <td style="font-family:'IBM Plex Mono',monospace;color:#6b7280">${fmt(r.last_login)}</td>
+        <td><span class="${r.actif?'status-on':'status-off'}">${r.actif?'● Actif':'○ Inactif'}</span></td>
+        <td><button class="btn-imp" onclick="event.stopPropagation(); imp('${r.type}', ${r.profil_id})"><i class="fas fa-arrow-right-to-bracket me-1"></i>Connexion</button></td>
+      </tr>`).join('') + '</tbody></table>';
+}
+$('#q').addEventListener('input', refresh);
+$('#ftype').addEventListener('change', refresh);
+
+async function openDrawer(type, id) {
+  $('#drawerBack').classList.add('on'); $('#drawer').classList.add('on');
+  $('#drwBody').innerHTML = '⏳ Chargement…';
+  $('#drwTitle').textContent = TYPE_LBL[type] + ' #' + id;
+  $('#drwImp').onclick = () => imp(type, id);
+  const r = await fetch('/api/admin/partenaire-detail/' + type + '/' + id);
+  if (!r.ok) { $('#drwBody').innerHTML = '<div style="color:#991b1b">Erreur chargement</div>'; return; }
+  const data = await r.json();
+  const p = data.profil;
+  $('#drwTitle').innerHTML = `<span class="type-pill ${type}">${TYPE_LBL[type]}</span> ${esc(p.raison_sociale || p.nom || '—')}`;
+  $('#drwBody').innerHTML = `
+    <div class="drawer-section">
+      <h4>Identité</h4>
+      <div class="row"><span class="k">SIRET</span><span class="v">${esc(p.siret||'—')}</span></div>
+      <div class="row"><span class="k">Email</span><span class="v">${esc(p.email||p.login_email||'—')}</span></div>
+      ${p.contact_nom ? `<div class="row"><span class="k">Contact</span><span class="v">${esc(p.contact_nom)}</span></div>` : ''}
+      ${p.contact_tel ? `<div class="row"><span class="k">Téléphone</span><span class="v">${esc(p.contact_tel)}</span></div>` : ''}
+      ${p.rge_numero ? `<div class="row"><span class="k">RGE</span><span class="v">${esc(p.rge_organisme||'')} ${esc(p.rge_numero)}</span></div>` : ''}
+      ${p.accreditation_no ? `<div class="row"><span class="k">Accréditation</span><span class="v">${esc(p.accreditation_no)}</span></div>` : ''}
+      ${p.kwhc_obligation_annuelle ? `<div class="row"><span class="k">Obligation</span><span class="v">${Math.round(p.kwhc_obligation_annuelle/1e6).toLocaleString('fr-FR')} GWhc/an</span></div>` : ''}
+      <div class="row"><span class="k">Créé le</span><span class="v">${fmt(p.created_at)}</span></div>
+      <div class="row"><span class="k">Dernière connexion</span><span class="v">${fmt(p.last_login)}</span></div>
+    </div>
+    <div class="drawer-section">
+      <h4>Dossiers liés (${data.dossiers.length})</h4>
+      ${data.dossiers.length ? data.dossiers.slice(0,30).map(d => `
+        <div class="dossier-card">
+          <div><span class="code">${esc(d.code)}</span> · ${esc(d.raison_sociale || (d.nom+' '+d.prenom))}</div>
+          <div style="text-align:right;font-family:'IBM Plex Mono',monospace;color:#6b7280">${(d.prime||0).toLocaleString('fr-FR')} €</div>
+        </div>`).join('') : '<div style="color:#94a3b8;font-style:italic;font-size:12px">Aucun dossier rattaché.</div>'}
+    </div>`;
+}
+function closeDrawer() { $('#drawerBack').classList.remove('on'); $('#drawer').classList.remove('on'); }
+$('#drawerBack').addEventListener('click', closeDrawer);
+
+window.imp = async (type, id) => {
+  const r = await fetch('/api/admin/impersonate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: type, id }) });
+  const j = await r.json();
+  if (!r.ok) { alert(j.error || 'Erreur'); return; }
+  location.href = j.redirect;
+};
+
+loadAll();
+</script>
+<script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});</script>
+</body>
+</html>

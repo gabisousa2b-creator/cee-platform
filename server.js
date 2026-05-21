@@ -276,6 +276,8 @@ app.get('/terrain', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'terrain.ht
 app.get('/elearning', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'elearning.html')));
 // Admin — page de gestion des rôles
 app.get('/admin-roles', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'admin-roles.html')));
+// Admin — vue unifiée tous partenaires
+app.get('/partenaires', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'partenaires.html')));
 // Cartographie dossiers
 app.get('/carte',     (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'carte.html')));
 // Pipeline Kanban
@@ -4173,6 +4175,59 @@ app.post('/api/admin/delegataires-create', requireAdmin, (req, res) => {
         [nom.trim(), siret || '', em, hash],
         function (e2) { e2 ? res.status(400).json({ error: e2.message }) : res.json({ success: true, id: this.lastID }); });
     }
+  });
+});
+
+// ─── Vue UNIFIÉE de tous les partenaires (tous types confondus) ───
+// Concept : « Partenaire » est l'umbrella pour toute entité externe.
+// Type = mandataire | oblige | delegataire | installateur | controleur
+app.get('/api/admin/partenaires-unifie', requireAdmin, (req, res) => {
+  const typeFilter = (req.query.type || '').toLowerCase();
+  const rows = [];
+  function addAll(callback) {
+    const tasks = [];
+    if (!typeFilter || typeFilter === 'mandataire') tasks.push(cb => db.all(
+      `SELECT p.id AS profil_id, 'mandataire' AS type, p.nom AS raison_sociale, p.login_email AS email,
+              p.compte_actif AS actif, p.last_login,
+              (SELECT COUNT(*) FROM beneficiaires b WHERE b.partenaire_id=p.id AND b.archived=0) AS nb_dossiers
+       FROM partenaires p WHERE p.compte_actif=1 OR p.login_email!=''`, [], (e, r) => { if (r) rows.push(...r); cb(); }));
+    if (!typeFilter || typeFilter === 'oblige') tasks.push(cb => db.all(
+      `SELECT id AS profil_id, 'oblige' AS type, raison_sociale, email, actif, last_login,
+              (SELECT COUNT(*) FROM beneficiaires b WHERE b.oblige_id=obliges.id AND b.archived=0) AS nb_dossiers
+       FROM obliges`, [], (e, r) => { if (r) rows.push(...r); cb(); }));
+    if (!typeFilter || typeFilter === 'delegataire') tasks.push(cb => db.all(
+      `SELECT id AS profil_id, 'delegataire' AS type, nom AS raison_sociale, email, compte_actif AS actif, last_login,
+              (SELECT COUNT(*) FROM beneficiaires b WHERE b.delegataire_id=delegataires.id AND b.archived=0) AS nb_dossiers
+       FROM delegataires WHERE compte_actif=1`, [], (e, r) => { if (r) rows.push(...r); cb(); }));
+    if (!typeFilter || typeFilter === 'installateur') tasks.push(cb => db.all(
+      `SELECT id AS profil_id, 'installateur' AS type, raison_sociale, email, actif, last_login,
+              (SELECT COUNT(*) FROM beneficiaires b WHERE b.installateur_id=installateurs.id AND b.archived=0) AS nb_dossiers
+       FROM installateurs`, [], (e, r) => { if (r) rows.push(...r); cb(); }));
+    if (!typeFilter || typeFilter === 'controleur') tasks.push(cb => db.all(
+      `SELECT id AS profil_id, 'controleur' AS type, raison_sociale, email, actif, last_login,
+              (SELECT COUNT(*) FROM beneficiaires b WHERE b.controleur_id=controleurs.id AND b.archived=0) AS nb_dossiers
+       FROM controleurs`, [], (e, r) => { if (r) rows.push(...r); cb(); }));
+    let done = 0;
+    if (!tasks.length) return callback();
+    tasks.forEach(t => t(() => { if (++done === tasks.length) callback(); }));
+  }
+  addAll(() => res.json(rows.sort((a, b) => (a.raison_sociale || '').localeCompare(b.raison_sociale || ''))));
+});
+
+// Détail enrichi d'un partenaire (type + id) — montre tout ce qu'il possède
+app.get('/api/admin/partenaire-detail/:type/:id', requireAdmin, (req, res) => {
+  const t = req.params.type, id = parseInt(req.params.id) || 0;
+  const tables = { oblige: 'obliges', delegataire: 'delegataires', installateur: 'installateurs', controleur: 'controleurs', mandataire: 'partenaires' };
+  const fkMap = { oblige: 'oblige_id', delegataire: 'delegataire_id', installateur: 'installateur_id', controleur: 'controleur_id', mandataire: 'partenaire_id' };
+  if (!tables[t]) return res.status(400).json({ error: 'type invalide' });
+  db.get(`SELECT * FROM ${tables[t]} WHERE id=?`, [id], (e, profil) => {
+    if (e || !profil) return res.status(404).json({ error: 'profil introuvable' });
+    db.all(`SELECT b.id, b.code, b.nom, b.prenom, b.raison_sociale, b.statut, b.created_at,
+                   COALESCE(SUM(o.volume_kwh), 0) AS volume, COALESCE(SUM(o.prime_negociee), 0) AS prime
+            FROM beneficiaires b LEFT JOIN cee_operations o ON o.beneficiaire_id=b.id
+            WHERE b.${fkMap[t]}=? AND b.archived=0
+            GROUP BY b.id ORDER BY b.created_at DESC LIMIT 100`,
+      [id], (e2, dossiers) => res.json({ type: t, profil, dossiers: dossiers || [] }));
   });
 });
 
