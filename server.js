@@ -272,6 +272,12 @@ app.get('/delegataire', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'delega
 app.get('/mandataire', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'mandataire.html')));
 // App PWA terrain installateur (mobile)
 app.get('/terrain', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'terrain.html')));
+// Centre d'apprentissage CEE
+app.get('/elearning', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'elearning.html')));
+// Cartographie dossiers
+app.get('/carte',     (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'carte.html')));
+// Pipeline Kanban
+app.get('/kanban',    (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'kanban.html')));
 // Espace installateur RGE
 app.get('/installateur', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'installateur.html')));
 // Espace contrôleur (organisme accrédité COFRAC)
@@ -3965,6 +3971,81 @@ app.get('/api/tools/rge', async (req, res) => {
 });
 // Catalogue des fiches CEE (statique, served pour autocomplete)
 app.get('/api/tools/fiches', (req, res) => res.json(tools.fichesEligibles()));
+// Simulateur prime CEE : entrée { code_fiche, quantite, prix_mwhc } → cumac + prime €
+app.post('/api/tools/simul-prime', (req, res) => {
+  const { code_fiche, quantite, prix_mwhc } = req.body || {};
+  const cumac = tools.calcCumac(code_fiche, quantite);
+  const prix = parseFloat(prix_mwhc) || 9.10; // EMMY défaut
+  const prime = Math.round((cumac / 1000) * prix);
+  res.json({
+    code_fiche, quantite: parseFloat(quantite) || 0,
+    cumac_kwhc: cumac,
+    cumac_mwhc: Math.round(cumac / 1000),
+    prix_mwhc: prix,
+    prime_eur: prime,
+    duree_an: (tools.FICHE_CEE[code_fiche] || {}).duree || 0,
+  });
+});
+// Catalogue matériel CEE éligible (statique, à enrichir via partenariats fournisseurs)
+app.get('/api/tools/materiel', (req, res) => {
+  res.json([
+    { code: 'BAR-TH-104', cat: 'PAC air/eau', marques: ['Daikin Altherma', 'Atlantic Alféa', 'Mitsubishi Ecodan', 'Viessmann Vitocal'] },
+    { code: 'BAR-TH-112', cat: 'Chauffe-eau thermo.', marques: ['Atlantic Calypso', 'Thermor Aéromax', 'Ariston Nuos', 'De Dietrich Kaliko'] },
+    { code: 'BAR-TH-113', cat: 'Chaudière biomasse', marques: ['Ökofen Pellematic', 'Hargassner', 'ETA', 'Fröling P4'] },
+    { code: 'BAR-EN-101', cat: 'Laine isolante combles', marques: ['Isover Comblissimo', 'URSA TerraFloc', 'Knauf Insulation', 'Rockwool Granulrock'] },
+    { code: 'BAR-EN-102', cat: 'Panneau ITE', marques: ['Weber.Therm', 'Sto-Therm', 'Parexlanko', 'Saint-Astier'] },
+    { code: 'BAR-EN-103', cat: 'Isolant plancher', marques: ['Isover Plénitude', 'Knauf TI 320', 'Recticel Eurothane'] },
+    { code: 'IND-UT-134', cat: 'Échangeur de chaleur', marques: ['Alfa Laval', 'Tranter', 'Funke', 'Kelvion'] },
+  ]);
+});
+
+// Génération AH automatique (Attestation sur l'Honneur) — PDF pour un dossier
+app.get('/api/dossier/:id/ah.pdf', (req, res) => {
+  const PDFDocument = require('pdfkit');
+  // Auth souple : accessible si admin / partner / installateur / beneficiaire (du dossier)
+  const isAuth = req.session.isAdmin || req.session.compteId || req.session.installateurId
+              || (req.session.beneficiaireId && Number(req.session.beneficiaireId) === Number(req.params.id));
+  if (!isAuth) return res.status(401).send('Non autorisé');
+  db.get(`SELECT b.*, p.nom AS partenaire_nom FROM beneficiaires b
+          LEFT JOIN partenaires p ON p.id=b.partenaire_id WHERE b.id=?`, [req.params.id], (e, b) => {
+    if (e || !b) return res.status(404).send('Dossier introuvable');
+    db.all('SELECT * FROM cee_operations WHERE beneficiaire_id=? ORDER BY id', [req.params.id], (e2, ops) => {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="AH-' + b.code + '.pdf"');
+      const doc = new PDFDocument({ size: 'A4', margin: 50 });
+      doc.pipe(res);
+      doc.fillColor('#0a1f3d').fontSize(16).text("Attestation sur l'Honneur", { align: 'center' });
+      doc.moveDown(0.3).fontSize(10).fillColor('#475569').text('Opération de maîtrise de la demande en énergie · CEE', { align: 'center' });
+      doc.moveDown(1.5).fontSize(11).fillColor('#0a1f3d');
+      const row = (l, v) => { doc.font('Helvetica-Bold').text(l + ' : ', { continued: true }).font('Helvetica').text(v || '—'); doc.moveDown(0.25); };
+      doc.font('Helvetica-Bold').text('Bénéficiaire'); doc.font('Helvetica').moveDown(0.1);
+      row(' Raison sociale / nom', b.raison_sociale || (b.nom + ' ' + b.prenom));
+      row(' SIRET', b.siret);
+      row(' Adresse du chantier', (b.adresse || '') + ', ' + (b.code_postal || '') + ' ' + (b.ville || ''));
+      row(' Code dossier', b.code);
+      doc.moveDown(0.6).font('Helvetica-Bold').text('Opérations déclarées'); doc.font('Helvetica').moveDown(0.2);
+      (ops || []).forEach((o, i) => {
+        doc.fontSize(10).text(`${i+1}. ${o.code_fiche} — ${o.nom_operation || ''}`);
+        doc.text(`   Volume : ${(o.volume_kwh || 0).toLocaleString('fr-FR')} kWhc · Prime négociée : ${(o.prime_negociee || 0).toLocaleString('fr-FR')} €`);
+        doc.moveDown(0.2);
+      });
+      doc.moveDown(0.8).fontSize(11);
+      doc.text("Je soussigné(e), bénéficiaire ci-dessus désigné, atteste sur l'honneur que :", { align: 'left' });
+      doc.moveDown(0.3).fontSize(10).fillColor('#475569');
+      doc.text("• Les travaux ont été réalisés conformément aux exigences de la (des) fiche(s) d'opération standardisée(s) ci-dessus ;");
+      doc.text("• L'entreprise installatrice est titulaire d'une qualification RGE valide à la date d'engagement ;");
+      doc.text("• Aucun autre certificat d'économie d'énergie n'a été déposé pour ces mêmes opérations ;");
+      doc.text("• Les informations transmises sont exactes et sincères.");
+      doc.moveDown(1.5).fillColor('#0a1f3d').fontSize(11);
+      doc.text("Fait à _________________ , le ____ / ____ / 20____");
+      doc.moveDown(2);
+      doc.font('Helvetica-Bold').text("Signature du bénéficiaire :", { continued: true }).font('Helvetica').text("                                Signature de l'installateur :");
+      doc.moveDown(3.5).fontSize(8).fillColor('#94a3b8')
+         .text('Document généré automatiquement le ' + new Date().toLocaleDateString('fr-FR') + ' — à compléter, signer et joindre au dossier.', { align: 'center' });
+      doc.end();
+    });
+  });
+});
 // CO2 + économie €/an — pour un dossier précis (bénéficiaire / mandataire)
 app.get('/api/tools/impact/:dossier', (req, res) => {
   db.all('SELECT code_fiche, nom_operation, volume_kwh FROM cee_operations WHERE beneficiaire_id=?',

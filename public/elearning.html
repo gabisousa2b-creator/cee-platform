@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EchoWAI — Centre d'apprentissage CEE</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="manifest" href="/site.webmanifest" />
+<meta name="theme-color" content="#2E7EF4" />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="/css/echowai.css">
+<style>
+  body { font-family: 'Bricolage Grotesque', system-ui; background: #f1f5f9; color: var(--ink, #0a1f3d); margin: 0; }
+  .topbar { background: #fff; padding: 14px 28px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; border-bottom: 1px solid rgba(10,31,61,.08); }
+  .topbar .ew-logo { grid-column: 2; justify-self: center; font-size: 1.35rem; }
+  .topbar .right { grid-column: 3; justify-self: end; display: flex; gap: 14px; align-items: center; }
+  .btn-back { background: #fff; border: 1px solid rgba(10,31,61,.16); border-radius: 8px; padding: 7px 12px; font-size: 12px; color: #475569; text-decoration: none; }
+  .container { padding: 32px 28px; max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 36px; letter-spacing: -.025em; font-weight: 500; margin: 0 0 8px; }
+  .lead { font-size: 15px; color: #475569; max-width: 720px; margin: 0 0 28px; line-height: 1.55; }
+  .nav-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 26px; }
+  .nav-pills button {
+    background: #fff; border: 1px solid rgba(10,31,61,.10); border-radius: 999px;
+    padding: 9px 16px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+    color: #475569; font-family: 'IBM Plex Mono', monospace;
+    transition: all .18s ease;
+  }
+  .nav-pills button.active, .nav-pills button:hover {
+    background: linear-gradient(135deg, var(--accent, #2E7EF4), #5BA0FF);
+    color: #fff; border-color: transparent;
+  }
+  .card { background: #fff; border: 1px solid rgba(10,31,61,.08); border-radius: 14px; padding: 24px 26px; margin-bottom: 18px; }
+  .card h3 { margin: 0 0 8px; font-size: 18px; letter-spacing: -.018em; font-weight: 600; }
+  .card p { margin: 0; color: #475569; font-size: 14px; line-height: 1.6; }
+  .card .badge-fiche { display: inline-block; background: rgba(46,126,244,.12); color: var(--accent, #2E7EF4); font-family: 'IBM Plex Mono', monospace; font-size: 10px; padding: 3px 8px; border-radius: 4px; font-weight: 600; margin-bottom: 10px; }
+  details { background: #fff; border: 1px solid rgba(10,31,61,.08); border-radius: 12px; margin-bottom: 12px; }
+  details summary { padding: 16px 22px; cursor: pointer; font-weight: 600; font-size: 14px; color: var(--ink); list-style: none; display: flex; align-items: center; gap: 10px; }
+  details summary i { color: var(--accent, #2E7EF4); }
+  details[open] summary { border-bottom: 1px solid rgba(10,31,61,.06); }
+  details .body { padding: 18px 22px; color: #475569; font-size: 14px; line-height: 1.65; }
+  details .body strong { color: var(--ink); }
+  .grid-glossary { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+  .gl-card { background: #fff; border: 1px solid rgba(10,31,61,.08); border-radius: 12px; padding: 18px; }
+  .gl-card .term { font-weight: 700; color: var(--accent, #2E7EF4); font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; margin-bottom: 6px; }
+  .gl-card .def { font-size: 13.5px; color: #475569; line-height: 1.5; }
+  .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .video-card { background: #fff; border: 1px solid rgba(10,31,61,.08); border-radius: 12px; overflow: hidden; }
+  .video-thumb { aspect-ratio: 16/9; background: linear-gradient(135deg, #1d4ed8, #0a1f3d); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 40px; }
+  .video-meta { padding: 14px 16px; }
+  .video-meta .vtitle { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .video-meta .vdur { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #94a3b8; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div></div>
+  <span class="ew-logo">echo<b>wai</b><i></i></span>
+  <div class="right"><span class="ew-notif-host"></span><a class="btn-back" href="https://echowai.com"><i class="fas fa-arrow-left me-1"></i>Accueil</a></div>
+</div>
+
+<div class="container">
+  <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;color:#94a3b8;text-transform:uppercase">Centre d'apprentissage</div>
+  <h1>Tout comprendre sur les <em style="color:var(--accent,#2E7EF4)">CEE</em></h1>
+  <p class="lead">FAQ, glossaire technique, fiches d'opérations, tutoriels vidéo : maîtrisez le dispositif Certificats d'Économies d'Énergie de bout en bout.</p>
+
+  <div class="nav-pills" id="pills">
+    <button class="active" data-tab="faq">FAQ</button>
+    <button data-tab="fiches">Fiches CEE</button>
+    <button data-tab="glossaire">Glossaire</button>
+    <button data-tab="videos">Tutoriels</button>
+  </div>
+
+  <div id="tab-faq">
+    <details open>
+      <summary><i class="fas fa-circle-question"></i> Qu'est-ce qu'un Certificat d'Économies d'Énergie ?</summary>
+      <div class="body">
+        Les <strong>Certificats d'Économies d'Énergie</strong> (CEE) sont un dispositif créé par la loi POPE en 2005. Les fournisseurs d'énergie (« obligés ») doivent réaliser des économies d'énergie chez leurs clients ou racheter des certificats à des acteurs qui en ont produit. Cela génère des primes pour les bénéficiaires de travaux énergétiques.
+      </div>
+    </details>
+    <details>
+      <summary><i class="fas fa-circle-question"></i> Qui est éligible aux primes CEE ?</summary>
+      <div class="body">
+        Particuliers, entreprises, collectivités, exploitations agricoles. La prime dépend de l'opération (isolation, chauffage, etc.) et du <strong>volume kWh cumac</strong> généré. Les ménages en précarité énergétique bénéficient d'un bonus appelé <strong>CEEp</strong>.
+      </div>
+    </details>
+    <details>
+      <summary><i class="fas fa-circle-question"></i> Comment se passe un dossier CEE ?</summary>
+      <div class="body">
+        <strong>1.</strong> Demande de devis avant travaux. <strong>2.</strong> Signature de l'engagement avec un mandataire / délégataire. <strong>3.</strong> Réalisation des travaux par un installateur RGE. <strong>4.</strong> Dépôt du dossier (factures, attestations, AH). <strong>5.</strong> Contrôle éventuel par un organisme COFRAC. <strong>6.</strong> Validation par l'obligé. <strong>7.</strong> Versement de la prime.
+      </div>
+    </details>
+    <details>
+      <summary><i class="fas fa-circle-question"></i> Pourquoi mon installateur doit-il être RGE ?</summary>
+      <div class="body">
+        La mention <strong>RGE</strong> (Reconnu Garant de l'Environnement) est obligatoire pour bénéficier d'une prime CEE sur les travaux liés à la performance énergétique. Elle atteste que l'entreprise est qualifiée et auditée régulièrement. EchoWAI vérifie automatiquement votre certif RGE via l'annuaire ADEME.
+      </div>
+    </details>
+    <details>
+      <summary><i class="fas fa-circle-question"></i> Quel est le rôle de chaque acteur sur EchoWAI ?</summary>
+      <div class="body">
+        <strong>Bénéficiaire</strong> : c'est vous, qui faites les travaux.
+        <strong>Mandataire</strong> : apporte le dossier et le suit administrativement.
+        <strong>Délégataire</strong> : structure agréée qui dépose au nom d'un obligé.
+        <strong>Obligé</strong> : fournisseur d'énergie qui finance la prime.
+        <strong>Installateur</strong> : entreprise RGE qui réalise les travaux.
+        <strong>Contrôleur</strong> : organisme COFRAC qui vérifie la conformité sur site.
+      </div>
+    </details>
+    <details>
+      <summary><i class="fas fa-circle-question"></i> Que se passe-t-il si l'obligé ne respecte pas son obligation ?</summary>
+      <div class="body">
+        L'obligé encourt une <strong>pénalité libératoire</strong> d'environ <strong>0,02 €/kWhc</strong> sur le volume non atteint. À l'échelle d'un grand fournisseur, cela peut représenter plusieurs millions d'euros.
+      </div>
+    </details>
+  </div>
+
+  <div id="tab-fiches" class="hidden">
+    <div class="card">
+      <div class="badge-fiche">BAR-TH-104</div>
+      <h3>Pompe à chaleur air/eau</h3>
+      <p>Pompe à chaleur de type air/eau ou eau/eau installée dans une maison existante (résidentiel privé). Volume CEE moyen : <strong>30 000 kWhc/unité</strong>. Durée : 17 ans.</p>
+    </div>
+    <div class="card">
+      <div class="badge-fiche">BAR-TH-112</div>
+      <h3>Chauffe-eau thermodynamique</h3>
+      <p>Installation d'un chauffe-eau thermodynamique pour usage individuel. Volume CEE : <strong>~8 200 kWhc/unité</strong>. Durée : 17 ans.</p>
+    </div>
+    <div class="card">
+      <div class="badge-fiche">BAR-EN-101</div>
+      <h3>Isolation des combles</h3>
+      <p>Isolation thermique des combles ou de la toiture en résidentiel. <strong>~1 700 kWhc/m²</strong>. Durée : 30 ans. Très demandé pour rénovation énergétique.</p>
+    </div>
+    <div class="card">
+      <div class="badge-fiche">BAR-EN-102</div>
+      <h3>Isolation des murs</h3>
+      <p>Isolation par l'extérieur (ITE) ou intérieur (ITI). <strong>~2 100 kWhc/m²</strong>. Durée : 25 ans.</p>
+    </div>
+    <div class="card">
+      <div class="badge-fiche">IND-UT-134</div>
+      <h3>Système de captation d'énergie thermique</h3>
+      <p>Récupération de chaleur fatale sur process industriel. Volume CEE majeur : <strong>~18 000 kWhc/kW installé</strong>. Durée : 15 ans.</p>
+    </div>
+  </div>
+
+  <div id="tab-glossaire" class="hidden">
+    <div class="grid-glossary">
+      <div class="gl-card"><div class="term">kWhc cumac</div><div class="def">Unité de mesure des CEE : <strong>k</strong>ilo<strong>W</strong>att-<strong>h</strong>eure <strong>cum</strong>ulé et <strong>ac</strong>tualisé sur la durée de vie de l'opération.</div></div>
+      <div class="gl-card"><div class="term">PNCEE</div><div class="def">Pôle National des CEE : organisme administratif qui valide les dossiers et délivre les certificats.</div></div>
+      <div class="gl-card"><div class="term">EMMY</div><div class="def">Registre national des CEE, plateforme officielle de gestion (compte, dépôt, transfert).</div></div>
+      <div class="gl-card"><div class="term">AH</div><div class="def">Attestation sur l'Honneur : pièce signée par bénéficiaire + installateur engageant la conformité.</div></div>
+      <div class="gl-card"><div class="term">RGE</div><div class="def">Reconnu Garant de l'Environnement : qualification d'un installateur (Qualibat, Qualifelec, Qualit'EnR…).</div></div>
+      <div class="gl-card"><div class="term">CEEp</div><div class="def">CEE Précarité : volume bonifié destiné aux ménages en précarité énergétique. ~36% de l'obligation totale.</div></div>
+      <div class="gl-card"><div class="term">5e période</div><div class="def">Période d'obligation 2022-2025 : 3100 TWhc dont 1130 CEEp. La 6e période débutera en 2026.</div></div>
+      <div class="gl-card"><div class="term">Coup de Pouce</div><div class="def">Bonification ministérielle sur certaines opérations (chauffage, isolation) avec primes minimales fixées par arrêté.</div></div>
+      <div class="gl-card"><div class="term">Bénéficiaire</div><div class="def">Particulier, entreprise ou collectivité qui réalise les travaux et touche la prime.</div></div>
+      <div class="gl-card"><div class="term">Obligé</div><div class="def">Fournisseur d'énergie soumis à l'obligation d'économies d'énergie (au-delà d'un seuil de ventes).</div></div>
+    </div>
+  </div>
+
+  <div id="tab-videos" class="hidden">
+    <div class="video-grid">
+      <div class="video-card"><div class="video-thumb"><i class="fas fa-play"></i></div><div class="video-meta"><div class="vtitle">CEE en 3 minutes : tout comprendre</div><div class="vdur">3 min 12 — Introduction</div></div></div>
+      <div class="video-card"><div class="video-thumb"><i class="fas fa-play"></i></div><div class="video-meta"><div class="vtitle">Choisir la bonne fiche d'opération</div><div class="vdur">5 min 47 — Apporteurs</div></div></div>
+      <div class="video-card"><div class="video-thumb"><i class="fas fa-play"></i></div><div class="video-meta"><div class="vtitle">Constituer un dossier en 5 étapes</div><div class="vdur">7 min 20 — Mandataires</div></div></div>
+      <div class="video-card"><div class="video-thumb"><i class="fas fa-play"></i></div><div class="video-meta"><div class="vtitle">Réussir un contrôle in-situ</div><div class="vdur">6 min 15 — Installateurs</div></div></div>
+      <div class="video-card"><div class="video-thumb"><i class="fas fa-play"></i></div><div class="video-meta"><div class="vtitle">Optimiser son portefeuille CEE</div><div class="vdur">9 min 40 — Délégataires</div></div></div>
+      <div class="video-card"><div class="video-thumb"><i class="fas fa-play"></i></div><div class="video-meta"><div class="vtitle">Gérer sa pénalité libératoire</div><div class="vdur">4 min 55 — Obligés</div></div></div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/ew-emmy.js" defer></script>
+<script src="/js/ew-notif.js" defer></script>
+<script>
+document.querySelectorAll('#pills button').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('#pills button').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    const tab = b.dataset.tab;
+    ['faq', 'fiches', 'glossaire', 'videos'].forEach(t => {
+      document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
+    });
+  });
+});
+</script>
+<script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});</script>
+</body>
+</html>
