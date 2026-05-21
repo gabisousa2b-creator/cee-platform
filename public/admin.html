@@ -568,8 +568,7 @@
       <div class="nav-item-s" data-section="biblio_fiches" id="navBiblio" onclick="showSection('biblio_fiches')"><i class="fas fa-book-open fa-fw"></i> Bibliothèque de fiches</div>
       <div class="nav-item-s" data-section="veille" onclick="showSection('veille')"><i class="fas fa-radar fa-fw"></i> Veille réglementaire</div>
       <div class="sidebar-section-label" style="margin-top:10px">Super-admin</div>
-      <div class="nav-item-s" onclick="window.location='/partenaires'" style="background:rgba(46,126,244,.08);color:var(--accent)"><i class="fas fa-users fa-fw"></i> Tous les partenaires</div>
-      <div class="nav-item-s" onclick="window.location='/admin-roles'"><i class="fas fa-users-cog fa-fw"></i> Création par formulaire</div>
+      <div class="nav-item-s" data-section="partenaires_unifie" onclick="showSection('partenaires_unifie'); loadPU();" style="background:rgba(46,126,244,.08);color:var(--accent)"><i class="fas fa-users fa-fw"></i> Tous les partenaires</div>
       <div class="nav-item-s" onclick="window.location='/kanban'"><i class="fas fa-columns fa-fw"></i> Pipeline Kanban</div>
       <div class="nav-item-s" onclick="window.location='/carte'"><i class="fas fa-map-location-dot fa-fw"></i> Cartographie</div>
       <div class="nav-item-s" onclick="window.location='/elearning'"><i class="fas fa-graduation-cap fa-fw"></i> Centre d'apprentissage</div>
@@ -1421,6 +1420,31 @@
       </div>
     </div>
 
+    <!-- Partenaires unifiés (super-admin : voir tous + reset mdp + impersonate) -->
+    <div id="sectionPartenairesUnifie" style="display:none">
+      <div class="topbar" style="display:flex;align-items:center;justify-content:space-between">
+        <h4 class="fw-bold mb-0"><i class="fas fa-users me-2"></i>Tous les partenaires</h4>
+        <button class="btn btn-sm btn-success" onclick="openCreateModal()"><i class="fas fa-plus me-1"></i>Nouveau partenaire</button>
+      </div>
+      <div class="mb-3" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input id="pu-q" placeholder="Recherche : RS, email, SIRET…" class="form-control form-control-sm" style="flex:1;min-width:220px">
+        <select id="pu-type" class="form-select form-select-sm" style="width:auto">
+          <option value="">Tous les types</option>
+          <option value="mandataire">Mandataires</option>
+          <option value="oblige">Obligés</option>
+          <option value="delegataire">Délégataires</option>
+          <option value="installateur">Installateurs</option>
+          <option value="controleur">Contrôleurs</option>
+        </select>
+      </div>
+      <div id="pu-stats" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px"></div>
+      <div class="table-card p-2" id="pu-host">Chargement…</div>
+      <p class="text-muted small mt-2" style="font-size:.78rem">
+        <i class="fas fa-shield-halved me-1"></i>Les mots de passe sont stockés hashés (scrypt). Pour communiquer un nouvel accès à un partenaire,
+        utilise « Définir un MDP » : tu le saisis, le partenaire le reçoit, et il est enregistré chiffré côté serveur.
+      </p>
+    </div>
+
     <!-- Emails broadcast -->
     <div id="sectionEmails" style="display:none">
       <div class="topbar"><h4 class="fw-bold mb-0"><i class="fas fa-paper-plane me-2"></i>Envoi de mails groupés</h4></div>
@@ -2012,7 +2036,7 @@ async function loadActivites() {
 function showSection(name) {
   document.querySelectorAll('[data-section]').forEach(el => el.classList.remove('active'));
   document.querySelector(`[data-section="${name}"]`)?.classList.add('active');
-  const sections = ['dashboard','beneficiaires','partenaires','operations','materiel','taches','emails','notifications','biblio_fiches','veille','devis'];
+  const sections = ['dashboard','beneficiaires','partenaires','partenaires_unifie','operations','materiel','taches','emails','notifications','biblio_fiches','veille','devis'];
   sections.forEach(s => {
     const key = s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
     const domKey = key.charAt(0).toUpperCase() + key.slice(1);
@@ -4220,6 +4244,71 @@ function openCreateModal() {
   });
 }
 document.getElementById('fabCreate').addEventListener('click', openCreateModal);
+
+// ─── Partenaires unifiés inline (section dashboard admin) ───
+let PU_ALL = [];
+const PU_TYPE_LBL = { mandataire: 'Mandataire', oblige: 'Obligé', delegataire: 'Délégataire', installateur: 'Installateur', controleur: 'Contrôleur' };
+const PU_TYPE_COLOR = { mandataire: '#1d4ed8', oblige: '#6d28d9', delegataire: '#166534', installateur: '#9a3412', controleur: '#155e75' };
+const PU_TYPE_BG = { mandataire: '#dbeafe', oblige: '#ede9fe', delegataire: '#dcfce7', installateur: '#fed7aa', controleur: '#cffafe' };
+function _puEsc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m])); }
+function _puFmt(d) { return d ? new Date(d).toLocaleDateString('fr-FR') : '—'; }
+window.loadPU = async function () {
+  const host = document.getElementById('pu-host'); if (!host) return;
+  host.innerHTML = 'Chargement…';
+  const r = await fetch('/api/admin/partenaires-unifie');
+  if (!r.ok) { host.innerHTML = '<div class="text-danger">Connexion admin requise.</div>'; return; }
+  PU_ALL = await r.json();
+  _puRender();
+};
+function _puRender() {
+  const q = (document.getElementById('pu-q')?.value || '').toLowerCase();
+  const ft = document.getElementById('pu-type')?.value || '';
+  const rows = PU_ALL.filter(r => (!ft || r.type === ft) &&
+    (!q || (r.raison_sociale||'').toLowerCase().includes(q) || (r.email||'').toLowerCase().includes(q)));
+  // Stats
+  const by = {};
+  PU_ALL.forEach(r => { by[r.type] = (by[r.type] || 0) + 1; });
+  document.getElementById('pu-stats').innerHTML = Object.keys(PU_TYPE_LBL).map(t =>
+    `<div style="background:${PU_TYPE_BG[t]};border-radius:8px;padding:10px 14px">
+       <div style="font-size:20px;font-weight:700;color:${PU_TYPE_COLOR[t]}">${by[t]||0}</div>
+       <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:${PU_TYPE_COLOR[t]};opacity:.7">${PU_TYPE_LBL[t]}s</div>
+     </div>`).join('');
+  // Table
+  const host = document.getElementById('pu-host');
+  if (!rows.length) { host.innerHTML = '<div class="text-muted text-center p-4">Aucun partenaire.</div>'; return; }
+  host.innerHTML = `<div style="overflow-x:auto"><table class="table table-sm mb-0" style="font-size:13px;vertical-align:middle">
+    <thead><tr style="background:#f6f3eb">
+      <th>Type</th><th>Raison sociale</th><th>Email (login)</th><th style="text-align:right">Dossiers</th><th>Connexion</th><th>Statut</th><th>Définir un nouveau mdp</th><th></th>
+    </tr></thead><tbody>${rows.map(r => `
+      <tr>
+        <td><span style="background:${PU_TYPE_BG[r.type]};color:${PU_TYPE_COLOR[r.type]};padding:3px 9px;border-radius:999px;font-size:10.5px;font-family:'IBM Plex Mono',monospace;font-weight:700">${PU_TYPE_LBL[r.type]}</span></td>
+        <td><strong>${_puEsc(r.raison_sociale)}</strong></td>
+        <td style="font-family:'IBM Plex Mono',monospace;font-size:12px">${_puEsc(r.email||'')}</td>
+        <td style="text-align:right;font-family:'IBM Plex Mono',monospace;font-weight:700">${r.nb_dossiers||0}</td>
+        <td style="font-family:'IBM Plex Mono',monospace;color:#6b7280;font-size:11px">${_puFmt(r.last_login)}</td>
+        <td>${r.actif ? '<span style="color:#166534;font-size:11px">● Actif</span>' : '<span style="color:#991b1b;font-size:11px">○ Inactif</span>'}</td>
+        <td><div style="display:flex;gap:4px"><input type="text" id="pwd_${r.type}_${r.profil_id}" class="form-control form-control-sm" placeholder="nouveau mdp" style="font-size:12px;font-family:'IBM Plex Mono',monospace;width:140px"><button class="btn btn-sm btn-outline-primary" onclick="puSetPwd('${r.type}', ${r.profil_id})"><i class="fas fa-key"></i></button></div></td>
+        <td><button class="btn btn-sm btn-primary" onclick="puImp('${r.type}', ${r.profil_id})"><i class="fas fa-arrow-right-to-bracket me-1"></i>Connexion</button></td>
+      </tr>`).join('')}</tbody></table></div>`;
+}
+window.puSetPwd = async function (type, id) {
+  const input = document.getElementById(`pwd_${type}_${id}`);
+  const pwd = (input?.value || '').trim();
+  if (pwd.length < 6) { alert('Mot de passe min 6 caractères'); return; }
+  const r = await fetch(`/api/admin/partenaire/${type}/${id}/password`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ password: pwd }) });
+  if (!r.ok) { const j = await r.json().catch(()=>({})); alert(j.error||'Erreur'); return; }
+  // Affiche temporairement
+  input.style.background = '#dcfce7';
+  setTimeout(() => { input.style.background = ''; input.value = ''; }, 4000);
+};
+window.puImp = async function (type, id) {
+  const r = await fetch('/api/admin/impersonate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ role: type, id }) });
+  const j = await r.json();
+  if (!r.ok) { alert(j.error||'Erreur'); return; }
+  location.href = j.redirect;
+};
+document.addEventListener('input', e => { if (e.target && (e.target.id === 'pu-q' || e.target.id === 'pu-type')) _puRender(); });
+document.addEventListener('change', e => { if (e.target && e.target.id === 'pu-type') _puRender(); });
 
 // Super-admin : impersonate rapide du premier compte d'un rôle
 window.quickImp = async function (role) {

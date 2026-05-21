@@ -4139,6 +4139,34 @@ app.get('/api/admin/delegataires-all', requireAdmin, (req, res) => {
   db.all(`SELECT id, nom FROM delegataires ORDER BY nom LIMIT 500`, [],
     (e, r) => e ? res.status(500).json({ error: e.message }) : res.json(r || []));
 });
+// Définir / réinitialiser le mot de passe d'un partenaire (type + id) — super-admin
+app.post('/api/admin/partenaire/:type/:id/password', requireAdmin, (req, res) => {
+  const { type, id } = req.params;
+  const { password } = req.body || {};
+  if (!password || String(password).length < 6) return res.status(400).json({ error: 'mdp min 6 caractères' });
+  const tableByType = {
+    oblige: { table: 'obliges', col: 'password_hash' },
+    delegataire: { table: 'delegataires', col: 'password_hash' },
+    installateur: { table: 'installateurs', col: 'password_hash' },
+    controleur: { table: 'controleurs', col: 'password_hash' },
+    mandataire: null, // traité à part (partenaires + comptes)
+  };
+  const hash = hashPassword(password);
+  if (type === 'mandataire') {
+    // Met à jour à la fois partenaires.password_hash et tous les comptes liés
+    db.run('UPDATE partenaires SET password_hash=? WHERE id=?', [hash, id], function (e) {
+      if (e) return res.status(500).json({ error: e.message });
+      db.run('UPDATE comptes SET password_hash=? WHERE partenaire_id=? AND role=?', [hash, id, 'admin_partenaire'],
+        e2 => e2 ? res.status(500).json({ error: e2.message }) : res.json({ success: true }));
+    });
+    return;
+  }
+  const cfg = tableByType[type];
+  if (!cfg) return res.status(400).json({ error: 'type invalide' });
+  db.run(`UPDATE ${cfg.table} SET ${cfg.col}=? WHERE id=?`, [hash, id],
+    function (e) { e ? res.status(500).json({ error: e.message }) : res.json({ success: true }); });
+});
+
 // Création d'un compte mandataire (partenaire + compte associé)
 app.post('/api/admin/comptes-create', requireAdmin, (req, res) => {
   const { partenaire_nom, nom, role, email, password } = req.body || {};
