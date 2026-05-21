@@ -4219,9 +4219,8 @@ app.get('/api/admin/partenaires-unifie', requireAdmin, (req, res) => {
               COALESCE(NULLIF(p.login_email,''), (SELECT email FROM comptes c WHERE c.partenaire_id=p.id AND c.role='admin_partenaire' LIMIT 1), p.email) AS email,
               COALESCE(p.compte_actif, (SELECT actif FROM comptes c WHERE c.partenaire_id=p.id AND c.role='admin_partenaire' LIMIT 1), p.actif) AS actif,
               p.last_login,
-              ((SELECT COUNT(*) FROM beneficiaires b WHERE b.partenaire_id=p.id AND b.archived=0)
-              + (SELECT COUNT(*) FROM beneficiaires b WHERE b.partenaire=p.nom AND b.archived=0)) AS nb_dossiers
-       FROM partenaires p WHERE p.actif=1`, [], (e, r) => { if (r) rows.push(...r); cb(); }));
+              (SELECT COUNT(*) FROM beneficiaires b WHERE b.partenaire=p.nom AND b.archived=0) AS nb_dossiers
+       FROM partenaires p WHERE p.actif=1`, [], (e, r) => { if (e) console.error('unifié mandataire:', e.message); if (r) rows.push(...r); cb(); }));
     if (!typeFilter || typeFilter === 'oblige') tasks.push(cb => db.all(
       `SELECT id AS profil_id, 'oblige' AS type, raison_sociale, email, actif, last_login,
               (SELECT COUNT(*) FROM beneficiaires b WHERE b.oblige_id=obliges.id AND b.archived=0) AS nb_dossiers
@@ -4249,16 +4248,19 @@ app.get('/api/admin/partenaires-unifie', requireAdmin, (req, res) => {
 app.get('/api/admin/partenaire-detail/:type/:id', requireAdmin, (req, res) => {
   const t = req.params.type, id = parseInt(req.params.id) || 0;
   const tables = { oblige: 'obliges', delegataire: 'delegataires', installateur: 'installateurs', controleur: 'controleurs', mandataire: 'partenaires' };
-  const fkMap = { oblige: 'oblige_id', delegataire: 'delegataire_id', installateur: 'installateur_id', controleur: 'controleur_id', mandataire: 'partenaire_id' };
+  const fkMap = { oblige: 'oblige_id', delegataire: 'delegataire_id', installateur: 'installateur_id', controleur: 'controleur_id' };
   if (!tables[t]) return res.status(400).json({ error: 'type invalide' });
   db.get(`SELECT * FROM ${tables[t]} WHERE id=?`, [id], (e, profil) => {
     if (e || !profil) return res.status(404).json({ error: 'profil introuvable' });
+    // Pour mandataire : match texte b.partenaire = p.nom (pas de FK)
+    const filter = t === 'mandataire' ? `b.partenaire=?` : `b.${fkMap[t]}=?`;
+    const param  = t === 'mandataire' ? (profil.nom) : id;
     db.all(`SELECT b.id, b.code, b.nom, b.prenom, b.raison_sociale, b.statut, b.created_at,
                    COALESCE(SUM(o.volume_kwh), 0) AS volume, COALESCE(SUM(o.prime_negociee), 0) AS prime
             FROM beneficiaires b LEFT JOIN cee_operations o ON o.beneficiaire_id=b.id
-            WHERE b.${fkMap[t]}=? AND b.archived=0
+            WHERE ${filter} AND b.archived=0
             GROUP BY b.id ORDER BY b.created_at DESC LIMIT 100`,
-      [id], (e2, dossiers) => res.json({ type: t, profil, dossiers: dossiers || [] }));
+      [param], (e2, dossiers) => res.json({ type: t, profil, dossiers: dossiers || [] }));
   });
 });
 
