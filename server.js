@@ -4472,6 +4472,76 @@ app.get('/api/controleur/dossiers', requireControleur, (req, res) => {
   sql += ' GROUP BY b.id ORDER BY b.controleur_date_visite ASC, b.created_at DESC LIMIT 500';
   db.all(sql, args, (e, rows) => e ? res.status(500).json({ error: e.message }) : res.json(rows || []));
 });
+// Génération PDF rapport contrôle (template simplifié, conforme ISO 17020)
+app.get('/api/controleur/dossiers/:id/rapport.pdf', requireControleur, (req, res) => {
+  const PDFDocument = require('pdfkit');
+  db.get(`SELECT b.*, c.raison_sociale AS ctrl_rs, c.accreditation_no, c.email AS ctrl_email
+          FROM beneficiaires b, controleurs c
+          WHERE b.id=? AND b.controleur_id=c.id AND c.id=?`,
+    [req.params.id, req.session.controleurId], (e, b) => {
+      if (e || !b) return res.status(404).send('Dossier introuvable');
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="rapport-' + b.code + '.pdf"');
+      const doc = new PDFDocument({ size: 'A4', margin: 50 });
+      doc.pipe(res);
+      doc.fillColor('#0a1f3d').fontSize(18).text('Rapport de contrôle CEE', { align: 'center' });
+      doc.moveDown(0.3).fontSize(10).fillColor('#475569')
+         .text('Norme NF EN ISO 17020 · Plateforme CEE', { align: 'center' });
+      doc.moveDown(1.5).fillColor('#0a1f3d').fontSize(11);
+      const row = (l, v) => { doc.font('Helvetica-Bold').text(l + ' : ', { continued: true }).font('Helvetica').text(v || '—'); doc.moveDown(0.25); };
+      row('Organisme contrôleur', b.ctrl_rs);
+      row('Accréditation COFRAC', b.accreditation_no);
+      row('Date du contrôle',     b.controleur_date_visite);
+      row('Conclusion',            ({ controle_ok: 'CONFORME', ecart_mineur: 'ÉCART MINEUR', non_conforme: 'NON CONFORME', planifie: 'À RÉALISER' })[b.controleur_statut] || '—');
+      doc.moveDown(0.5);
+      doc.font('Helvetica-Bold').text('Bénéficiaire'); doc.font('Helvetica');
+      row(' Code dossier', b.code);
+      row(' Raison sociale / nom', b.raison_sociale || (b.nom + ' ' + b.prenom));
+      row(' SIRET', b.siret);
+      row(' Adresse', (b.adresse || '') + ', ' + (b.code_postal || '') + ' ' + (b.ville || ''));
+      doc.moveDown(0.5);
+      doc.font('Helvetica-Bold').text('Observations / rapport'); doc.font('Helvetica').moveDown(0.2);
+      doc.fontSize(10).text(b.controleur_rapport || 'Aucune observation déposée.', { align: 'left' });
+      doc.moveDown(1.5).fontSize(9).fillColor('#94a3b8')
+         .text('Document généré le ' + new Date().toLocaleDateString('fr-FR'), { align: 'right' });
+      doc.end();
+    });
+});
+// PDF Bilan annuel délégataire (volumes engagés × prix négocié)
+app.get('/api/delegataire/bilan.pdf', requireDelegataire, (req, res) => {
+  const PDFDocument = require('pdfkit');
+  db.get('SELECT * FROM delegataires WHERE id=?', [req.session.delegataireId], (e, d) => {
+    if (e || !d) return res.status(404).send('Profil introuvable');
+    db.all(`SELECT b.code, b.nom, b.prenom, b.raison_sociale, b.delegataire_statut,
+                   COALESCE(SUM(o.volume_kwh),0) AS volume
+            FROM beneficiaires b LEFT JOIN cee_operations o ON o.beneficiaire_id=b.id
+            WHERE b.delegataire_id=? AND b.archived=0
+            GROUP BY b.id ORDER BY volume DESC`,
+      [req.session.delegataireId], (e2, rows) => {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'inline; filename="bilan-' + d.id + '.pdf"');
+        const doc = new PDFDocument({ size: 'A4', margin: 40 });
+        doc.pipe(res);
+        doc.fillColor('#0a1f3d').fontSize(18).text('Bilan annuel délégataire', { align: 'center' });
+        doc.moveDown(0.3).fontSize(10).fillColor('#475569').text(d.nom, { align: 'center' });
+        doc.moveDown(1).fontSize(11).fillColor('#0a1f3d');
+        const total = (rows || []).reduce((s, r) => s + (r.volume || 0), 0);
+        doc.font('Helvetica-Bold').text('Volume total engagé : ', { continued: true })
+           .font('Helvetica').text(Math.round(total/1e6).toLocaleString('fr-FR') + ' GWhc');
+        doc.moveDown(0.8);
+        doc.fontSize(9).fillColor('#475569').text('CODE'.padEnd(14) + 'BÉNÉFICIAIRE'.padEnd(40) + 'STATUT'.padEnd(16) + 'VOLUME (MWhc)');
+        doc.moveDown(0.2).fillColor('#0a1f3d');
+        (rows || []).slice(0, 50).forEach(r => {
+          const ben = (r.raison_sociale || ((r.nom||'') + ' ' + (r.prenom||''))).slice(0, 38);
+          doc.text(String(r.code || '').padEnd(14) + ben.padEnd(40) +
+                   String(r.delegataire_statut || '—').padEnd(16) +
+                   Math.round((r.volume||0)/1000).toLocaleString('fr-FR'));
+        });
+        doc.end();
+      });
+  });
+});
+
 app.post('/api/controleur/dossiers/:id/statut', requireControleur, (req, res) => {
   const { statut, date_visite, rapport } = req.body || {};
   const ALLOWED = ['planifie', 'controle_ok', 'ecart_mineur', 'non_conforme'];
