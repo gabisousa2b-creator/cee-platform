@@ -4058,7 +4058,168 @@ dropZone.addEventListener('drop', e => {
 });
 </script>
 <script src="/js/ew-chat.js" defer></script>
+<style>
+  .fab-create {
+    position: fixed; bottom: 92px; right: 20px; z-index: 240;
+    width: 54px; height: 54px; border-radius: 50%;
+    background: linear-gradient(135deg, #16a34a, #22c55e); color: #fff;
+    border: 0; cursor: pointer; box-shadow: 0 16px 32px -10px rgba(22,163,74,.55);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform .25s ease, box-shadow .25s ease;
+  }
+  .fab-create:hover { transform: translateY(-2px) scale(1.04); box-shadow: 0 20px 40px -10px rgba(22,163,74,.65); }
+  .fab-create svg { width: 22px; height: 22px; }
+  .ew-modal-back { position: fixed; inset: 0; background: rgba(10,31,61,.55); display: flex; align-items: center; justify-content: center; z-index: 400; padding: 20px; }
+  .ew-modal-box { background: #fff; border-radius: 18px; padding: 28px; max-width: 560px; width: 100%; box-shadow: 0 32px 80px -20px rgba(10,31,61,.4); }
+  .ew-modal-box h3 { margin: 0 0 6px; font-size: 22px; letter-spacing: -.018em; font-weight: 600; }
+  .ew-modal-box p { margin: 0 0 18px; color: #475569; font-size: 13.5px; }
+  .ew-role-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px; }
+  .ew-role-grid button { padding: 12px 6px; border: 2px solid rgba(10,31,61,.10); background: #fff; border-radius: 10px; cursor: pointer; font-size: 12px; font-weight: 600; color: #475569; transition: all .18s ease; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .ew-role-grid button i { font-size: 18px; color: #94a3b8; }
+  .ew-role-grid button.active, .ew-role-grid button:hover { border-color: var(--accent, #2E7EF4); color: var(--accent, #2E7EF4); background: rgba(46,126,244,.06); }
+  .ew-role-grid button.active i, .ew-role-grid button:hover i { color: var(--accent, #2E7EF4); }
+  .ew-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .ew-form-grid input, .ew-form-grid select { padding: 10px 13px; border-radius: 8px; border: 1px solid rgba(10,31,61,.12); font-size: 13px; font-family: inherit; }
+  .ew-form-grid input:focus, .ew-form-grid select:focus { outline: none; border-color: var(--accent, #2E7EF4); box-shadow: 0 0 0 3px rgba(46,126,244,.13); }
+  .ew-form-grid .full { grid-column: 1 / -1; }
+  .ew-modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+  .ew-btn-cancel { background: #fff; border: 1px solid rgba(10,31,61,.16); border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; color: #475569; }
+  .ew-btn-create { background: linear-gradient(135deg, #16a34a, #22c55e); border: 0; color: #fff; border-radius: 8px; padding: 8px 18px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .ew-form-msg { margin-top: 10px; font-size: 12.5px; min-height: 18px; }
+  .ew-form-msg.ok { color: #166534; }
+  .ew-form-msg.err { color: #991b1b; }
+</style>
+<button class="fab-create" id="fabCreate" title="Créer un compte" aria-label="Créer un compte">
+  <svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
+</button>
 <script>
+// Modal "Créer un compte" — multi-rôle, créé directement depuis le dashboard admin
+const ROLE_CFG = {
+  mandataire: {
+    label: 'Mandataire', ico: 'fa-building',
+    endpoint: '/api/admin/comptes-create',
+    fields: [
+      { id: 'partenaire_nom', label: 'Raison sociale partenaire', full: true },
+      { id: 'nom',            label: 'Nom du compte' },
+      { id: 'role',           label: 'Rôle', type: 'select', opts: [['admin_partenaire','Admin partenaire'],['apporteur','Apporteur']] },
+      { id: 'email',          label: 'Email', type: 'email' },
+      { id: 'password',       label: 'Mot de passe', type: 'password' },
+    ],
+  },
+  oblige: {
+    label: 'Obligé', ico: 'fa-shield-halved',
+    endpoint: '/api/admin/obliges',
+    fields: [
+      { id: 'raison_sociale',           label: 'Raison sociale', full: true },
+      { id: 'siret',                    label: 'SIRET' },
+      { id: 'type',                     label: 'Type', type: 'select', opts: [['energie','Énergie'],['carburant','Carburant']] },
+      { id: 'email',                    label: 'Email', type: 'email' },
+      { id: 'password',                 label: 'Mot de passe', type: 'password' },
+      { id: 'kwhc_obligation_annuelle', label: 'Obligation kWhc/an', type: 'number' },
+    ],
+  },
+  delegataire: {
+    label: 'Délégataire', ico: 'fa-stamp',
+    endpoint: '/api/admin/delegataires-create',
+    fields: [
+      { id: 'nom',      label: 'Nom', full: true },
+      { id: 'siret',    label: 'SIRET' },
+      { id: 'email',    label: 'Email', type: 'email' },
+      { id: 'password', label: 'Mot de passe', type: 'password' },
+    ],
+  },
+  installateur: {
+    label: 'Installateur RGE', ico: 'fa-hard-hat',
+    endpoint: '/api/admin/installateurs',
+    fields: [
+      { id: 'raison_sociale', label: 'Raison sociale', full: true },
+      { id: 'siret',          label: 'SIRET' },
+      { id: 'rge_numero',     label: 'N° RGE' },
+      { id: 'rge_organisme',  label: 'Organisme', type: 'select', opts: [['Qualibat','Qualibat'],['Qualifelec','Qualifelec'],["Qualit'EnR","Qualit'EnR"],['Qualiclimafroid','Qualiclimafroid']] },
+      { id: 'email',          label: 'Email', type: 'email' },
+      { id: 'password',       label: 'Mot de passe', type: 'password' },
+    ],
+  },
+  controleur: {
+    label: 'Contrôleur COFRAC', ico: 'fa-clipboard-check',
+    endpoint: '/api/admin/controleurs',
+    fields: [
+      { id: 'raison_sociale',   label: 'Raison sociale', full: true },
+      { id: 'siret',            label: 'SIRET' },
+      { id: 'accreditation_no', label: 'N° accréditation COFRAC' },
+      { id: 'email',            label: 'Email', type: 'email' },
+      { id: 'password',         label: 'Mot de passe', type: 'password' },
+    ],
+  },
+};
+
+let _currentRole = 'mandataire';
+function openCreateModal() {
+  const back = document.createElement('div'); back.className = 'ew-modal-back';
+  back.innerHTML = `
+    <div class="ew-modal-box">
+      <h3>Créer un compte</h3>
+      <p>Sélectionne le rôle puis renseigne les informations. Le compte est immédiatement actif.</p>
+      <div class="ew-role-grid" id="ewRoleGrid"></div>
+      <div class="ew-form-grid" id="ewFormGrid"></div>
+      <div class="ew-form-msg" id="ewFormMsg"></div>
+      <div class="ew-modal-actions">
+        <button class="ew-btn-cancel" id="ewCancel">Annuler</button>
+        <button class="ew-btn-create" id="ewCreate"><i class="fas fa-plus me-1"></i>Créer le compte</button>
+      </div>
+    </div>`;
+  document.body.appendChild(back);
+  const grid = back.querySelector('#ewRoleGrid');
+  grid.innerHTML = Object.entries(ROLE_CFG).map(([k, v]) =>
+    `<button data-role="${k}" class="${k === _currentRole ? 'active' : ''}"><i class="fas ${v.ico}"></i>${v.label}</button>`
+  ).join('');
+  function renderFields() {
+    const cfg = ROLE_CFG[_currentRole];
+    back.querySelector('#ewFormGrid').innerHTML = cfg.fields.map(f => {
+      if (f.type === 'select') {
+        return `<div class="${f.full ? 'full' : ''}"><label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:4px">${f.label}</label><select id="ew_${f.id}">${f.opts.map(o => `<option value="${o[0]}">${o[1]}</option>`).join('')}</select></div>`;
+      }
+      return `<div class="${f.full ? 'full' : ''}"><label style="font-size:11px;color:#94a3b8;display:block;margin-bottom:4px">${f.label}</label><input id="ew_${f.id}" type="${f.type || 'text'}"></div>`;
+    }).join('');
+  }
+  renderFields();
+  grid.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    _currentRole = b.dataset.role;
+    grid.querySelectorAll('button').forEach(x => x.classList.toggle('active', x.dataset.role === _currentRole));
+    renderFields();
+  }));
+  back.querySelector('#ewCancel').addEventListener('click', () => back.remove());
+  back.addEventListener('click', (e) => { if (e.target === back) back.remove(); });
+  back.querySelector('#ewCreate').addEventListener('click', async () => {
+    const cfg = ROLE_CFG[_currentRole];
+    const body = {};
+    for (const f of cfg.fields) {
+      const el = back.querySelector('#ew_' + f.id);
+      const v = (el?.value || '').trim();
+      if (!v && ['email','password','raison_sociale','nom'].includes(f.id)) {
+        back.querySelector('#ewFormMsg').className = 'ew-form-msg err';
+        back.querySelector('#ewFormMsg').textContent = '✗ ' + f.label + ' requis';
+        return;
+      }
+      body[f.id] = v;
+    }
+    back.querySelector('#ewFormMsg').textContent = '⏳ Création…';
+    back.querySelector('#ewFormMsg').className = 'ew-form-msg';
+    try {
+      const r = await fetch(cfg.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Erreur');
+      back.querySelector('#ewFormMsg').className = 'ew-form-msg ok';
+      back.querySelector('#ewFormMsg').textContent = '✓ Compte créé (id ' + (j.id || '?') + ')';
+      setTimeout(() => back.remove(), 1400);
+    } catch (e) {
+      back.querySelector('#ewFormMsg').className = 'ew-form-msg err';
+      back.querySelector('#ewFormMsg').textContent = '✗ ' + e.message;
+    }
+  });
+}
+document.getElementById('fabCreate').addEventListener('click', openCreateModal);
+
 // Super-admin : impersonate rapide du premier compte d'un rôle
 window.quickImp = async function (role) {
   const endpoints = {

@@ -4137,6 +4137,45 @@ app.get('/api/admin/delegataires-all', requireAdmin, (req, res) => {
   db.all(`SELECT id, nom FROM delegataires ORDER BY nom LIMIT 500`, [],
     (e, r) => e ? res.status(500).json({ error: e.message }) : res.json(r || []));
 });
+// Création d'un compte mandataire (partenaire + compte associé)
+app.post('/api/admin/comptes-create', requireAdmin, (req, res) => {
+  const { partenaire_nom, nom, role, email, password } = req.body || {};
+  if (!partenaire_nom || !email || !password) return res.status(400).json({ error: 'partenaire_nom + email + password requis' });
+  const safeRole = role === 'admin_partenaire' ? 'admin_partenaire' : 'apporteur';
+  db.run(`INSERT INTO partenaires (nom, login_email, password_hash, compte_actif) VALUES (?,?,?,1)`,
+    [partenaire_nom, String(email).toLowerCase().trim(), hashPassword(password)],
+    function (e) {
+      if (e) return res.status(400).json({ error: e.message });
+      const partId = this.lastID;
+      db.run(`INSERT INTO comptes (partenaire_id, role, nom, email, password_hash, actif) VALUES (?,?,?,?,?,1)`,
+        [partId, safeRole, nom || '', String(email).toLowerCase().trim(), hashPassword(password)],
+        function (e2) {
+          if (e2) return res.status(400).json({ error: e2.message });
+          res.json({ success: true, id: this.lastID, partenaire_id: partId });
+        });
+    });
+});
+// Création d'un délégataire avec accès portail
+app.post('/api/admin/delegataires-create', requireAdmin, (req, res) => {
+  const { nom, siret, email, password } = req.body || {};
+  if (!nom || !email || !password) return res.status(400).json({ error: 'nom + email + password requis' });
+  // Insert si nouveau, sinon update sur nom existant
+  db.get(`SELECT id FROM delegataires WHERE lower(nom)=lower(?)`, [nom.trim()], (e, r) => {
+    if (e) return res.status(500).json({ error: e.message });
+    const hash = hashPassword(password);
+    const em = String(email).toLowerCase().trim();
+    if (r) {
+      db.run(`UPDATE delegataires SET email=?, password_hash=?, siret=?, compte_actif=1 WHERE id=?`,
+        [em, hash, siret || '', r.id],
+        e2 => e2 ? res.status(500).json({ error: e2.message }) : res.json({ success: true, id: r.id }));
+    } else {
+      db.run(`INSERT INTO delegataires (nom, siret, email, password_hash, compte_actif, actif) VALUES (?,?,?,?,1,1)`,
+        [nom.trim(), siret || '', em, hash],
+        function (e2) { e2 ? res.status(400).json({ error: e2.message }) : res.json({ success: true, id: this.lastID }); });
+    }
+  });
+});
+
 // Liste comptes mandataires (admin_partenaire en priorité)
 app.get('/api/admin/partenaires-list', requireAdmin, (req, res) => {
   db.all(`SELECT c.id, c.nom, c.email, c.role, p.nom AS partenaire_nom
