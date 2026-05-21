@@ -381,12 +381,17 @@ function generateUniqueCode() {
   });
 }
 const requireAdmin       = (req, res, next) => req.session.isAdmin        ? next() : res.status(401).json({ error: 'Non autorisé' });
-const requireBeneficiary = (req, res, next) => req.session.beneficiaireId ? next() : res.status(401).json({ error: 'Non autorisé' });
-const requirePartner     = (req, res, next) => req.session.compteId       ? next() : res.status(401).json({ error: 'Non autorisé' });
-const requireOblige      = (req, res, next) => req.session.obligeId       ? next() : res.status(401).json({ error: 'Non autorisé' });
-const requireDelegataire = (req, res, next) => req.session.delegataireId  ? next() : res.status(401).json({ error: 'Non autorisé' });
-const requireInstallateur= (req, res, next) => req.session.installateurId ? next() : res.status(401).json({ error: 'Non autorisé' });
-const requireControleur  = (req, res, next) => req.session.controleurId   ? next() : res.status(401).json({ error: 'Non autorisé' });
+// Super-admin a accès à tous les espaces : on accepte isAdmin sur tous les
+// middlewares de rôle. Quand admin appelle /api/<role>/* sans avoir
+// impersonifié, les queries qui filtrent sur session.<role>Id renvoient
+// donc rien — mais l'auth passe. Pour accéder aux données d'un acteur
+// précis, l'admin utilise /api/admin/impersonate.
+const requireBeneficiary = (req, res, next) => (req.session.beneficiaireId || req.session.isAdmin) ? next() : res.status(401).json({ error: 'Non autorisé' });
+const requirePartner     = (req, res, next) => (req.session.compteId       || req.session.isAdmin) ? next() : res.status(401).json({ error: 'Non autorisé' });
+const requireOblige      = (req, res, next) => (req.session.obligeId       || req.session.isAdmin) ? next() : res.status(401).json({ error: 'Non autorisé' });
+const requireDelegataire = (req, res, next) => (req.session.delegataireId  || req.session.isAdmin) ? next() : res.status(401).json({ error: 'Non autorisé' });
+const requireInstallateur= (req, res, next) => (req.session.installateurId || req.session.isAdmin) ? next() : res.status(401).json({ error: 'Non autorisé' });
+const requireControleur  = (req, res, next) => (req.session.controleurId   || req.session.isAdmin) ? next() : res.status(401).json({ error: 'Non autorisé' });
 // ── RBAC — rôles : super_admin · admin_partenaire · apporteur ─────────────────
 function sessionRole(req) { return req.session.isAdmin ? 'super_admin' : (req.session.role || null); }
 function requireRole(...roles) {
@@ -4130,6 +4135,14 @@ app.get('/api/admin/delegataires', requireAdmin, (req, res) => {
 // Liste complète délégataires (pour activer un compte existant)
 app.get('/api/admin/delegataires-all', requireAdmin, (req, res) => {
   db.all(`SELECT id, nom FROM delegataires ORDER BY nom LIMIT 500`, [],
+    (e, r) => e ? res.status(500).json({ error: e.message }) : res.json(r || []));
+});
+// Liste comptes mandataires (admin_partenaire en priorité)
+app.get('/api/admin/partenaires-list', requireAdmin, (req, res) => {
+  db.all(`SELECT c.id, c.nom, c.email, c.role, p.nom AS partenaire_nom
+          FROM comptes c LEFT JOIN partenaires p ON p.id=c.partenaire_id
+          WHERE c.actif=1
+          ORDER BY CASE WHEN c.role='admin_partenaire' THEN 0 ELSE 1 END, c.created_at DESC LIMIT 100`, [],
     (e, r) => e ? res.status(500).json({ error: e.message }) : res.json(r || []));
 });
 

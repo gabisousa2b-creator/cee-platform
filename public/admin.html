@@ -567,6 +567,21 @@
       <div class="nav-item-s" data-section="devis" onclick="showSection('devis')"><i class="fas fa-file-invoice-dollar fa-fw"></i> Devis &amp; Factures</div>
       <div class="nav-item-s" data-section="biblio_fiches" id="navBiblio" onclick="showSection('biblio_fiches')"><i class="fas fa-book-open fa-fw"></i> Bibliothèque de fiches</div>
       <div class="nav-item-s" data-section="veille" onclick="showSection('veille')"><i class="fas fa-radar fa-fw"></i> Veille réglementaire</div>
+      <div class="sidebar-section-label" style="margin-top:10px">Super-admin</div>
+      <div class="nav-item-s" onclick="window.location='/admin-roles'"><i class="fas fa-users-cog fa-fw"></i> Gestion des rôles</div>
+      <div class="nav-item-s" onclick="window.location='/kanban'"><i class="fas fa-columns fa-fw"></i> Pipeline Kanban</div>
+      <div class="nav-item-s" onclick="window.location='/carte'"><i class="fas fa-map-location-dot fa-fw"></i> Cartographie</div>
+      <div class="nav-item-s" onclick="window.location='/elearning'"><i class="fas fa-graduation-cap fa-fw"></i> Centre d'apprentissage</div>
+      <div class="sidebar-section-label" style="margin-top:10px">Tous les espaces</div>
+      <div class="nav-item-s" onclick="quickImp('mandataire')"><i class="fas fa-building fa-fw" style="color:#2E7EF4"></i> Espace mandataire</div>
+      <div class="nav-item-s" onclick="quickImp('oblige')"><i class="fas fa-shield-halved fa-fw" style="color:#7c3aed"></i> Espace obligé</div>
+      <div class="nav-item-s" onclick="quickImp('delegataire')"><i class="fas fa-stamp fa-fw" style="color:#16a34a"></i> Espace délégataire</div>
+      <div class="nav-item-s" onclick="quickImp('installateur')"><i class="fas fa-hard-hat fa-fw" style="color:#ea580c"></i> Espace installateur</div>
+      <div class="nav-item-s" onclick="quickImp('controleur')"><i class="fas fa-clipboard-check fa-fw" style="color:#0891b2"></i> Espace contrôleur</div>
+      <div class="nav-item-s" onclick="window.location='/beneficiaire'"><i class="fas fa-user fa-fw" style="color:#475569"></i> Espace bénéficiaire</div>
+      <div class="sidebar-section-label" style="margin-top:10px">Exports</div>
+      <div class="nav-item-s" onclick="window.location='/api/admin/export/dossiers.csv'"><i class="fas fa-file-csv fa-fw"></i> Export CSV dossiers</div>
+      <div class="nav-item-s" onclick="window.location='/api/admin/backup'"><i class="fas fa-database fa-fw"></i> Backup DB</div>
     </nav>
     <div class="sidebar-footer">
       <button class="btn btn-sm btn-outline-secondary w-100" onclick="logout()"><i class="fas fa-right-from-bracket me-2"></i>Déconnexion</button>
@@ -4043,5 +4058,29 @@ dropZone.addEventListener('drop', e => {
 });
 </script>
 <script src="/js/ew-chat.js" defer></script>
+<script>
+// Super-admin : impersonate rapide du premier compte d'un rôle
+window.quickImp = async function (role) {
+  const endpoints = {
+    mandataire: '/api/admin/partenaires-list',
+    oblige: '/api/admin/obliges',
+    delegataire: '/api/admin/delegataires',
+    installateur: '/api/admin/installateurs',
+    controleur: '/api/admin/controleurs',
+  };
+  try {
+    const r = await fetch(endpoints[role]);
+    if (!r.ok) return alert('Liste indisponible');
+    const rows = await r.json();
+    if (!rows.length) return alert('Aucun compte ' + role + '. Crée-en un via /admin-roles');
+    // Pour mandataire, l'endpoint partenaires-list peut ne pas exister → choisis dans /admin-roles
+    let id = rows[0].id;
+    const ir = await fetch('/api/admin/impersonate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role, id }) });
+    const j = await ir.json();
+    if (!ir.ok) return alert(j.error || 'Erreur impersonate');
+    location.href = j.redirect;
+  } catch (e) { alert('Erreur : ' + e.message); }
+};
+</script>
 </body>
 </html>
