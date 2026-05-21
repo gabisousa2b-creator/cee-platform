@@ -552,7 +552,7 @@
       </div>
       <div class="sidebar-section-label" style="margin-top:10px">Suivi des dossiers</div>
       <div class="nav-item-s" data-section="beneficiaires" onclick="showSection('beneficiaires')"><i class="fas fa-users fa-fw"></i> Bénéficiaires</div>
-      <div class="nav-item-s" data-section="partenaires" onclick="showSection('partenaires')"><i class="fas fa-handshake fa-fw"></i> Partenaires</div>
+      <div class="nav-item-s" data-section="partenaires_unifie" onclick="showSection('partenaires_unifie'); loadPU();"><i class="fas fa-handshake fa-fw"></i> Partenaires</div>
       <div class="sidebar-section-label" style="margin-top:10px">Catalogues</div>
       <div class="nav-item-s" data-section="operations" onclick="showSection('operations')"><i class="fas fa-bolt fa-fw"></i> Opérations CEE</div>
       <div class="nav-item-s" data-section="materiel" onclick="showSection('materiel')"><i class="fas fa-boxes-stacked fa-fw"></i> Catalogue matériel</div>
@@ -568,7 +568,6 @@
       <div class="nav-item-s" data-section="biblio_fiches" id="navBiblio" onclick="showSection('biblio_fiches')"><i class="fas fa-book-open fa-fw"></i> Bibliothèque de fiches</div>
       <div class="nav-item-s" data-section="veille" onclick="showSection('veille')"><i class="fas fa-radar fa-fw"></i> Veille réglementaire</div>
       <div class="sidebar-section-label" style="margin-top:10px">Super-admin</div>
-      <div class="nav-item-s" data-section="partenaires_unifie" onclick="showSection('partenaires_unifie'); loadPU();" style="background:rgba(46,126,244,.08);color:var(--accent)"><i class="fas fa-users fa-fw"></i> Tous les partenaires</div>
       <div class="nav-item-s" onclick="window.location='/kanban'"><i class="fas fa-columns fa-fw"></i> Pipeline Kanban</div>
       <div class="nav-item-s" onclick="window.location='/carte'"><i class="fas fa-map-location-dot fa-fw"></i> Cartographie</div>
       <div class="nav-item-s" onclick="window.location='/elearning'"><i class="fas fa-graduation-cap fa-fw"></i> Centre d'apprentissage</div>
@@ -2059,7 +2058,8 @@ function showSection(name) {
   if (name === 'biblio_fiches')  loadBiblioFiches();
   if (name === 'veille')         loadVeilleLogs();
   if (name === 'devis')          loadDevisAdmin();
-  if (name === 'partenaires')    loadPartenaires();
+  if (name === 'partenaires')        loadPartenaires();
+  if (name === 'partenaires_unifie') typeof loadPU === 'function' && loadPU();
 }
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
