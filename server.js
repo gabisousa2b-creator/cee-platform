@@ -3999,6 +3999,110 @@ app.get('/api/tools/materiel', (req, res) => {
   ]);
 });
 
+// Chat assistant Claude — partagé par tous les profils, contextualisé par rôle
+const ROLE_SYSTEMS = {
+  mandataire:   "Tu es l'assistant CEE d'un MANDATAIRE / APPORTEUR sur la plateforme EchoWAI. Aide à : qualifier un gisement, choisir la bonne fiche CEE, estimer une prime, monter un dossier, gérer la relation bénéficiaire.",
+  oblige:       "Tu es l'assistant CEE d'un OBLIGÉ (fournisseur d'énergie). Aide à : interpréter les volumes, prioriser les dossiers à valider, calculer la pénalité libératoire, suivre l'obligation 5e période.",
+  delegataire:  "Tu es l'assistant CEE d'un DÉLÉGATAIRE. Aide à : optimiser le portefeuille, négocier les prix MWhc, gérer la conformité agrément, préparer le bilan ADEME.",
+  installateur: "Tu es l'assistant CEE d'un INSTALLATEUR RGE. Aide à : choisir la fiche éligible, rédiger un devis conforme, justifier les pièces, anticiper un contrôle in-situ.",
+  controleur:   "Tu es l'assistant CEE d'un CONTRÔLEUR (organisme COFRAC). Aide à : préparer une visite, rédiger un rapport ISO 17020, identifier les non-conformités courantes.",
+  beneficiaire: "Tu es l'assistant CEE d'un BÉNÉFICIAIRE (particulier ou entreprise). Aide à : comprendre la prime, savoir quoi déposer, suivre le statut du dossier, expliquer le dispositif simplement.",
+  admin:        "Tu es l'assistant CEE de l'ADMIN EchoWAI. Aide à : piloter la plateforme, analyser les KPIs, identifier les anomalies, suivre la conformité globale.",
+};
+function _detectRole(req) {
+  if (req.session.isAdmin)        return 'admin';
+  if (req.session.compteId)       return 'mandataire';
+  if (req.session.obligeId)       return 'oblige';
+  if (req.session.delegataireId)  return 'delegataire';
+  if (req.session.installateurId) return 'installateur';
+  if (req.session.controleurId)   return 'controleur';
+  if (req.session.beneficiaireId) return 'beneficiaire';
+  return null;
+}
+app.post('/api/ai/chat', async (req, res) => {
+  const role = _detectRole(req);
+  if (!role) return res.status(401).json({ error: 'Non autorisé' });
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(400).json({ error: 'Clé API Anthropic non configurée' });
+  const { messages } = req.body || {};
+  if (!Array.isArray(messages) || !messages.length) return res.status(400).json({ error: 'messages requis' });
+  try {
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const baseSystem = ROLE_SYSTEMS[role] || ROLE_SYSTEMS.beneficiaire;
+    const sys = `${baseSystem}\n\nRéponds de manière concise, précise et opérationnelle. Cite les codes fiches (BAR-TH-104, BAR-EN-101…), arrêtés, périodes CEE quand pertinent. Si tu n'es pas certain, dis-le.`;
+    const r = await client.messages.create({
+      model: 'claude-opus-4-5', max_tokens: 800, system: sys,
+      messages: messages.slice(-12).map(m => ({ role: m.role, content: m.content })),
+    });
+    res.json({ content: r.content[0].text, role });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Recherche globale (admin seulement) : dossiers + bénéficiaires + partenaires
+app.get('/api/admin/search', requireAdmin, (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) return res.json({ results: [] });
+  const like = '%' + q + '%';
+  const out = { dossiers: [], partenaires: [], obliges: [], delegataires: [], installateurs: [] };
+  const tasks = [
+    cb => db.all(`SELECT id, code, nom, prenom, raison_sociale, ville FROM beneficiaires
+                  WHERE code LIKE ? OR nom LIKE ? OR prenom LIKE ? OR raison_sociale LIKE ? OR ville LIKE ?
+                  LIMIT 10`, [like, like, like, like, like],
+                  (e, r) => { out.dossiers = r || []; cb(); }),
+    cb => db.all(`SELECT id, nom, login_email FROM partenaires WHERE nom LIKE ? OR login_email LIKE ? LIMIT 10`,
+                  [like, like], (e, r) => { out.partenaires = r || []; cb(); }),
+    cb => db.all(`SELECT id, raison_sociale, email FROM obliges WHERE raison_sociale LIKE ? OR email LIKE ? LIMIT 10`,
+                  [like, like], (e, r) => { out.obliges = r || []; cb(); }),
+    cb => db.all(`SELECT id, nom, email FROM delegataires WHERE nom LIKE ? OR email LIKE ? LIMIT 10`,
+                  [like, like], (e, r) => { out.delegataires = r || []; cb(); }),
+    cb => db.all(`SELECT id, raison_sociale, email FROM installateurs WHERE raison_sociale LIKE ? OR email LIKE ? LIMIT 10`,
+                  [like, like], (e, r) => { out.installateurs = r || []; cb(); }),
+  ];
+  let done = 0;
+  tasks.forEach(t => t(() => { if (++done === tasks.length) res.json(out); }));
+});
+
+// Admin management : liste / création / activation des installateurs + contrôleurs
+app.get('/api/admin/installateurs', requireAdmin, (req, res) => {
+  db.all(`SELECT id, raison_sociale, siret, rge_numero, rge_organisme, email, actif, last_login, created_at
+          FROM installateurs ORDER BY raison_sociale`, [],
+    (e, r) => e ? res.status(500).json({ error: e.message }) : res.json(r || []));
+});
+app.post('/api/admin/installateurs', requireAdmin, (req, res) => {
+  const { raison_sociale, email, password, siret, rge_numero, rge_organisme } = req.body || {};
+  if (!raison_sociale || !email || !password) return res.status(400).json({ error: 'rs/email/password requis' });
+  db.run(`INSERT INTO installateurs (raison_sociale, email, password_hash, siret, rge_numero, rge_organisme)
+          VALUES (?,?,?,?,?,?)`,
+    [raison_sociale, String(email).toLowerCase().trim(), hashPassword(password),
+     siret || '', rge_numero || '', rge_organisme || ''],
+    function (e) { e ? res.status(400).json({ error: e.message }) : res.json({ success: true, id: this.lastID }); });
+});
+app.get('/api/admin/controleurs', requireAdmin, (req, res) => {
+  db.all(`SELECT id, raison_sociale, siret, accreditation_no, email, actif, last_login, created_at
+          FROM controleurs ORDER BY raison_sociale`, [],
+    (e, r) => e ? res.status(500).json({ error: e.message }) : res.json(r || []));
+});
+app.post('/api/admin/controleurs', requireAdmin, (req, res) => {
+  const { raison_sociale, email, password, siret, accreditation_no } = req.body || {};
+  if (!raison_sociale || !email || !password) return res.status(400).json({ error: 'rs/email/password requis' });
+  db.run(`INSERT INTO controleurs (raison_sociale, email, password_hash, siret, accreditation_no)
+          VALUES (?,?,?,?,?)`,
+    [raison_sociale, String(email).toLowerCase().trim(), hashPassword(password),
+     siret || '', accreditation_no || ''],
+    function (e) { e ? res.status(400).json({ error: e.message }) : res.json({ success: true, id: this.lastID }); });
+});
+app.get('/api/admin/delegataires', requireAdmin, (req, res) => {
+  db.all(`SELECT id, nom, siret, email, compte_actif, last_login, created_at
+          FROM delegataires WHERE compte_actif=1 ORDER BY nom`, [],
+    (e, r) => e ? res.status(500).json({ error: e.message }) : res.json(r || []));
+});
+app.post('/api/admin/delegataires/:id/activer', requireAdmin, (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: 'email+password requis' });
+  db.run(`UPDATE delegataires SET email=?, password_hash=?, compte_actif=1 WHERE id=?`,
+    [String(email).toLowerCase().trim(), hashPassword(password), req.params.id],
+    function (e) { e ? res.status(500).json({ error: e.message }) : res.json({ success: true }); });
+});
+
 // Génération AH automatique (Attestation sur l'Honneur) — PDF pour un dossier
 app.get('/api/dossier/:id/ah.pdf', (req, res) => {
   const PDFDocument = require('pdfkit');
