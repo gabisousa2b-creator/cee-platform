@@ -274,6 +274,8 @@ app.get('/mandataire', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'mandata
 app.get('/terrain', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'terrain.html')));
 // Centre d'apprentissage CEE
 app.get('/elearning', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'elearning.html')));
+// Admin — page de gestion des rôles
+app.get('/admin-roles', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'admin-roles.html')));
 // Cartographie dossiers
 app.get('/carte',     (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'carte.html')));
 // Pipeline Kanban
@@ -4061,6 +4063,36 @@ app.get('/api/admin/search', requireAdmin, (req, res) => {
   tasks.forEach(t => t(() => { if (++done === tasks.length) res.json(out); }));
 });
 
+// Backup : export DB SQLite + index uploads (JSON) — pour sauvegarde admin
+app.get('/api/admin/backup', requireAdmin, (req, res) => {
+  const dbPath = path.join(__dirname, 'data', 'cee.db');
+  if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'DB introuvable' });
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('Content-Disposition', `attachment; filename="cee-backup-${new Date().toISOString().slice(0,10)}.db"`);
+  fs.createReadStream(dbPath).pipe(res);
+});
+// Export CSV global dossiers (pour comptable)
+app.get('/api/admin/export/dossiers.csv', requireAdmin, (req, res) => {
+  db.all(`SELECT b.code, b.nom, b.prenom, b.raison_sociale, b.siret, b.code_postal, b.ville,
+                 b.statut, b.created_at, b.partenaire,
+                 COALESCE(SUM(o.volume_kwh), 0)     AS volume_cumac,
+                 COALESCE(SUM(o.prime_negociee), 0) AS prime_negociee,
+                 b.oblige_statut, b.delegataire_statut, b.installateur_statut, b.controleur_statut
+          FROM beneficiaires b
+          LEFT JOIN cee_operations o ON o.beneficiaire_id = b.id
+          WHERE b.archived = 0
+          GROUP BY b.id ORDER BY b.created_at DESC`, [], (e, rows) => {
+    if (e) return res.status(500).send('Erreur');
+    const csv = [
+      'code;nom;prenom;raison_sociale;siret;cp;ville;statut;date;partenaire;volume_cumac;prime;oblige;delegataire;installateur;controleur',
+      ...(rows || []).map(r => [r.code, r.nom, r.prenom, r.raison_sociale, r.siret, r.code_postal, r.ville, r.statut, r.created_at, r.partenaire, r.volume_cumac, r.prime_negociee, r.oblige_statut, r.delegataire_statut, r.installateur_statut, r.controleur_statut].map(v => `"${(v||'').toString().replace(/"/g,'""')}"`).join(';'))
+    ].join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="dossiers-${new Date().toISOString().slice(0,10)}.csv"`);
+    res.send('﻿' + csv); // BOM utf-8 pour Excel
+  });
+});
+
 // Admin management : liste / création / activation des installateurs + contrôleurs
 app.get('/api/admin/installateurs', requireAdmin, (req, res) => {
   db.all(`SELECT id, raison_sociale, siret, rge_numero, rge_organisme, email, actif, last_login, created_at
@@ -4093,6 +4125,11 @@ app.post('/api/admin/controleurs', requireAdmin, (req, res) => {
 app.get('/api/admin/delegataires', requireAdmin, (req, res) => {
   db.all(`SELECT id, nom, siret, email, compte_actif, last_login, created_at
           FROM delegataires WHERE compte_actif=1 ORDER BY nom`, [],
+    (e, r) => e ? res.status(500).json({ error: e.message }) : res.json(r || []));
+});
+// Liste complète délégataires (pour activer un compte existant)
+app.get('/api/admin/delegataires-all', requireAdmin, (req, res) => {
+  db.all(`SELECT id, nom FROM delegataires ORDER BY nom LIMIT 500`, [],
     (e, r) => e ? res.status(500).json({ error: e.message }) : res.json(r || []));
 });
 app.post('/api/admin/delegataires/:id/activer', requireAdmin, (req, res) => {
@@ -4479,6 +4516,10 @@ app.post('/api/oblige/dossiers/:id/valider', requireOblige, (req, res) => {
     [req.params.id, req.session.obligeId], function (e) {
       if (e) return res.status(500).json({ error: e.message });
       if (!this.changes) return res.status(404).json({ error: 'Dossier introuvable' });
+      // Cross-role notif : informer le mandataire
+      db.get('SELECT code, compte_id, partenaire_id FROM beneficiaires WHERE id=?', [req.params.id], (e2, b) => {
+        if (b && b.compte_id) _enqueueNotif({ audience_type: 'mandataire', audience_id: b.compte_id, titre: '✅ Prime validée par l\'obligé', message: 'Dossier ' + b.code + ' validé. Versement en cours de planification.', type: 'success', url: '/partenaire.html' });
+      });
       res.json({ success: true });
     });
 });
@@ -4491,6 +4532,10 @@ app.post('/api/oblige/dossiers/:id/refuser', requireOblige, (req, res) => {
     [motif, req.params.id, req.session.obligeId], function (e) {
       if (e) return res.status(500).json({ error: e.message });
       if (!this.changes) return res.status(404).json({ error: 'Dossier introuvable' });
+      // Cross-role notif : mandataire avec motif
+      db.get('SELECT code, compte_id FROM beneficiaires WHERE id=?', [req.params.id], (e2, b) => {
+        if (b && b.compte_id) _enqueueNotif({ audience_type: 'mandataire', audience_id: b.compte_id, titre: '❌ Dossier refusé', message: 'Dossier ' + b.code + ' : ' + (motif || 'motif non précisé'), type: 'error', url: '/partenaire.html' });
+      });
       res.json({ success: true });
     });
 });

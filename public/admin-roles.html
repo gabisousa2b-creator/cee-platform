@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EchoWAI Admin — Gestion des rôles</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="manifest" href="/site.webmanifest" />
+<meta name="theme-color" content="#2E7EF4" />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="/css/echowai.css">
+<style>
+  body { font-family: 'Bricolage Grotesque', system-ui; background: #f1f5f9; color: var(--ink, #0a1f3d); margin: 0; }
+  .topbar { background: #fff; padding: 14px 28px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; border-bottom: 1px solid rgba(10,31,61,.08); }
+  .topbar .ew-logo { grid-column: 2; justify-self: center; font-size: 1.35rem; }
+  .topbar .right { grid-column: 3; justify-self: end; display: flex; gap: 14px; align-items: center; }
+  .btn-back { background: #fff; border: 1px solid rgba(10,31,61,.16); border-radius: 8px; padding: 7px 12px; font-size: 12px; color: #475569; text-decoration: none; }
+  .container { padding: 32px 28px; max-width: 1240px; margin: 0 auto; }
+  h1 { font-size: 30px; letter-spacing: -.02em; font-weight: 500; margin: 0 0 6px; }
+  .lead { color: #475569; font-size: 14px; margin: 0 0 28px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 22px; flex-wrap: wrap; }
+  .tabs button { background: #fff; border: 1px solid rgba(10,31,61,.12); border-radius: 999px; padding: 8px 16px; font-size: 12.5px; font-family: 'IBM Plex Mono', monospace; font-weight: 600; cursor: pointer; color: #475569; }
+  .tabs button.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .card { background: #fff; border: 1px solid rgba(10,31,61,.08); border-radius: 14px; padding: 24px; margin-bottom: 18px; }
+  .card h2 { font-size: 16px; font-weight: 600; margin: 0 0 14px; letter-spacing: -.01em; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .form-grid input, .form-grid select { padding: 9px 12px; border-radius: 8px; border: 1px solid rgba(10,31,61,.12); font-size: 13px; font-family: inherit; }
+  .form-grid input:focus, .form-grid select:focus { outline: none; border-color: var(--accent, #2E7EF4); box-shadow: 0 0 0 3px rgba(46,126,244,.13); }
+  .btn-pri { background: linear-gradient(135deg, var(--accent, #2E7EF4), #5BA0FF); color: #fff; border: 0; padding: 9px 18px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; }
+  .btn-pri:hover { transform: translateY(-1px); box-shadow: 0 12px 24px -10px rgba(46,126,244,.4); }
+  table.list { width: 100%; border-collapse: separate; border-spacing: 0; }
+  table.list th { background: #f6f3eb; padding: 10px 12px; text-align: left; font-family: 'IBM Plex Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; font-weight: 600; }
+  table.list td { padding: 10px 12px; font-size: 13px; border-top: 1px solid rgba(10,31,61,.06); }
+  table.list tr:hover td { background: #fafaf6; }
+  .pill { display: inline-flex; padding: 3px 8px; border-radius: 999px; font-size: 10.5px; font-family: 'IBM Plex Mono', monospace; font-weight: 600; }
+  .pill.on { background: #dcfce7; color: #166534; }
+  .pill.off { background: #fee2e2; color: #991b1b; }
+  .err { color: #991b1b; font-size: 12.5px; }
+  .ok  { color: #166534; font-size: 12.5px; }
+  .hidden { display: none !important; }
+  .search-wrap { background: #fff; border: 1px solid rgba(10,31,61,.08); border-radius: 12px; padding: 14px 18px; margin-bottom: 22px; display: flex; gap: 12px; align-items: center; }
+  .search-wrap input { flex: 1; border: 0; outline: 0; font-size: 14px; padding: 8px 0; font-family: inherit; }
+  .search-results { margin-top: 12px; }
+  .search-results .grp { font-family: 'IBM Plex Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: #94a3b8; margin: 14px 0 6px; }
+  .search-results .item { padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+  .search-results .item:hover { background: #f1f5f9; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div></div>
+  <span class="ew-logo">echo<b>wai</b><i></i></span>
+  <div class="right">
+    <span class="ew-notif-host"></span>
+    <a class="btn-back" href="/admin.html"><i class="fas fa-arrow-left me-1"></i>Admin EchoWAI</a>
+  </div>
+</div>
+
+<div class="container">
+  <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;color:#94a3b8;text-transform:uppercase">Administration</div>
+  <h1>Gestion des rôles & comptes</h1>
+  <p class="lead">Créer, activer et gérer les comptes des Obligés, Délégataires, Installateurs et Contrôleurs sur la plateforme.</p>
+
+  <div class="search-wrap">
+    <i class="fas fa-search" style="color:#94a3b8"></i>
+    <input id="searchBox" placeholder="Recherche globale (dossier, code, RS, email…)" autocomplete="off">
+  </div>
+  <div id="searchResults" class="search-results"></div>
+
+  <div class="tabs">
+    <button class="active" data-tab="obliges">Obligés</button>
+    <button data-tab="delegataires">Délégataires</button>
+    <button data-tab="installateurs">Installateurs (RGE)</button>
+    <button data-tab="controleurs">Contrôleurs (COFRAC)</button>
+  </div>
+
+  <!-- Obligés -->
+  <div id="tab-obliges">
+    <div class="card">
+      <h2>Créer un Obligé</h2>
+      <div class="form-grid">
+        <input id="o-rs" placeholder="Raison sociale">
+        <input id="o-siret" placeholder="SIRET">
+        <input id="o-email" type="email" placeholder="Email">
+        <input id="o-pwd" type="password" placeholder="Mot de passe">
+        <select id="o-type"><option value="energie">Énergie</option><option value="carburant">Carburant</option></select>
+        <input id="o-kwhc" type="number" placeholder="Obligation kWhc/an">
+      </div>
+      <button class="btn-pri" id="o-add">Créer le compte Obligé</button>
+      <span id="o-msg" class="ok ms-3"></span>
+    </div>
+    <div class="card"><h2>Comptes Obligés</h2><div id="o-list">…</div></div>
+  </div>
+
+  <!-- Délégataires -->
+  <div id="tab-delegataires" class="hidden">
+    <div class="card">
+      <h2>Activer un compte Délégataire</h2>
+      <p style="font-size:13px;color:#475569">Le délégataire doit déjà exister dans la base (annuaire). Sélectionne-le et active ses identifiants.</p>
+      <div class="form-grid">
+        <select id="d-id"></select>
+        <input id="d-email" type="email" placeholder="Email">
+        <input id="d-pwd" type="password" placeholder="Mot de passe">
+      </div>
+      <button class="btn-pri" id="d-act">Activer</button>
+      <span id="d-msg" class="ok ms-3"></span>
+    </div>
+    <div class="card"><h2>Comptes Délégataires actifs</h2><div id="d-list">…</div></div>
+  </div>
+
+  <!-- Installateurs -->
+  <div id="tab-installateurs" class="hidden">
+    <div class="card">
+      <h2>Créer un Installateur RGE</h2>
+      <div class="form-grid">
+        <input id="i-rs" placeholder="Raison sociale">
+        <input id="i-siret" placeholder="SIRET">
+        <input id="i-email" type="email" placeholder="Email">
+        <input id="i-pwd" type="password" placeholder="Mot de passe">
+        <input id="i-rge" placeholder="N° RGE">
+        <select id="i-org">
+          <option value="Qualibat">Qualibat</option>
+          <option value="Qualifelec">Qualifelec</option>
+          <option value="Qualit'EnR">Qualit'EnR</option>
+          <option value="Qualiclimafroid">Qualiclimafroid</option>
+        </select>
+      </div>
+      <button class="btn-pri" id="i-add">Créer + vérifier RGE</button>
+      <span id="i-msg" class="ok ms-3"></span>
+    </div>
+    <div class="card"><h2>Installateurs RGE</h2><div id="i-list">…</div></div>
+  </div>
+
+  <!-- Contrôleurs -->
+  <div id="tab-controleurs" class="hidden">
+    <div class="card">
+      <h2>Créer un Contrôleur COFRAC</h2>
+      <div class="form-grid">
+        <input id="c-rs" placeholder="Raison sociale">
+        <input id="c-siret" placeholder="SIRET">
+        <input id="c-email" type="email" placeholder="Email">
+        <input id="c-pwd" type="password" placeholder="Mot de passe">
+        <input id="c-acc" placeholder="N° accréditation COFRAC">
+      </div>
+      <button class="btn-pri" id="c-add">Créer le compte Contrôleur</button>
+      <span id="c-msg" class="ok ms-3"></span>
+    </div>
+    <div class="card"><h2>Contrôleurs COFRAC</h2><div id="c-list">…</div></div>
+  </div>
+</div>
+
+<script src="/js/ew-emmy.js" defer></script>
+<script src="/js/ew-notif.js" defer></script>
+<script src="/js/ew-chat.js" defer></script>
+<script>
+const $ = s => document.querySelector(s);
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m])); }
+function fmt(d) { return d ? new Date(d).toLocaleDateString('fr-FR') : '—'; }
+
+// Tabs
+document.querySelectorAll('.tabs button').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    ['obliges','delegataires','installateurs','controleurs'].forEach(t => {
+      $('#tab-'+t).classList.toggle('hidden', t !== b.dataset.tab);
+    });
+  });
+});
+
+// ── Obligés ──
+async function loadOb() {
+  const r = await fetch('/api/admin/obliges');
+  if (!r.ok) { $('#o-list').innerHTML = '<div class="err">Connexion admin requise — <a href="/admin.html">se connecter</a></div>'; return; }
+  const rows = await r.json();
+  $('#o-list').innerHTML = '<table class="list"><thead><tr><th>Raison sociale</th><th>SIRET</th><th>Type</th><th>Obligation</th><th>Email</th><th>Statut</th></tr></thead><tbody>'
+    + rows.map(o => '<tr><td><strong>'+esc(o.raison_sociale)+'</strong></td><td>'+esc(o.siret)+'</td><td>'+esc(o.type)+'</td><td>'+Math.round((o.kwhc_obligation_annuelle||0)/1e6)+' GWhc</td><td>'+esc(o.email)+'</td><td><span class="pill '+(o.actif?'on':'off')+'">'+(o.actif?'Actif':'Inactif')+'</span></td></tr>').join('') + '</tbody></table>';
+}
+$('#o-add').addEventListener('click', async () => {
+  const body = { raison_sociale: $('#o-rs').value.trim(), siret: $('#o-siret').value.trim(), email: $('#o-email').value.trim(), password: $('#o-pwd').value, type: $('#o-type').value, kwhc_obligation_annuelle: parseFloat($('#o-kwhc').value)||0 };
+  const r = await fetch('/api/admin/obliges', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const j = await r.json();
+  $('#o-msg').textContent = r.ok ? '✓ créé' : (j.error || 'erreur');
+  if (r.ok) { ['o-rs','o-siret','o-email','o-pwd','o-kwhc'].forEach(id => $('#'+id).value = ''); loadOb(); }
+});
+
+// ── Délégataires ──
+async function loadDe() {
+  const r = await fetch('/api/admin/delegataires');
+  if (r.ok) {
+    const rows = await r.json();
+    $('#d-list').innerHTML = '<table class="list"><thead><tr><th>Nom</th><th>SIRET</th><th>Email</th><th>Dernière connexion</th></tr></thead><tbody>'
+      + rows.map(o => '<tr><td><strong>'+esc(o.nom)+'</strong></td><td>'+esc(o.siret)+'</td><td>'+esc(o.email)+'</td><td>'+fmt(o.last_login)+'</td></tr>').join('') + '</tbody></table>';
+  }
+  // Liste complète pour activer
+  const all = await (await fetch('/api/admin/delegataires-all').catch(()=>({json:()=>[]}))).json().catch(()=>[]);
+  $('#d-id').innerHTML = '<option value="">— Choisir un délégataire —</option>' +
+    (Array.isArray(all)?all:[]).map(d => '<option value="'+d.id+'">'+esc(d.nom)+'</option>').join('');
+}
+$('#d-act').addEventListener('click', async () => {
+  const id = $('#d-id').value; if (!id) return;
+  const r = await fetch('/api/admin/delegataires/'+id+'/activer', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: $('#d-email').value.trim(), password: $('#d-pwd').value }) });
+  const j = await r.json();
+  $('#d-msg').textContent = r.ok ? '✓ activé' : (j.error || 'erreur');
+  if (r.ok) { $('#d-email').value = ''; $('#d-pwd').value = ''; loadDe(); }
+});
+
+// ── Installateurs ──
+async function loadIn() {
+  const r = await fetch('/api/admin/installateurs');
+  if (r.ok) {
+    const rows = await r.json();
+    $('#i-list').innerHTML = '<table class="list"><thead><tr><th>Raison sociale</th><th>SIRET</th><th>RGE</th><th>Email</th><th>Statut</th></tr></thead><tbody>'
+      + rows.map(o => '<tr><td><strong>'+esc(o.raison_sociale)+'</strong></td><td>'+esc(o.siret)+'</td><td>'+esc(o.rge_organisme||'—')+' '+esc(o.rge_numero||'')+'</td><td>'+esc(o.email)+'</td><td><span class="pill '+(o.actif?'on':'off')+'">'+(o.actif?'Actif':'Inactif')+'</span></td></tr>').join('') + '</tbody></table>';
+  }
+}
+$('#i-add').addEventListener('click', async () => {
+  const body = { raison_sociale: $('#i-rs').value.trim(), siret: $('#i-siret').value.trim(), email: $('#i-email').value.trim(), password: $('#i-pwd').value, rge_numero: $('#i-rge').value.trim(), rge_organisme: $('#i-org').value };
+  const r = await fetch('/api/admin/installateurs', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const j = await r.json();
+  $('#i-msg').textContent = r.ok ? '✓ créé (RGE check en arrière-plan)' : (j.error || 'erreur');
+  if (r.ok) { ['i-rs','i-siret','i-email','i-pwd','i-rge'].forEach(id => $('#'+id).value = ''); loadIn(); }
+});
+
+// ── Contrôleurs ──
+async function loadCt() {
+  const r = await fetch('/api/admin/controleurs');
+  if (r.ok) {
+    const rows = await r.json();
+    $('#c-list').innerHTML = '<table class="list"><thead><tr><th>Raison sociale</th><th>SIRET</th><th>Accréd. COFRAC</th><th>Email</th><th>Statut</th></tr></thead><tbody>'
+      + rows.map(o => '<tr><td><strong>'+esc(o.raison_sociale)+'</strong></td><td>'+esc(o.siret)+'</td><td>'+esc(o.accreditation_no)+'</td><td>'+esc(o.email)+'</td><td><span class="pill '+(o.actif?'on':'off')+'">'+(o.actif?'Actif':'Inactif')+'</span></td></tr>').join('') + '</tbody></table>';
+  }
+}
+$('#c-add').addEventListener('click', async () => {
+  const body = { raison_sociale: $('#c-rs').value.trim(), siret: $('#c-siret').value.trim(), email: $('#c-email').value.trim(), password: $('#c-pwd').value, accreditation_no: $('#c-acc').value.trim() };
+  const r = await fetch('/api/admin/controleurs', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const j = await r.json();
+  $('#c-msg').textContent = r.ok ? '✓ créé' : (j.error || 'erreur');
+  if (r.ok) { ['c-rs','c-siret','c-email','c-pwd','c-acc'].forEach(id => $('#'+id).value = ''); loadCt(); }
+});
+
+// ── Recherche globale ──
+let searchT = null;
+$('#searchBox').addEventListener('input', (e) => {
+  clearTimeout(searchT);
+  const q = e.target.value.trim();
+  if (q.length < 2) { $('#searchResults').innerHTML = ''; return; }
+  searchT = setTimeout(async () => {
+    const r = await fetch('/api/admin/search?q=' + encodeURIComponent(q));
+    if (!r.ok) return;
+    const o = await r.json();
+    let html = '';
+    if (o.dossiers && o.dossiers.length) html += '<div class="grp">Dossiers</div>' + o.dossiers.map(d => `<div class="item"><strong>${esc(d.code)}</strong> · ${esc(d.raison_sociale || (d.nom+' '+d.prenom))} · ${esc(d.ville || '')}</div>`).join('');
+    if (o.partenaires && o.partenaires.length) html += '<div class="grp">Partenaires</div>' + o.partenaires.map(d => `<div class="item">${esc(d.nom)} · ${esc(d.login_email)}</div>`).join('');
+    if (o.obliges && o.obliges.length) html += '<div class="grp">Obligés</div>' + o.obliges.map(d => `<div class="item">${esc(d.raison_sociale)} · ${esc(d.email)}</div>`).join('');
+    if (o.delegataires && o.delegataires.length) html += '<div class="grp">Délégataires</div>' + o.delegataires.map(d => `<div class="item">${esc(d.nom)} · ${esc(d.email)}</div>`).join('');
+    if (o.installateurs && o.installateurs.length) html += '<div class="grp">Installateurs</div>' + o.installateurs.map(d => `<div class="item">${esc(d.raison_sociale)} · ${esc(d.email)}</div>`).join('');
+    $('#searchResults').innerHTML = html || '<div style="color:#94a3b8;padding:12px;font-size:13px;font-style:italic">Aucun résultat.</div>';
+  }, 250);
+});
+
+loadOb(); loadDe(); loadIn(); loadCt();
+</script>
+<script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});</script>
+</body>
+</html>
