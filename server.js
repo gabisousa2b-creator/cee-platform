@@ -113,7 +113,7 @@ db.serialize(() => {
   db.get('SELECT COUNT(*) AS n FROM annonces', (e, r) => {
     if (e || !r || r.n) return;
     const a = db.prepare('INSERT INTO annonces (titre,contenu,niveau) VALUES (?,?,?)');
-    a.run('Bienvenue sur votre espace partenaire EchoWAI', "Votre espace centralise le dépôt des dossiers CEE, le suivi des commissions, les exports EMMY et les outils de communication. Les annonces d'EchoWAI s'afficheront ici.", 'info');
+    a.run('Bienvenue sur votre espace mandataire EchoWAI', "Votre espace centralise le dépôt des dossiers CEE, le suivi des commissions, les exports EMMY et les outils de communication. Les annonces d'EchoWAI s'afficheront ici.", 'info');
     a.run("Catalogue d'opérations", "Le catalogue couvre les 261 fiches d'opérations standardisées des 6 secteurs CEE. Fixez une commission par opération avant de l'affecter à vos apporteurs d'affaires.", 'nouveaute');
     a.run('Rappel — pièces justificatives', "Tout dossier doit comporter le KBIS/RNE, la liasse fiscale et l'attestation de vigilance URSSAF du bénéficiaire pour passer en contrôle.", 'alerte');
     a.finalize();
@@ -3184,7 +3184,7 @@ app.post('/api/partner/dossiers', requireRole('admin_partenaire','apporteur'), (
         function(err) {
           if (err) return res.status(500).json({ error: err.message });
           db.run(`INSERT INTO activity_logs (beneficiaire_id,action,details,auteur) VALUES (?,?,?,?)`,
-            [this.lastID, 'dossier_depose', 'Dossier déposé via l\'espace partenaire', s.compte_nom || s.partenaire_nom]);
+            [this.lastID, 'dossier_depose', 'Dossier déposé via l\'espace mandataire', s.compte_nom || s.partenaire_nom]);
           res.json({ success: true, code });
         });
     } catch(e) { res.status(500).json({ error: e.message }); }
@@ -4131,6 +4131,61 @@ app.get('/api/admin/delegataires', requireAdmin, (req, res) => {
 app.get('/api/admin/delegataires-all', requireAdmin, (req, res) => {
   db.all(`SELECT id, nom FROM delegataires ORDER BY nom LIMIT 500`, [],
     (e, r) => e ? res.status(500).json({ error: e.message }) : res.json(r || []));
+});
+
+// ── Super-admin : impersonate n'importe quel profil ──────────────
+// L'admin garde son flag isAdmin et reçoit en plus la session du profil
+// ciblé. req.session.impersonatingAs note le rôle pour /stop-impersonate.
+const _IMP_REDIRECT = {
+  oblige: '/oblige', delegataire: '/delegataire',
+  installateur: '/installateur', controleur: '/controleur',
+  mandataire: '/partenaire.html', beneficiaire: '/beneficiaire',
+};
+app.post('/api/admin/impersonate', requireAdmin, (req, res) => {
+  const { role, id } = req.body || {};
+  if (!_IMP_REDIRECT[role]) return res.status(400).json({ error: 'Rôle invalide' });
+  const idNum = parseInt(id) || 0;
+  if (!idNum) return res.status(400).json({ error: 'id requis' });
+
+  const tableMap = {
+    oblige: 'obliges', delegataire: 'delegataires',
+    installateur: 'installateurs', controleur: 'controleurs',
+    mandataire: 'comptes', beneficiaire: 'beneficiaires',
+  };
+  const t = tableMap[role];
+  db.get(`SELECT id FROM ${t} WHERE id=?`, [idNum], (e, r) => {
+    if (e) return res.status(500).json({ error: e.message });
+    if (!r) return res.status(404).json({ error: 'Cible introuvable' });
+    if (role === 'oblige')       req.session.obligeId       = idNum;
+    if (role === 'delegataire')  req.session.delegataireId  = idNum;
+    if (role === 'installateur') req.session.installateurId = idNum;
+    if (role === 'controleur')   req.session.controleurId   = idNum;
+    if (role === 'beneficiaire') req.session.beneficiaireId = idNum;
+    if (role === 'mandataire') {
+      db.get(`SELECT id, role, partenaire_id FROM comptes WHERE id=?`, [idNum], (e2, c) => {
+        if (e2 || !c) return res.status(404).json({ error: 'Compte mandataire introuvable' });
+        req.session.compteId = c.id; req.session.role = c.role; req.session.partenaireId = c.partenaire_id;
+        req.session.impersonatingAs = role;
+        res.json({ success: true, redirect: _IMP_REDIRECT[role] });
+      });
+      return;
+    }
+    req.session.impersonatingAs = role;
+    res.json({ success: true, redirect: _IMP_REDIRECT[role] });
+  });
+});
+// Stop impersonation : retire les sessions ciblées, garde isAdmin
+app.post('/api/admin/stop-impersonate', requireAdmin, (req, res) => {
+  delete req.session.obligeId;
+  delete req.session.delegataireId;
+  delete req.session.installateurId;
+  delete req.session.controleurId;
+  delete req.session.beneficiaireId;
+  delete req.session.compteId;
+  delete req.session.role;
+  delete req.session.partenaireId;
+  delete req.session.impersonatingAs;
+  res.json({ success: true });
 });
 app.post('/api/admin/delegataires/:id/activer', requireAdmin, (req, res) => {
   const { email, password } = req.body || {};

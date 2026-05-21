@@ -109,7 +109,7 @@ const TopNav = ({
 }, "B\xE9n\xE9ficiaire"), /*#__PURE__*/React.createElement(Btn, {
   variant: "primary",
   arrow: true
-}, "Espace partenaire")));
+}, "Espace mandataire")));
 
 // ────────── Mini live-prime demo (used in hero) ──────────
 const HeroLiveDemo = () => {

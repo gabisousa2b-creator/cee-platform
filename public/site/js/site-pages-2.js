@@ -280,7 +280,7 @@ const DispositifPage = ({
     a: "Sept pièces standard : attestation sur l'honneur signée du bénéficiaire, devis daté, facture de pose, rapport de contrôle, CV de l'auditeur, et deux pièces administratives. La liste exhaustive est rappelée à l'étape de constitution du dossier."
   }, {
     q: "EchoWAI livre-t-il le matériel ?",
-    a: "Oui — l'espace partenaire dispose d'un catalogue de matériel éligible CEE livré directement au bénéficiaire, avec rattachement automatique au dossier. Une option permet de basculer le reste à charge à zéro pour le bénéficiaire."
+    a: "Oui — l'espace mandataire dispose d'un catalogue de matériel éligible CEE livré directement au bénéficiaire, avec rattachement automatique au dossier. Une option permet de basculer le reste à charge à zéro pour le bénéficiaire."
   }]
 })))), /*#__PURE__*/React.createElement(FinalCTA, {
   onNavigate: onNavigate
@@ -433,7 +433,7 @@ const MaterielPage = () => /*#__PURE__*/React.createElement("div", null, /*#__PU
   style: {
     color: "var(--volt)"
   }
-}, "Espace partenaire \xB7 commande mat\xE9riel"), /*#__PURE__*/React.createElement("h1", {
+}, "Espace mandataire \xB7 commande mat\xE9riel"), /*#__PURE__*/React.createElement("h1", {
   className: "serif h1-mid",
   style: {
     fontSize: 72,
@@ -1235,7 +1235,7 @@ const CGUPage = ({
     id: "cgu-acces",
     title: "Accès au service",
     body: ["La plateforme est organisée en espaces distincts, accessibles selon le profil de l'utilisateur :", {
-      ul: ["Espace partenaire — dépôt et gestion des dossiers, gestion des équipes, catalogue d'opérations et commande de matériel ;", "Espace bénéficiaire — suivi du dossier en temps réel et dépôt des pièces justificatives ;", "Espace administration — pilotage de la plateforme, des partenaires et des fiches d'opération."]
+      ul: ["Espace mandataire — dépôt et gestion des dossiers, gestion des équipes, catalogue d'opérations et commande de matériel ;", "Espace bénéficiaire — suivi du dossier en temps réel et dépôt des pièces justificatives ;", "Espace administration — pilotage de la plateforme, des partenaires et des fiches d'opération."]
     }, "L'accès à certaines fonctionnalités nécessite la création d'un compte et l'attribution de droits par un administrateur ou un responsable de partenaire."]
   }, {
     id: "cgu-compte",
@@ -1254,7 +1254,7 @@ const CGUPage = ({
   }, {
     id: "cgu-materiel",
     title: "Commande de matériel et primes",
-    body: ["L'espace partenaire permet la commande de matériel éligible auprès d'un catalogue central. Les prix, la disponibilité et les délais sont indiqués au moment de la commande.", "La constitution et la valorisation des dossiers CEE s'effectuent dans le respect du cadre réglementaire applicable aux Certificats d'Économies d'Énergie. Le versement de la prime est conditionné à la validation des pièces justificatives."]
+    body: ["L'espace mandataire permet la commande de matériel éligible auprès d'un catalogue central. Les prix, la disponibilité et les délais sont indiqués au moment de la commande.", "La constitution et la valorisation des dossiers CEE s'effectuent dans le respect du cadre réglementaire applicable aux Certificats d'Économies d'Énergie. Le versement de la prime est conditionné à la validation des pièces justificatives."]
   }, {
     id: "cgu-dispo",
     title: "Disponibilité et maintenance",

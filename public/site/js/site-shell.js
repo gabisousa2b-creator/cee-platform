@@ -505,7 +505,7 @@ const SiteFooter = ({
     l: "Bénéficiaire",
     to: "beneficiaire"
   }, {
-    l: "Espace partenaire",
+    l: "Espace mandataire",
     to: "login"
   }, {
     l: "Administration",

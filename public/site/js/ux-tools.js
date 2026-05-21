@@ -163,7 +163,7 @@ const COMMANDS = [{
   view: "simulateur"
 }, {
   kind: "action",
-  label: "Espace partenaire — se connecter",
+  label: "Espace mandataire — se connecter",
   desc: "Connexion plateforme",
   view: "login"
 }, {

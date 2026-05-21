@@ -37,6 +37,8 @@
   .pill { display: inline-flex; padding: 3px 8px; border-radius: 999px; font-size: 10.5px; font-family: 'IBM Plex Mono', monospace; font-weight: 600; }
   .pill.on { background: #dcfce7; color: #166534; }
   .pill.off { background: #fee2e2; color: #991b1b; }
+  .btn-imp { background: rgba(46,126,244,.12); color: var(--accent, #2E7EF4); border: 0; padding: 4px 9px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; }
+  .btn-imp:hover { background: var(--accent, #2E7EF4); color: #fff; }
   .err { color: #991b1b; font-size: 12.5px; }
   .ok  { color: #166534; font-size: 12.5px; }
   .hidden { display: none !important; }
@@ -175,8 +177,8 @@ async function loadOb() {
   const r = await fetch('/api/admin/obliges');
   if (!r.ok) { $('#o-list').innerHTML = '<div class="err">Connexion admin requise — <a href="/admin.html">se connecter</a></div>'; return; }
   const rows = await r.json();
-  $('#o-list').innerHTML = '<table class="list"><thead><tr><th>Raison sociale</th><th>SIRET</th><th>Type</th><th>Obligation</th><th>Email</th><th>Statut</th></tr></thead><tbody>'
-    + rows.map(o => '<tr><td><strong>'+esc(o.raison_sociale)+'</strong></td><td>'+esc(o.siret)+'</td><td>'+esc(o.type)+'</td><td>'+Math.round((o.kwhc_obligation_annuelle||0)/1e6)+' GWhc</td><td>'+esc(o.email)+'</td><td><span class="pill '+(o.actif?'on':'off')+'">'+(o.actif?'Actif':'Inactif')+'</span></td></tr>').join('') + '</tbody></table>';
+  $('#o-list').innerHTML = '<table class="list"><thead><tr><th>Raison sociale</th><th>SIRET</th><th>Type</th><th>Obligation</th><th>Email</th><th>Statut</th><th>Action</th></tr></thead><tbody>'
+    + rows.map(o => '<tr><td><strong>'+esc(o.raison_sociale)+'</strong></td><td>'+esc(o.siret)+'</td><td>'+esc(o.type)+'</td><td>'+Math.round((o.kwhc_obligation_annuelle||0)/1e6)+' GWhc</td><td>'+esc(o.email)+'</td><td><span class="pill '+(o.actif?'on':'off')+'">'+(o.actif?'Actif':'Inactif')+'</span></td><td><button class="btn-imp" onclick="imp(\'oblige\','+o.id+')"><i class="fas fa-user-secret me-1"></i>Se connecter</button></td></tr>').join('') + '</tbody></table>';
 }
 $('#o-add').addEventListener('click', async () => {
   const body = { raison_sociale: $('#o-rs').value.trim(), siret: $('#o-siret').value.trim(), email: $('#o-email').value.trim(), password: $('#o-pwd').value, type: $('#o-type').value, kwhc_obligation_annuelle: parseFloat($('#o-kwhc').value)||0 };
@@ -191,8 +193,8 @@ async function loadDe() {
   const r = await fetch('/api/admin/delegataires');
   if (r.ok) {
     const rows = await r.json();
-    $('#d-list').innerHTML = '<table class="list"><thead><tr><th>Nom</th><th>SIRET</th><th>Email</th><th>Dernière connexion</th></tr></thead><tbody>'
-      + rows.map(o => '<tr><td><strong>'+esc(o.nom)+'</strong></td><td>'+esc(o.siret)+'</td><td>'+esc(o.email)+'</td><td>'+fmt(o.last_login)+'</td></tr>').join('') + '</tbody></table>';
+    $('#d-list').innerHTML = '<table class="list"><thead><tr><th>Nom</th><th>SIRET</th><th>Email</th><th>Dernière connexion</th><th>Action</th></tr></thead><tbody>'
+      + rows.map(o => '<tr><td><strong>'+esc(o.nom)+'</strong></td><td>'+esc(o.siret)+'</td><td>'+esc(o.email)+'</td><td>'+fmt(o.last_login)+'</td><td><button class="btn-imp" onclick="imp(\'delegataire\','+o.id+')"><i class="fas fa-user-secret me-1"></i>Se connecter</button></td></tr>').join('') + '</tbody></table>';
   }
   // Liste complète pour activer
   const all = await (await fetch('/api/admin/delegataires-all').catch(()=>({json:()=>[]}))).json().catch(()=>[]);
@@ -212,8 +214,8 @@ async function loadIn() {
   const r = await fetch('/api/admin/installateurs');
   if (r.ok) {
     const rows = await r.json();
-    $('#i-list').innerHTML = '<table class="list"><thead><tr><th>Raison sociale</th><th>SIRET</th><th>RGE</th><th>Email</th><th>Statut</th></tr></thead><tbody>'
-      + rows.map(o => '<tr><td><strong>'+esc(o.raison_sociale)+'</strong></td><td>'+esc(o.siret)+'</td><td>'+esc(o.rge_organisme||'—')+' '+esc(o.rge_numero||'')+'</td><td>'+esc(o.email)+'</td><td><span class="pill '+(o.actif?'on':'off')+'">'+(o.actif?'Actif':'Inactif')+'</span></td></tr>').join('') + '</tbody></table>';
+    $('#i-list').innerHTML = '<table class="list"><thead><tr><th>Raison sociale</th><th>SIRET</th><th>RGE</th><th>Email</th><th>Statut</th><th>Action</th></tr></thead><tbody>'
+      + rows.map(o => '<tr><td><strong>'+esc(o.raison_sociale)+'</strong></td><td>'+esc(o.siret)+'</td><td>'+esc(o.rge_organisme||'—')+' '+esc(o.rge_numero||'')+'</td><td>'+esc(o.email)+'</td><td><span class="pill '+(o.actif?'on':'off')+'">'+(o.actif?'Actif':'Inactif')+'</span></td><td><button class="btn-imp" onclick="imp(\'installateur\','+o.id+')"><i class="fas fa-user-secret me-1"></i>Se connecter</button></td></tr>').join('') + '</tbody></table>';
   }
 }
 $('#i-add').addEventListener('click', async () => {
@@ -229,10 +231,19 @@ async function loadCt() {
   const r = await fetch('/api/admin/controleurs');
   if (r.ok) {
     const rows = await r.json();
-    $('#c-list').innerHTML = '<table class="list"><thead><tr><th>Raison sociale</th><th>SIRET</th><th>Accréd. COFRAC</th><th>Email</th><th>Statut</th></tr></thead><tbody>'
-      + rows.map(o => '<tr><td><strong>'+esc(o.raison_sociale)+'</strong></td><td>'+esc(o.siret)+'</td><td>'+esc(o.accreditation_no)+'</td><td>'+esc(o.email)+'</td><td><span class="pill '+(o.actif?'on':'off')+'">'+(o.actif?'Actif':'Inactif')+'</span></td></tr>').join('') + '</tbody></table>';
+    $('#c-list').innerHTML = '<table class="list"><thead><tr><th>Raison sociale</th><th>SIRET</th><th>Accréd. COFRAC</th><th>Email</th><th>Statut</th><th>Action</th></tr></thead><tbody>'
+      + rows.map(o => '<tr><td><strong>'+esc(o.raison_sociale)+'</strong></td><td>'+esc(o.siret)+'</td><td>'+esc(o.accreditation_no)+'</td><td>'+esc(o.email)+'</td><td><span class="pill '+(o.actif?'on':'off')+'">'+(o.actif?'Actif':'Inactif')+'</span></td><td><button class="btn-imp" onclick="imp(\'controleur\','+o.id+')"><i class="fas fa-user-secret me-1"></i>Se connecter</button></td></tr>').join('') + '</tbody></table>';
   }
 }
+
+// Super-admin impersonation : se connecter en tant qu'un profil
+window.imp = async (role, id) => {
+  if (!confirm('Se connecter en tant que ' + role + ' #' + id + ' ?')) return;
+  const r = await fetch('/api/admin/impersonate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role, id }) });
+  const j = await r.json();
+  if (!r.ok) { alert(j.error || 'Erreur'); return; }
+  location.href = j.redirect;
+};
 $('#c-add').addEventListener('click', async () => {
   const body = { raison_sociale: $('#c-rs').value.trim(), siret: $('#c-siret').value.trim(), email: $('#c-email').value.trim(), password: $('#c-pwd').value, accreditation_no: $('#c-acc').value.trim() };
   const r = await fetch('/api/admin/controleurs', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });

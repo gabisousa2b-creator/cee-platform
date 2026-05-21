@@ -115,7 +115,7 @@ const HomeHero = ({
   variant: "secondary",
   arrow: true,
   onClick: () => onNavigate("login")
-}, "Espace partenaire"))), /*#__PURE__*/React.createElement(RevealOnView, {
+}, "Espace mandataire"))), /*#__PURE__*/React.createElement(RevealOnView, {
   delay: 0.4
 }, /*#__PURE__*/React.createElement("div", {
   style: {
@@ -714,7 +714,7 @@ const FinalCTA = ({
     e.currentTarget.style.background = "transparent";
     e.currentTarget.style.borderColor = "rgba(255,255,255,.3)";
   }
-}, "Espace partenaire", /*#__PURE__*/React.createElement("svg", {
+}, "Espace mandataire", /*#__PURE__*/React.createElement("svg", {
   width: "14",
   height: "10",
   viewBox: "0 0 14 10",

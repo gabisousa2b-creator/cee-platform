@@ -151,7 +151,7 @@ const MaterialOrder = ({
     style: {
       color: "var(--muted)"
     }
-  }, "Espace partenaire \xB7 Commande mat\xE9riel"), /*#__PURE__*/React.createElement("h2", {
+  }, "Espace mandataire \xB7 Commande mat\xE9riel"), /*#__PURE__*/React.createElement("h2", {
     className: "serif",
     style: {
       fontSize: 52,
