@@ -18,6 +18,8 @@ const SITE_SPACES = [
   { id: "mandataire",   label: "Mandataire",   sub: "Apporteurs, dépôt de dossiers, équipe",                href: "/mandataire",    ico: "M19 14h-2v-2h2v2zm0-4h-2V8h2v2zm-4 4h-2v-2h2v2zm0-4h-2V8h2v2zm-4 4H9v-2h2v2zm0-4H9V8h2v2zM7 14H5v-2h2v2zm0-4H5V8h2v2zM3 4v16h18V4H3z" },
   { id: "oblige",       label: "Obligé",       sub: "Validation des primes CEE",                            href: "/oblige",        ico: "M12 2L2 7l10 5 10-5-10-5zm0 8L2 5v6l10 5 10-5V5l-10 5z" },
   { id: "delegataire",  label: "Délégataire",  sub: "Suivi des dossiers confiés",                           href: "/delegataire",   ico: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
+  { id: "installateur", label: "Installateur", sub: "Chantiers RGE : devis, travaux, AH",                   href: "/installateur",  ico: "M22 21H2v-2h20v2zM6.5 13.5L9 11l3 3 5-5 2 2v6h-13v-3.5zM12 2L4 6v3h16V6L12 2z" },
+  { id: "controleur",   label: "Contrôleur",   sub: "Contrôles in-situ (COFRAC)",                           href: "/controleur",    ico: "M9 11l2 2 4-4m1 9H6a2 2 0 01-2-2V6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2z" },
   { id: "beneficiaire", label: "Bénéficiaire", sub: "Suivi de votre dossier",                               href: "/beneficiaire",  ico: "M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4zm0 2c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4z" },
 ];
 

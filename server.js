@@ -270,6 +270,10 @@ app.get('/oblige', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'oblige.html
 app.get('/delegataire', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'delegataire.html')));
 // Espace mandataire — accessible via /mandataire (alias enrichi de compte.html)
 app.get('/mandataire', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'mandataire.html')));
+// Espace installateur RGE
+app.get('/installateur', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'installateur.html')));
+// Espace contrôleur (organisme accrédité COFRAC)
+app.get('/controleur',   (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'controleur.html')));
 
 app.use(express.static(PUBLIC_DIR));
 app.use(session({
@@ -361,6 +365,8 @@ const requireBeneficiary = (req, res, next) => req.session.beneficiaireId ? next
 const requirePartner     = (req, res, next) => req.session.compteId       ? next() : res.status(401).json({ error: 'Non autorisé' });
 const requireOblige      = (req, res, next) => req.session.obligeId       ? next() : res.status(401).json({ error: 'Non autorisé' });
 const requireDelegataire = (req, res, next) => req.session.delegataireId  ? next() : res.status(401).json({ error: 'Non autorisé' });
+const requireInstallateur= (req, res, next) => req.session.installateurId ? next() : res.status(401).json({ error: 'Non autorisé' });
+const requireControleur  = (req, res, next) => req.session.controleurId   ? next() : res.status(401).json({ error: 'Non autorisé' });
 // ── RBAC — rôles : super_admin · admin_partenaire · apporteur ─────────────────
 function sessionRole(req) { return req.session.isAdmin ? 'super_admin' : (req.session.role || null); }
 function requireRole(...roles) {
@@ -1679,6 +1685,78 @@ db.serialize(() => {
     seeds.forEach(s => st.run(s.rs, s.email, s.type, s.kwhc, s.siret, seedHash));
     st.finalize();
   });
+
+  // ── Installateurs RGE — entreprises qui exécutent les travaux ────────────────
+  db.run(`CREATE TABLE IF NOT EXISTS installateurs (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    raison_sociale   TEXT NOT NULL,
+    siret            TEXT DEFAULT '',
+    rge_numero       TEXT DEFAULT '',         -- N° RGE Qualibat / Qualifelec / Qualit'EnR
+    rge_organisme    TEXT DEFAULT '',         -- Qualibat, Qualifelec, Qualit'EnR, Qualiclimafroid
+    rge_qualifs      TEXT DEFAULT '[]',       -- JSON: liste de codes qualif (8221, 8222…)
+    rge_valid_until  DATE,
+    email            TEXT NOT NULL UNIQUE,
+    password_hash    TEXT DEFAULT '',
+    contact_nom      TEXT DEFAULT '',
+    contact_tel      TEXT DEFAULT '',
+    adresse          TEXT DEFAULT '',
+    ville            TEXT DEFAULT '',
+    code_postal      TEXT DEFAULT '',
+    actif            INTEGER DEFAULT 1,
+    last_login       DATETIME,
+    created_at       DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  // ── Contrôleurs — organismes accrédités COFRAC pour contrôles in-situ ───────
+  db.run(`CREATE TABLE IF NOT EXISTS controleurs (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    raison_sociale    TEXT NOT NULL,
+    siret             TEXT DEFAULT '',
+    accreditation_no  TEXT DEFAULT '',        -- N° accréditation COFRAC (NF EN ISO 17020)
+    accreditation_until DATE,
+    email             TEXT NOT NULL UNIQUE,
+    password_hash     TEXT DEFAULT '',
+    contact_nom       TEXT DEFAULT '',
+    contact_tel       TEXT DEFAULT '',
+    actif             INTEGER DEFAULT 1,
+    last_login        DATETIME,
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  // Suivi côté installateur / contrôleur pour chaque dossier
+  [`ALTER TABLE beneficiaires ADD COLUMN installateur_id INTEGER`,
+   `ALTER TABLE beneficiaires ADD COLUMN installateur_statut TEXT DEFAULT 'non_assigne'`, // non_assigne, devis_envoye, devis_signe, travaux_en_cours, travaux_termines, facture_emise, ah_signee
+   `ALTER TABLE beneficiaires ADD COLUMN installateur_date_devis DATE`,
+   `ALTER TABLE beneficiaires ADD COLUMN installateur_date_facture DATE`,
+   `ALTER TABLE beneficiaires ADD COLUMN installateur_notes TEXT DEFAULT ''`,
+   `ALTER TABLE beneficiaires ADD COLUMN controleur_id INTEGER`,
+   `ALTER TABLE beneficiaires ADD COLUMN controleur_statut TEXT DEFAULT 'non_planifie'`,   // non_planifie, planifie, controle_ok, ecart_mineur, non_conforme
+   `ALTER TABLE beneficiaires ADD COLUMN controleur_date_visite DATE`,
+   `ALTER TABLE beneficiaires ADD COLUMN controleur_rapport TEXT DEFAULT ''`
+  ].forEach(sql => db.run(sql, () => {}));
+  // Seed 2 installateurs + 2 contrôleurs démo
+  setTimeout(() => {
+    db.get('SELECT COUNT(*) AS n FROM installateurs', (e, r) => {
+      if (e || !r || r.n) return;
+      const h = hashPassword('installateur2026');
+      const seeds = [
+        { rs: 'Iso Confort SARL', email: 'installateur.demo@isoconfort.fr', rge_no: 'QB-8221-123456', rge_org: 'Qualibat', siret: '83012345600015' },
+        { rs: 'Therm\'Élec',      email: 'installateur.demo@thermelec.fr',  rge_no: 'QF-9221-789012', rge_org: 'Qualifelec', siret: '83098765400022' },
+      ];
+      const st = db.prepare(`INSERT INTO installateurs (raison_sociale, email, password_hash, rge_numero, rge_organisme, siret) VALUES (?,?,?,?,?,?)`);
+      seeds.forEach(s => st.run(s.rs, s.email, h, s.rge_no, s.rge_org, s.siret));
+      st.finalize();
+    });
+    db.get('SELECT COUNT(*) AS n FROM controleurs', (e, r) => {
+      if (e || !r || r.n) return;
+      const h = hashPassword('controleur2026');
+      const seeds = [
+        { rs: 'Veritas Contrôle CEE', email: 'controleur.demo@bureauveritas.fr', acc: '1-2345', siret: '77566802000010' },
+        { rs: 'Socotec Énergie',      email: 'controleur.demo@socotec.fr',       acc: '1-3210', siret: '54206834400025' },
+      ];
+      const st = db.prepare(`INSERT INTO controleurs (raison_sociale, email, password_hash, accreditation_no, siret) VALUES (?,?,?,?,?)`);
+      seeds.forEach(s => st.run(s.rs, s.email, h, s.acc, s.siret));
+      st.finalize();
+    });
+  }, 400);
 
   // Active 3 comptes délégataires démo (mot de passe par défaut: delegataire2026)
   // Idempotent : ne fait rien si les comptes existent déjà.
@@ -4050,6 +4128,160 @@ app.post('/api/delegataire/change-password', requireDelegataire, (req, res) => {
       [hashPassword(new_password), req.session.delegataireId],
       err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
   });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── ESPACE INSTALLATEUR ────────────────────────────────────────────────────────
+// Entreprise RGE qui exécute les travaux. Voit ses dossiers, marque les étapes
+// (devis → travaux → facture → AH). Session : req.session.installateurId
+// ═══════════════════════════════════════════════════════════════════════════════
+app.post('/api/installateur/login', (req, res) => {
+  const ip = req.ip || req.connection.remoteAddress || 'unknown';
+  if (!checkRateLimit(ip)) return res.status(429).json({ error: 'Trop de tentatives.' });
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Email et mot de passe requis' });
+  db.get(`SELECT * FROM installateurs WHERE lower(email)=lower(?) AND actif=1`,
+    [String(email).trim()], (err, i) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!i || !verifyPassword(password, i.password_hash))
+        return res.status(401).json({ error: 'Identifiants incorrects' });
+      resetLoginAttempts(ip);
+      req.session.installateurId = i.id;
+      db.run('UPDATE installateurs SET last_login=CURRENT_TIMESTAMP WHERE id=?', [i.id]);
+      res.json({ success: true, raison_sociale: i.raison_sociale });
+    });
+});
+app.post('/api/installateur/logout',     (req, res) => { req.session.destroy(); res.json({ success: true }); });
+app.get('/api/installateur/check-auth',  (req, res) => res.json({ authenticated: !!req.session.installateurId }));
+app.get('/api/installateur/me', requireInstallateur, (req, res) => {
+  db.get('SELECT id, raison_sociale, siret, rge_numero, rge_organisme, rge_valid_until, email, contact_nom, contact_tel, last_login FROM installateurs WHERE id=?',
+    [req.session.installateurId], (e, i) => e || !i ? res.status(404).json({ error: 'Profil introuvable' }) : res.json(i));
+});
+app.get('/api/installateur/stats', requireInstallateur, (req, res) => {
+  db.all(`SELECT b.installateur_statut AS s,
+                 COUNT(DISTINCT b.id) AS n,
+                 COALESCE(SUM(o.volume_kwh), 0) AS volume,
+                 COALESCE(SUM(o.prime_negociee), 0) AS prime
+          FROM beneficiaires b
+          LEFT JOIN cee_operations o ON o.beneficiaire_id = b.id
+          WHERE b.installateur_id = ? AND b.archived = 0
+          GROUP BY b.installateur_statut`,
+    [req.session.installateurId], (e, rows) => {
+      if (e) return res.status(500).json({ error: e.message });
+      const out = { total: 0, devis_envoye: 0, devis_signe: 0, travaux_en_cours: 0, travaux_termines: 0, facture_emise: 0, ah_signee: 0, volume_cumac_total: 0, prime_total: 0 };
+      (rows || []).forEach(r => {
+        out.total += r.n;
+        out.volume_cumac_total += r.volume || 0;
+        out.prime_total += r.prime || 0;
+        if (out.hasOwnProperty(r.s)) out[r.s] = r.n;
+      });
+      res.json(out);
+    });
+});
+app.get('/api/installateur/dossiers', requireInstallateur, (req, res) => {
+  const statut = req.query.statut || null;
+  let sql = `SELECT b.id, b.code, b.nom, b.prenom, b.raison_sociale,
+                    b.code_postal, b.ville, b.activite, b.partenaire,
+                    b.installateur_statut, b.installateur_date_devis, b.installateur_date_facture,
+                    b.statut AS statut_dossier, b.created_at,
+                    COALESCE(SUM(o.volume_kwh), 0)     AS volume_cumac,
+                    COALESCE(SUM(o.prime_negociee), 0) AS subvention
+             FROM beneficiaires b
+             LEFT JOIN cee_operations o ON o.beneficiaire_id = b.id
+             WHERE b.installateur_id = ? AND b.archived = 0`;
+  const args = [req.session.installateurId];
+  if (statut) { sql += ' AND b.installateur_statut = ?'; args.push(statut); }
+  sql += ' GROUP BY b.id ORDER BY b.created_at DESC LIMIT 500';
+  db.all(sql, args, (e, rows) => e ? res.status(500).json({ error: e.message }) : res.json(rows || []));
+});
+app.post('/api/installateur/dossiers/:id/statut', requireInstallateur, (req, res) => {
+  const { statut, notes } = req.body || {};
+  const ALLOWED = ['devis_envoye', 'devis_signe', 'travaux_en_cours', 'travaux_termines', 'facture_emise', 'ah_signee'];
+  if (!ALLOWED.includes(statut)) return res.status(400).json({ error: 'Statut invalide' });
+  // Champs date mis à jour selon statut
+  const dateField = statut === 'devis_signe' ? 'installateur_date_devis'
+                  : statut === 'facture_emise' ? 'installateur_date_facture'
+                  : null;
+  const sets = ['installateur_statut = ?', 'installateur_notes = COALESCE(?, installateur_notes)'];
+  const args = [statut, notes != null ? String(notes).slice(0, 1000) : null];
+  if (dateField) { sets.push(dateField + ' = CURRENT_DATE'); }
+  args.push(req.params.id, req.session.installateurId);
+  db.run(`UPDATE beneficiaires SET ${sets.join(', ')} WHERE id = ? AND installateur_id = ?`,
+    args, function (e) {
+      if (e) return res.status(500).json({ error: e.message });
+      if (!this.changes) return res.status(404).json({ error: 'Dossier introuvable' });
+      res.json({ success: true });
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── ESPACE CONTRÔLEUR ──────────────────────────────────────────────────────────
+// Organisme accrédité COFRAC pour contrôles in-situ. Voit ses dossiers,
+// programme visite, dépose rapport, conclut.
+// ═══════════════════════════════════════════════════════════════════════════════
+app.post('/api/controleur/login', (req, res) => {
+  const ip = req.ip || req.connection.remoteAddress || 'unknown';
+  if (!checkRateLimit(ip)) return res.status(429).json({ error: 'Trop de tentatives.' });
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Email et mot de passe requis' });
+  db.get(`SELECT * FROM controleurs WHERE lower(email)=lower(?) AND actif=1`,
+    [String(email).trim()], (err, c) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!c || !verifyPassword(password, c.password_hash))
+        return res.status(401).json({ error: 'Identifiants incorrects' });
+      resetLoginAttempts(ip);
+      req.session.controleurId = c.id;
+      db.run('UPDATE controleurs SET last_login=CURRENT_TIMESTAMP WHERE id=?', [c.id]);
+      res.json({ success: true, raison_sociale: c.raison_sociale });
+    });
+});
+app.post('/api/controleur/logout',     (req, res) => { req.session.destroy(); res.json({ success: true }); });
+app.get('/api/controleur/check-auth',  (req, res) => res.json({ authenticated: !!req.session.controleurId }));
+app.get('/api/controleur/me', requireControleur, (req, res) => {
+  db.get('SELECT id, raison_sociale, siret, accreditation_no, accreditation_until, email, contact_nom, contact_tel, last_login FROM controleurs WHERE id=?',
+    [req.session.controleurId], (e, c) => e || !c ? res.status(404).json({ error: 'Profil introuvable' }) : res.json(c));
+});
+app.get('/api/controleur/stats', requireControleur, (req, res) => {
+  db.all(`SELECT b.controleur_statut AS s, COUNT(*) AS n
+          FROM beneficiaires b WHERE b.controleur_id = ? AND b.archived = 0
+          GROUP BY b.controleur_statut`,
+    [req.session.controleurId], (e, rows) => {
+      if (e) return res.status(500).json({ error: e.message });
+      const out = { total: 0, non_planifie: 0, planifie: 0, controle_ok: 0, ecart_mineur: 0, non_conforme: 0 };
+      (rows || []).forEach(r => { out.total += r.n; if (out.hasOwnProperty(r.s)) out[r.s] = r.n; });
+      res.json(out);
+    });
+});
+app.get('/api/controleur/dossiers', requireControleur, (req, res) => {
+  const statut = req.query.statut || null;
+  let sql = `SELECT b.id, b.code, b.nom, b.prenom, b.raison_sociale,
+                    b.code_postal, b.ville, b.activite, b.partenaire,
+                    b.controleur_statut, b.controleur_date_visite, b.controleur_rapport,
+                    b.statut AS statut_dossier, b.created_at,
+                    COALESCE(SUM(o.volume_kwh), 0) AS volume_cumac
+             FROM beneficiaires b
+             LEFT JOIN cee_operations o ON o.beneficiaire_id = b.id
+             WHERE b.controleur_id = ? AND b.archived = 0`;
+  const args = [req.session.controleurId];
+  if (statut) { sql += ' AND b.controleur_statut = ?'; args.push(statut); }
+  sql += ' GROUP BY b.id ORDER BY b.controleur_date_visite ASC, b.created_at DESC LIMIT 500';
+  db.all(sql, args, (e, rows) => e ? res.status(500).json({ error: e.message }) : res.json(rows || []));
+});
+app.post('/api/controleur/dossiers/:id/statut', requireControleur, (req, res) => {
+  const { statut, date_visite, rapport } = req.body || {};
+  const ALLOWED = ['planifie', 'controle_ok', 'ecart_mineur', 'non_conforme'];
+  if (!ALLOWED.includes(statut)) return res.status(400).json({ error: 'Statut invalide' });
+  db.run(`UPDATE beneficiaires
+          SET controleur_statut = ?,
+              controleur_date_visite = COALESCE(?, controleur_date_visite),
+              controleur_rapport     = COALESCE(?, controleur_rapport)
+          WHERE id = ? AND controleur_id = ?`,
+    [statut, date_visite || null, rapport != null ? String(rapport).slice(0, 2000) : null, req.params.id, req.session.controleurId],
+    function (e) {
+      if (e) return res.status(500).json({ error: e.message });
+      if (!this.changes) return res.status(404).json({ error: 'Dossier introuvable' });
+      res.json({ success: true });
+    });
 });
 
 app.listen(PORT, () => {

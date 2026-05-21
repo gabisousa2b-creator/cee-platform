@@ -226,6 +226,7 @@ function boot() {
   const DASHBOARD_PREFIXES = [
     "/admin", "/partenaire", "/portal",
     "/oblige", "/delegataire", "/beneficiaire", "/compte",
+    "/installateur", "/controleur", "/mandataire",
   ];
   function isOnHome() {
     try {

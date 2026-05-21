@@ -553,7 +553,7 @@ const BeneficiairePage = ({
   className: "r-cols-3",
   style: {
     display: "grid",
-    gridTemplateColumns: "repeat(3, 1fr)",
+    gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
     gap: 18
   }
 }, [{
@@ -571,6 +571,16 @@ const BeneficiairePage = ({
   d: "Délégataires CEE : suivez les dossiers qui vous sont confiés par les apporteurs, marquez leur avancement.",
   action: "Accéder",
   go: "/delegataire"
+}, {
+  t: "Espace installateur",
+  d: "Entreprises RGE : pilotez vos chantiers (devis, signature, travaux, facture, AH) et alimentez chaque dossier en pièces.",
+  action: "Accéder",
+  go: "/installateur"
+}, {
+  t: "Espace contrôleur",
+  d: "Organismes accrédités COFRAC : recevez les missions de contrôle in-situ, programmez les visites, déposez vos rapports.",
+  action: "Accéder",
+  go: "/controleur"
 }].map(s => /*#__PURE__*/React.createElement(HoverLift, {
   key: s.t,
   style: {
