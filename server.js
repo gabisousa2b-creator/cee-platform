@@ -4215,9 +4215,12 @@ app.get('/api/admin/partenaires-unifie', requireAdmin, (req, res) => {
   function addAll(callback) {
     const tasks = [];
     if (!typeFilter || typeFilter === 'mandataire') tasks.push(cb => db.all(
-      `SELECT p.id AS profil_id, 'mandataire' AS type, p.nom AS raison_sociale, p.login_email AS email,
-              p.compte_actif AS actif, p.last_login,
-              (SELECT COUNT(*) FROM beneficiaires b WHERE b.partenaire_id=p.id AND b.archived=0) AS nb_dossiers
+      `SELECT p.id AS profil_id, 'mandataire' AS type, p.nom AS raison_sociale,
+              COALESCE(NULLIF(p.login_email,''), (SELECT email FROM comptes c WHERE c.partenaire_id=p.id AND c.role='admin_partenaire' LIMIT 1), p.email) AS email,
+              COALESCE(p.compte_actif, (SELECT actif FROM comptes c WHERE c.partenaire_id=p.id AND c.role='admin_partenaire' LIMIT 1), p.actif) AS actif,
+              p.last_login,
+              ((SELECT COUNT(*) FROM beneficiaires b WHERE b.partenaire_id=p.id AND b.archived=0)
+              + (SELECT COUNT(*) FROM beneficiaires b WHERE b.partenaire=p.nom AND b.archived=0)) AS nb_dossiers
        FROM partenaires p WHERE p.actif=1`, [], (e, r) => { if (r) rows.push(...r); cb(); }));
     if (!typeFilter || typeFilter === 'oblige') tasks.push(cb => db.all(
       `SELECT id AS profil_id, 'oblige' AS type, raison_sociale, email, actif, last_login,
