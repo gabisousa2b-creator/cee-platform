@@ -224,6 +224,23 @@
       en justifiant. Le cours EMMY de référence s'affiche en haut à gauche.
     </p>
 
+    <!-- Compteur obligation 5e période -->
+    <div id="oblBox" style="background:#fff;border:1px solid rgba(46,126,244,.18);border-radius:14px;padding:22px 26px;margin:20px 0;display:none">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;color:#94a3b8;text-transform:uppercase">Obligation 5e période (2022-2025)</div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center;margin-top:8px">
+        <div>
+          <div style="font-size:22px;font-weight:500;letter-spacing:-.018em" id="oblTitle">—</div>
+          <div style="font-size:13px;color:#475569;margin-top:4px" id="oblSub">—</div>
+          <div style="height:10px;border-radius:999px;background:#e2e8f0;overflow:hidden;margin-top:10px"><div id="oblBar" style="height:100%;background:linear-gradient(90deg,var(--accent,#2E7EF4),#5BA0FF);width:0;transition:width .8s ease"></div></div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#6b7280;margin-top:8px" id="oblMeta">—</div>
+        </div>
+        <div style="width:88px;height:88px;border-radius:50%;background:conic-gradient(var(--accent,#2E7EF4) calc(var(--p,0)*1%), #e2e8f0 0);display:flex;align-items:center;justify-content:center;position:relative" id="oblDisk">
+          <div style="position:absolute;inset:6px;border-radius:50%;background:#fff"></div>
+          <div style="position:relative;z-index:1;font-size:22px;font-weight:600;color:var(--accent,#2E7EF4)"><span id="oblPct">0</span>%</div>
+        </div>
+      </div>
+    </div>
+
     <div class="stat-grid" id="statGrid"></div>
 
     <div class="tabs" id="tabs">
@@ -277,8 +294,24 @@ $('#btnLogout').addEventListener('click', async () => {
   location.reload();
 });
 
+// ── Obligation 5e période (compteur réglementaire) ───────────────
+async function loadObligation() {
+  const o = await (await fetch('/api/oblige/obligation')).json();
+  if (!o || o.error) return;
+  const box = document.getElementById('oblBox');
+  box.style.display = 'block';
+  const fmt = n => (n || 0).toLocaleString('fr-FR');
+  document.getElementById('oblTitle').textContent = fmt(Math.round(o.acquis_kwhc/1e6)) + ' / ' + fmt(Math.round(o.obligation_kwhc/1e6)) + ' GWhc';
+  document.getElementById('oblSub').textContent = 'Reste : ' + fmt(Math.round(o.reste_kwhc/1e6)) + ' GWhc · pénalité estimée si non atteinte : ' + fmt(o.penalite_si_non_atteinte) + ' €';
+  document.getElementById('oblBar').style.width = o.pct + '%';
+  document.getElementById('oblPct').textContent = o.pct;
+  document.getElementById('oblDisk').style.setProperty('--p', o.pct);
+  document.getElementById('oblMeta').textContent = 'Rythme requis : ' + fmt(Math.round(o.rythme_quotidien_requis/1000)) + ' MWhc/jour · ' + o.jours_restants + ' jours restants';
+}
+
 // ── Stats ──────────────────────────────────────────────────────────
 async function loadStats() {
+  loadObligation();
   const s = await (await fetch('/api/oblige/stats')).json();
   const fmtNb = n => (n || 0).toLocaleString('fr-FR');
   const fmtMWhc = v => (v/1000).toLocaleString('fr-FR', { maximumFractionDigits: 0 });

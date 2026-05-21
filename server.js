@@ -2414,6 +2414,45 @@ app.get('/api/partner/stats', requirePartner, (req, res) => {
   });
 });
 
+// Kanban: dossiers groupés par statut pour vue pipeline
+app.get('/api/partner/kanban', requirePartner, (req, res) => {
+  const where = req.session.role === 'apporteur'
+    ? 'b.compte_id = ?' : 'b.partenaire_id = ?';
+  const param = req.session.role === 'apporteur' ? req.session.compteId : req.session.partenaireId;
+  db.all(`SELECT b.id, b.code, b.nom, b.prenom, b.raison_sociale,
+                 b.statut, b.created_at, b.activite, b.ville,
+                 COALESCE(SUM(o.volume_kwh), 0)      AS volume_cumac,
+                 COALESCE(SUM(o.prime_negociee), 0)  AS prime
+          FROM beneficiaires b
+          LEFT JOIN cee_operations o ON o.beneficiaire_id = b.id
+          WHERE ${where} AND b.archived = 0
+          GROUP BY b.id ORDER BY b.created_at DESC LIMIT 300`,
+    [param], (e, rows) => e ? res.status(500).json({ error: e.message }) : res.json(rows || []));
+});
+// Commission cumul par apporteur (utile au mandataire pour suivi)
+app.get('/api/partner/commissions', requirePartner, (req, res) => {
+  if (sessionRole(req) !== 'admin_partenaire') return res.status(403).json({ error: 'admin partenaire requis' });
+  db.all(`SELECT c.id, c.nom, c.email, c.commission_mode, c.commission_valeur,
+                 COUNT(DISTINCT b.id)                 AS nb_dossiers,
+                 COALESCE(SUM(o.prime_negociee), 0)   AS prime_totale,
+                 COALESCE(SUM(o.volume_kwh), 0)       AS volume_cumac_total
+          FROM comptes c
+          LEFT JOIN beneficiaires b ON b.compte_id = c.id AND b.archived=0
+          LEFT JOIN cee_operations o ON o.beneficiaire_id = b.id
+          WHERE c.partenaire_id = ? AND c.actif = 1 AND c.role='apporteur'
+          GROUP BY c.id ORDER BY prime_totale DESC`,
+    [req.session.partenaireId], (e, rows) => {
+      if (e) return res.status(500).json({ error: e.message });
+      // Calcul commission appliquée
+      const out = (rows || []).map(r => {
+        const ctx = { subvention: r.prime_totale, volume_cumac: r.volume_cumac_total };
+        const com = tools.calcCommission(r.commission_mode, r.commission_valeur, ctx);
+        return { ...r, commission_due: com };
+      });
+      res.json(out);
+    });
+});
+
 app.get('/api/partner/dossiers', requirePartner, (req, res) => {
   partnerScope(req, res, (s) => {
     const f = dossierFilter(s);
@@ -3853,6 +3892,135 @@ Tu réponds de façon professionnelle, précise et concise. Tu cites les codes d
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ── OUTILS & UTILITAIRES TRANSVERSES (SIRENE / RGE / CO2 / fiches / obligation) ─
+// ═══════════════════════════════════════════════════════════════════════════════
+const tools = require('./lib/echowai-tools');
+
+// SIRENE — check ouvert (utilisable par admin, mandataire, installateur)
+app.get('/api/tools/sirene', async (req, res) => {
+  const r = await tools.checkSiret(req.query.siret);
+  res.json(r);
+});
+// RGE — check via annuaire ADEME (utilisé surtout par installateurs + admin)
+app.get('/api/tools/rge', async (req, res) => {
+  const r = await tools.checkRge(req.query.siret);
+  res.json(r);
+});
+// Catalogue des fiches CEE (statique, served pour autocomplete)
+app.get('/api/tools/fiches', (req, res) => res.json(tools.fichesEligibles()));
+// CO2 + économie €/an — pour un dossier précis (bénéficiaire / mandataire)
+app.get('/api/tools/impact/:dossier', (req, res) => {
+  db.all('SELECT code_fiche, nom_operation, volume_kwh FROM cee_operations WHERE beneficiaire_id=?',
+    [req.params.dossier], (e, ops) => {
+      if (e) return res.status(500).json({ error: e.message });
+      res.json({
+        co2: tools.co2FromOperations(ops || []),
+        eur_economie_an: tools.eurEconomieAnnuelle(ops || []),
+        volume_cumac: (ops || []).reduce((s, o) => s + (o.volume_kwh || 0), 0),
+      });
+    });
+});
+
+// Compteur d'obligation pour un obligé (utilisé par /api/oblige/dashboard)
+function _computeObligation(obligeId, cb) {
+  db.all(`SELECT COALESCE(SUM(o.volume_kwh), 0) AS volume_valide,
+                 COALESCE(SUM(CASE WHEN b.oblige_statut='valide' THEN o.volume_kwh ELSE 0 END), 0) AS volume_paye
+          FROM beneficiaires b
+          LEFT JOIN cee_operations o ON o.beneficiaire_id = b.id
+          WHERE b.oblige_id=? AND b.archived=0`, [obligeId], (e, rows) => {
+    if (e) return cb({ error: e.message });
+    db.get('SELECT kwhc_obligation_annuelle FROM obliges WHERE id=?', [obligeId], (e2, o) => {
+      if (e2 || !o) return cb({ error: 'obligé introuvable' });
+      cb(tools.obligationProgress(rows[0].volume_valide, o.kwhc_obligation_annuelle));
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ── NOTIFICATIONS IN-APP + RAPPELS (toutes plateformes) ───────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+function _initNotifTables() {
+  db.run(`CREATE TABLE IF NOT EXISTS notifications (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    audience_type   TEXT NOT NULL,   -- admin, mandataire(compteId), oblige, delegataire, installateur, controleur, beneficiaire
+    audience_id     INTEGER,         -- nullable pour broadcast
+    titre           TEXT NOT NULL,
+    message         TEXT DEFAULT '',
+    type            TEXT DEFAULT 'info',  -- info, success, warn, error
+    url             TEXT DEFAULT '',
+    lu              INTEGER DEFAULT 0,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_notif_audience ON notifications(audience_type, audience_id, lu)`);
+  // Reminders programmés (envoi périodique pour pièces manquantes, agréments etc.)
+  db.run(`CREATE TABLE IF NOT EXISTS reminders (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    audience_type   TEXT NOT NULL,
+    audience_id     INTEGER,
+    canal           TEXT DEFAULT 'in_app',   -- in_app, email, sms
+    titre           TEXT NOT NULL,
+    message         TEXT DEFAULT '',
+    next_run_at     DATETIME NOT NULL,
+    period_days     INTEGER DEFAULT 7,
+    active          INTEGER DEFAULT 1,
+    last_run_at     DATETIME,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+}
+_initNotifTables();
+
+function _enqueueNotif({ audience_type, audience_id = null, titre, message = '', type = 'info', url = '' }, cb) {
+  db.run(`INSERT INTO notifications (audience_type, audience_id, titre, message, type, url) VALUES (?,?,?,?,?,?)`,
+    [audience_type, audience_id, titre, message, type, url], cb || (() => {}));
+}
+
+// Listes / mark-read par rôle
+function _notifAudience(req) {
+  if (req.session.isAdmin)        return { type: 'admin',        id: null };
+  if (req.session.compteId)       return { type: 'mandataire',   id: req.session.compteId };
+  if (req.session.obligeId)       return { type: 'oblige',       id: req.session.obligeId };
+  if (req.session.delegataireId)  return { type: 'delegataire',  id: req.session.delegataireId };
+  if (req.session.installateurId) return { type: 'installateur', id: req.session.installateurId };
+  if (req.session.controleurId)   return { type: 'controleur',   id: req.session.controleurId };
+  if (req.session.beneficiaireId) return { type: 'beneficiaire', id: req.session.beneficiaireId };
+  return null;
+}
+app.get('/api/notifications', (req, res) => {
+  const a = _notifAudience(req);
+  if (!a) return res.status(401).json({ error: 'Non autorisé' });
+  db.all(`SELECT * FROM notifications
+          WHERE audience_type=? AND (audience_id=? OR audience_id IS NULL)
+          ORDER BY lu, created_at DESC LIMIT 100`,
+    [a.type, a.id], (e, rows) => e ? res.status(500).json({ error: e.message }) : res.json(rows || []));
+});
+app.post('/api/notifications/:id/read', (req, res) => {
+  const a = _notifAudience(req);
+  if (!a) return res.status(401).json({ error: 'Non autorisé' });
+  db.run('UPDATE notifications SET lu=1 WHERE id=? AND audience_type=? AND (audience_id=? OR audience_id IS NULL)',
+    [req.params.id, a.type, a.id], (e) => e ? res.status(500).json({ error: e.message }) : res.json({ success: true }));
+});
+app.post('/api/notifications/read-all', (req, res) => {
+  const a = _notifAudience(req);
+  if (!a) return res.status(401).json({ error: 'Non autorisé' });
+  db.run('UPDATE notifications SET lu=1 WHERE audience_type=? AND (audience_id=? OR audience_id IS NULL)',
+    [a.type, a.id], (e) => e ? res.status(500).json({ error: e.message }) : res.json({ success: true }));
+});
+
+// Cron interne : tous les jours à 9h, queue des reminders dûs → notifications
+function _runRemindersTick() {
+  db.all(`SELECT * FROM reminders WHERE active=1 AND next_run_at <= CURRENT_TIMESTAMP LIMIT 100`, [], (e, rows) => {
+    if (e) return;
+    (rows || []).forEach(r => {
+      _enqueueNotif({ audience_type: r.audience_type, audience_id: r.audience_id, titre: r.titre, message: r.message, type: 'info' });
+      db.run(`UPDATE reminders SET last_run_at = CURRENT_TIMESTAMP,
+              next_run_at = datetime('now', '+' || period_days || ' days') WHERE id=?`, [r.id]);
+    });
+  });
+}
+setInterval(_runRemindersTick, 60 * 60 * 1000); // toutes les heures
+setTimeout(_runRemindersTick, 30 * 1000);       // 30s après démarrage
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // ── ESPACE OBLIGÉ ─────────────────────────────────────────────────────────────
 // Fournisseur d'énergie soumis à l'obligation CEE. Valide les primes proposées
 // par les partenaires. Session dédiée : req.session.obligeId.
@@ -3882,6 +4050,21 @@ app.get('/api/oblige/me', requireOblige, (req, res) => {
       if (e || !o) return res.status(404).json({ error: 'Profil introuvable' });
       res.json(o);
     });
+});
+
+app.get('/api/oblige/obligation', requireOblige, (req, res) => {
+  _computeObligation(req.session.obligeId, (data) => res.json(data));
+});
+app.get('/api/oblige/cashflow', requireOblige, (req, res) => {
+  // Calendrier versement primes : groupé par mois (validés non encore versés)
+  db.all(`SELECT strftime('%Y-%m', b.oblige_valide_at) AS mois,
+                 COUNT(DISTINCT b.id) AS dossiers,
+                 COALESCE(SUM(o.prime_negociee), 0) AS prime_total
+          FROM beneficiaires b
+          LEFT JOIN cee_operations o ON o.beneficiaire_id = b.id
+          WHERE b.oblige_id=? AND b.oblige_statut='valide' AND b.oblige_valide_at IS NOT NULL
+          GROUP BY mois ORDER BY mois DESC LIMIT 12`,
+    [req.session.obligeId], (e, rows) => e ? res.status(500).json({ error: e.message }) : res.json(rows || []));
 });
 
 app.get('/api/oblige/stats', requireOblige, (req, res) => {
@@ -4035,6 +4218,28 @@ app.get('/api/delegataire/me', requireDelegataire, (req, res) => {
       if (e || !d) return res.status(404).json({ error: 'Profil introuvable' });
       res.json(d);
     });
+});
+
+// Capacité engageable + échéance agrément (Délégataire)
+app.get('/api/delegataire/capacity', requireDelegataire, (req, res) => {
+  db.all(`SELECT COALESCE(SUM(o.volume_kwh), 0) AS volume_engaged
+          FROM beneficiaires b
+          LEFT JOIN cee_operations o ON o.beneficiaire_id = b.id
+          WHERE b.delegataire_id=? AND b.archived=0`, [req.session.delegataireId], (e, rows) => {
+    if (e) return res.status(500).json({ error: e.message });
+    db.get('SELECT prix_mwhc FROM partenaire_delegataires WHERE delegataire_id=? LIMIT 1', [req.session.delegataireId], (e2, p) => {
+      const engaged = rows[0]?.volume_engaged || 0;
+      // Capacité indicative : 500 GWh/an par délégataire (à paramétrer)
+      const capacite_annuelle = 500 * 1e6; // 500 GWh = 500M kWh cumac
+      res.json({
+        capacite_annuelle_kwhc: capacite_annuelle,
+        engaged_kwhc: engaged,
+        marge_kwhc: Math.max(0, capacite_annuelle - engaged),
+        pct: Math.min(100, Math.round((engaged / capacite_annuelle) * 100)),
+        prix_negocie_mwhc: p?.prix_mwhc || null,
+      });
+    });
+  });
 });
 
 app.get('/api/delegataire/stats', requireDelegataire, (req, res) => {

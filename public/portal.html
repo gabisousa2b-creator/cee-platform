@@ -92,6 +92,22 @@
     .step-label { font-size:.78rem; color:#94a3b8; font-weight:500; line-height:1.3; }
     .step.done .step-label, .step.current .step-label { color: var(--accent, #2E7EF4); font-weight:700; }
 
+    /* Impact chips — CO2 + économies */
+    .impact-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-bottom: 18px; }
+    .impact-chip {
+      background: #fff; border: 1px solid rgba(10,31,61,.08); border-radius: 12px;
+      padding: 12px 14px; display: flex; align-items: center; gap: 10px;
+      transition: transform .18s ease, box-shadow .18s ease;
+    }
+    .impact-chip:hover { transform: translateY(-2px); box-shadow: 0 12px 28px -14px rgba(10,31,61,.18); }
+    .impact-chip i {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent, #2E7EF4), #5BA0FF);
+      color: #fff; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .impact-chip .ic-num { font-size: 16px; font-weight: 600; color: var(--t1, #0a1f3d); letter-spacing: -.01em; line-height: 1.1; }
+    .impact-chip .ic-lbl { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
+
     /* Hero card progress — gamification visuelle */
     .hero-progress {
       background: linear-gradient(135deg, #fff 0%, rgba(46,126,244,.05) 100%);
@@ -310,6 +326,9 @@
   </div>
 
   <div class="main">
+    <!-- Impact chips (CO2, économies) -->
+    <div id="impactRow" class="impact-row"></div>
+
     <!-- Hero progress card — gamification -->
     <div class="hero-progress" id="heroProgress">
       <div>
@@ -524,6 +543,17 @@ function renderHero(d) {
   };
   const n = NEXT_BY_STATUT[d.statut] || NEXT_BY_STATUT.en_cours;
   document.getElementById('heroNext').innerHTML = '<i class="fas ' + n.ico + '"></i><span>' + n.txt + '</span>';
+  // Impact CO2 + économies — chips ludiques sous le hero
+  fetch('/api/tools/impact/' + d.id).then(r => r.json()).then(impact => {
+    const host = document.getElementById('impactRow');
+    if (!host) return;
+    const fmt = n => (n || 0).toLocaleString('fr-FR');
+    host.innerHTML = `
+      <div class="impact-chip"><i class="fas fa-leaf"></i><div><div class="ic-num">${fmt(impact.co2.kg_an)} kg</div><div class="ic-lbl">CO₂ évités/an</div></div></div>
+      <div class="impact-chip"><i class="fas fa-tree"></i><div><div class="ic-num">${fmt(impact.co2.arbres_eq)}</div><div class="ic-lbl">arbres équivalents</div></div></div>
+      <div class="impact-chip"><i class="fas fa-piggy-bank"></i><div><div class="ic-num">${fmt(impact.eur_economie_an)} €</div><div class="ic-lbl">économies/an</div></div></div>
+      <div class="impact-chip"><i class="fas fa-bolt"></i><div><div class="ic-num">${fmt(Math.round(impact.volume_cumac/1000))} MWhc</div><div class="ic-lbl">volume CEE</div></div></div>`;
+  }).catch(() => {});
 }
 
 // ── Pièces demandées pour le dossier (cahier des charges) ─────────────────────

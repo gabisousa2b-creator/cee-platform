@@ -224,6 +224,22 @@
       traitement, soumis à l'obligé, validé, refusé.
     </p>
 
+    <!-- Capacité d'engagement -->
+    <div id="capBox" style="background:#fff;border:1px solid rgba(46,126,244,.18);border-radius:14px;padding:22px 26px;margin:20px 0;display:none">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;color:#94a3b8;text-transform:uppercase">Capacité d'engagement</div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center;margin-top:8px">
+        <div>
+          <div style="font-size:22px;font-weight:500;letter-spacing:-.018em" id="capTitle">—</div>
+          <div style="font-size:13px;color:#475569;margin-top:4px" id="capSub">—</div>
+          <div style="height:10px;border-radius:999px;background:#e2e8f0;overflow:hidden;margin-top:10px"><div id="capBar" style="height:100%;background:linear-gradient(90deg,var(--accent,#2E7EF4),#5BA0FF);width:0;transition:width .8s ease"></div></div>
+        </div>
+        <div style="width:88px;height:88px;border-radius:50%;background:conic-gradient(var(--accent,#2E7EF4) calc(var(--p,0)*1%), #e2e8f0 0);display:flex;align-items:center;justify-content:center;position:relative" id="capDisk">
+          <div style="position:absolute;inset:6px;border-radius:50%;background:#fff"></div>
+          <div style="position:relative;z-index:1;font-size:22px;font-weight:600;color:var(--accent,#2E7EF4)"><span id="capPct">0</span>%</div>
+        </div>
+      </div>
+    </div>
+
     <div class="stat-grid" id="statGrid"></div>
 
     <div class="tabs" id="tabs">
@@ -278,7 +294,20 @@ $('#btnLogout').addEventListener('click', async () => {
 });
 
 // ── Stats ──────────────────────────────────────────────────────────
+async function loadCapacity() {
+  const c = await (await fetch('/api/delegataire/capacity')).json();
+  if (!c || c.error) return;
+  const fmt = n => (n || 0).toLocaleString('fr-FR');
+  document.getElementById('capBox').style.display = 'block';
+  document.getElementById('capTitle').textContent = fmt(Math.round(c.engaged_kwhc/1e6)) + ' / ' + fmt(Math.round(c.capacite_annuelle_kwhc/1e6)) + ' GWhc engagés';
+  document.getElementById('capSub').textContent   = 'Marge disponible : ' + fmt(Math.round(c.marge_kwhc/1e6)) + ' GWhc' + (c.prix_negocie_mwhc ? ' · prix négocié ' + c.prix_negocie_mwhc + ' €/MWhc' : '');
+  document.getElementById('capBar').style.width   = c.pct + '%';
+  document.getElementById('capPct').textContent   = c.pct;
+  document.getElementById('capDisk').style.setProperty('--p', c.pct);
+}
+
 async function loadStats() {
+  loadCapacity();
   const s = await (await fetch('/api/delegataire/stats')).json();
   const fmtNb = n => (n || 0).toLocaleString('fr-FR');
   const fmtMWhc = v => (v/1000).toLocaleString('fr-FR', { maximumFractionDigits: 0 });
