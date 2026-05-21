@@ -2453,6 +2453,23 @@ app.get('/api/partner/commissions', requirePartner, (req, res) => {
     });
 });
 
+// Kanban drag-drop : update statut d'un dossier depuis l'espace mandataire
+app.post('/api/partner/dossiers/:id/statut', requirePartner, (req, res) => {
+  const { statut } = req.body || {};
+  const ALLOWED = ['en_attente', 'en_cours', 'valide', 'facture', 'refuse'];
+  if (!ALLOWED.includes(statut)) return res.status(400).json({ error: 'Statut invalide' });
+  // Sécurité : on vérifie que le dossier appartient au partenaire
+  const where = req.session.role === 'apporteur' ? 'compte_id=?' : 'partenaire_id=?';
+  const param = req.session.role === 'apporteur' ? req.session.compteId : req.session.partenaireId;
+  db.run(`UPDATE beneficiaires SET statut=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND ${where}`,
+    [statut, req.params.id, param],
+    function (e) {
+      if (e) return res.status(500).json({ error: e.message });
+      if (!this.changes) return res.status(404).json({ error: 'Dossier introuvable' });
+      res.json({ success: true });
+    });
+});
+
 app.get('/api/partner/dossiers', requirePartner, (req, res) => {
   partnerScope(req, res, (s) => {
     const f = dossierFilter(s);
