@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EchoWAI — Carte des dossiers</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="manifest" href="/site.webmanifest" />
+<meta name="theme-color" content="#2E7EF4" />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="/css/echowai.css">
+<style>
+  body { font-family: 'Bricolage Grotesque', system-ui; background: #f1f5f9; margin: 0; color: var(--ink, #0a1f3d); }
+  .topbar { background: #fff; padding: 14px 28px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; border-bottom: 1px solid rgba(10,31,61,.08); }
+  .topbar .ew-logo { grid-column: 2; justify-self: center; font-size: 1.35rem; }
+  .topbar .right { grid-column: 3; justify-self: end; display:flex; gap:14px; align-items:center; }
+  .btn-back { background:#fff; border:1px solid rgba(10,31,61,.16); border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; color: #475569; text-decoration: none; }
+  .container { padding: 24px 28px; max-width: 1280px; margin: 0 auto; }
+  h1 { font-size: 28px; letter-spacing: -.02em; font-weight: 500; margin: 0 0 6px; }
+  .sub { color: #475569; font-size: 13.5px; margin: 0 0 22px; }
+  .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: #fff; border: 1px solid rgba(10,31,61,.08); border-radius: 14px; padding: 22px; }
+  .dept-list { max-height: 540px; overflow-y: auto; }
+  .dept-row { display: grid; grid-template-columns: 50px 1fr auto auto; gap: 8px; padding: 8px 0; border-bottom: 1px solid rgba(10,31,61,.05); font-size: 13px; align-items: center; }
+  .dept-row .d-num { font-family: 'IBM Plex Mono', monospace; font-weight: 600; color: var(--accent, #2E7EF4); }
+  .dept-row .bar { background: #e2e8f0; height: 6px; border-radius: 999px; overflow: hidden; }
+  .dept-row .bar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent, #2E7EF4), #5BA0FF); }
+  .dept-row .count { font-family: 'IBM Plex Mono', monospace; font-weight: 700; color: var(--ink, #0a1f3d); min-width: 40px; text-align: right; }
+  .stat-tot { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+  .stat-tot .tot { background: #f8fafc; border-radius: 10px; padding: 14px; }
+  .stat-tot .tot .lbl { font-family: 'IBM Plex Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: #94a3b8; }
+  .stat-tot .tot .val { font-size: 22px; font-weight: 600; color: var(--ink); margin-top: 4px; letter-spacing: -.02em; }
+  .france-map { width: 100%; height: auto; aspect-ratio: 1; }
+  .france-map circle { fill: var(--accent, #2E7EF4); fill-opacity: .55; stroke: var(--accent, #2E7EF4); stroke-width: 1.4; transition: all .25s ease; cursor: pointer; }
+  .france-map circle:hover { fill-opacity: .85; stroke-width: 2.4; }
+  .france-map .label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; fill: #475569; pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div></div>
+  <span class="ew-logo">echo<b>wai</b><i></i></span>
+  <div class="right"><span class="ew-notif-host"></span><a class="btn-back" href="/partenaire.html"><i class="fas fa-arrow-left me-1"></i>Espace mandataire</a></div>
+</div>
+<div class="container">
+  <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;color:#94a3b8;text-transform:uppercase">Cartographie</div>
+  <h1>Vos dossiers par département</h1>
+  <p class="sub">Vue géographique des dossiers déposés. Les bulles plus grandes indiquent davantage de dossiers ou de volume.</p>
+
+  <div class="grid">
+    <div class="card">
+      <div class="stat-tot" id="stT"></div>
+      <svg viewBox="0 0 600 600" class="france-map" id="mapSvg">
+        <!-- Cadre France stylisé hexagonal -->
+        <path d="M 90,200 L 200,90 L 380,90 L 500,180 L 530,320 L 480,470 L 350,540 L 200,520 L 90,400 Z"
+              fill="none" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="6 4" />
+      </svg>
+    </div>
+    <div class="card">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;color:#94a3b8;text-transform:uppercase;margin-bottom:12px">Top départements</div>
+      <div class="dept-list" id="deptList">Chargement…</div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/ew-emmy.js" defer></script>
+<script src="/js/ew-notif.js" defer></script>
+<script>
+// Positions approximatives des départements français (centroïdes 0-600)
+const DEPT_POS = {
+  '01':[400,290],'02':[330,160],'03':[330,310],'04':[440,420],'05':[440,400],'06':[490,420],'07':[370,400],'08':[390,160],'09':[260,490],'10':[350,210],
+  '11':[290,490],'12':[300,420],'13':[400,470],'14':[210,170],'15':[300,400],'16':[230,330],'17':[200,330],'18':[290,290],'19':[290,380],'21':[370,260],
+  '22':[140,170],'23':[280,350],'24':[240,390],'25':[440,260],'26':[400,400],'27':[230,170],'28':[260,210],'29':[100,170],'30':[360,440],'31':[260,460],
+  '32':[240,460],'33':[200,400],'34':[330,470],'35':[180,200],'36':[270,310],'37':[240,270],'38':[420,360],'39':[420,290],'40':[210,440],'41':[270,250],
+  '42':[370,350],'43':[340,400],'44':[160,260],'45':[290,230],'46':[270,410],'47':[230,420],'48':[330,420],'49':[200,250],'50':[170,160],'51':[360,200],
+  '52':[390,230],'53':[200,210],'54':[420,200],'55':[400,190],'56':[140,230],'57':[440,190],'58':[330,290],'59':[330,110],'60':[300,170],'61':[230,200],
+  '62':[300,100],'63':[330,360],'64':[180,470],'65':[230,490],'66':[300,520],'67':[480,200],'68':[470,240],'69':[380,340],'70':[420,250],'71':[370,310],
+  '72':[230,240],'73':[440,360],'74':[450,330],'75':[290,200],'76':[260,150],'77':[310,200],'78':[280,200],'79':[210,310],'80':[300,140],'81':[290,460],
+  '82':[260,440],'83':[460,460],'84':[400,440],'85':[170,290],'86':[230,300],'87':[270,360],'88':[420,220],'89':[330,240],'90':[440,250],'91':[290,210],
+  '92':[290,195],'93':[295,195],'94':[295,205],'95':[290,180],
+};
+const $ = s => document.querySelector(s);
+async function load() {
+  const r = await fetch('/api/partner/heatmap');
+  if (!r.ok) { $('#deptList').innerHTML = 'Connexion requise — <a href="/mandataire">se connecter</a>'; return; }
+  const rows = await r.json();
+  const totDoss = rows.reduce((s, r) => s + r.dossiers, 0);
+  const totVol  = rows.reduce((s, r) => s + r.volume, 0);
+  const totPrime= rows.reduce((s, r) => s + r.prime, 0);
+  $('#stT').innerHTML = `
+    <div class="tot"><div class="lbl">Dossiers</div><div class="val">${totDoss.toLocaleString('fr-FR')}</div></div>
+    <div class="tot"><div class="lbl">Volume MWhc</div><div class="val">${Math.round(totVol/1000).toLocaleString('fr-FR')}</div></div>
+    <div class="tot"><div class="lbl">Primes €</div><div class="val">${totPrime.toLocaleString('fr-FR')}</div></div>`;
+  const maxD = Math.max(1, ...rows.map(r => r.dossiers));
+  // Render bubbles on SVG
+  const svg = $('#mapSvg');
+  rows.forEach(d => {
+    const pos = DEPT_POS[d.dept]; if (!pos) return;
+    const radius = 6 + Math.sqrt(d.dossiers / maxD) * 32;
+    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    c.setAttribute('cx', pos[0]); c.setAttribute('cy', pos[1]); c.setAttribute('r', radius);
+    c.setAttribute('data-bs-toggle', 'tooltip');
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    t.textContent = `Dép. ${d.dept} — ${d.dossiers} dossiers · ${Math.round(d.volume/1000)} MWhc`;
+    c.appendChild(t);
+    svg.appendChild(c);
+  });
+  // Right list
+  $('#deptList').innerHTML = rows.slice(0, 25).map(d => `
+    <div class="dept-row">
+      <span class="d-num">${d.dept}</span>
+      <div class="bar"><span style="width:${Math.round((d.dossiers/maxD)*100)}%"></span></div>
+      <span class="count">${d.dossiers}</span>
+      <span style="font-family:'IBM Plex Mono',monospace;color:#94a3b8;font-size:11px">${Math.round(d.volume/1000)} MWhc</span>
+    </div>`).join('');
+}
+load();
+</script>
+<script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});</script>
+</body>
+</html>

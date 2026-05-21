@@ -2414,6 +2414,34 @@ app.get('/api/partner/stats', requirePartner, (req, res) => {
   });
 });
 
+// Carte : agrégation des dossiers par département (2 premiers chiffres du CP)
+app.get('/api/partner/heatmap', requirePartner, (req, res) => {
+  const where = req.session.role === 'apporteur' ? 'b.compte_id = ?' : 'b.partenaire_id = ?';
+  const param = req.session.role === 'apporteur' ? req.session.compteId : req.session.partenaireId;
+  db.all(`SELECT SUBSTR(b.code_postal, 1, 2) AS dept,
+                 COUNT(DISTINCT b.id)                AS dossiers,
+                 COALESCE(SUM(o.volume_kwh), 0)      AS volume,
+                 COALESCE(SUM(o.prime_negociee), 0)  AS prime
+          FROM beneficiaires b
+          LEFT JOIN cee_operations o ON o.beneficiaire_id = b.id
+          WHERE ${where} AND b.archived = 0 AND b.code_postal IS NOT NULL AND b.code_postal != ''
+          GROUP BY dept ORDER BY dossiers DESC`,
+    [param], (e, rows) => e ? res.status(500).json({ error: e.message }) : res.json(rows || []));
+});
+
+// Veille fiches CEE : retourne les fiches les plus consultées + opérations stars
+app.get('/api/tools/veille-fiches', (req, res) => {
+  db.all(`SELECT code_fiche, nom_operation,
+                 COUNT(*) AS nb_dossiers,
+                 COALESCE(SUM(volume_kwh), 0) AS volume_total,
+                 ROUND(AVG(prime_negociee), 0) AS prime_moyenne
+          FROM cee_operations
+          WHERE code_fiche IS NOT NULL AND code_fiche != ''
+          GROUP BY code_fiche
+          ORDER BY nb_dossiers DESC LIMIT 30`,
+    [], (e, rows) => e ? res.status(500).json({ error: e.message }) : res.json(rows || []));
+});
+
 // Kanban: dossiers groupés par statut pour vue pipeline
 app.get('/api/partner/kanban', requirePartner, (req, res) => {
   const where = req.session.role === 'apporteur'
