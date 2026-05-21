@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>EchoWAI — App terrain installateur</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<link rel="manifest" href="/site.webmanifest" />
+<meta name="theme-color" content="#2E7EF4" />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  body { font-family: 'Bricolage Grotesque', system-ui; background: #0a1f3d; color: #fff; margin: 0; min-height: 100vh; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  .topbar { padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,.05); border-bottom: 1px solid rgba(255,255,255,.10); }
+  .topbar .title { font-size: 14px; font-weight: 600; }
+  .topbar .gps { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #5BA0FF; }
+  .topbar .gps.off { color: #ef4444; }
+  .container { max-width: 480px; margin: 0 auto; padding: 20px 18px 80px; }
+  .picker { display: grid; gap: 10px; margin-bottom: 22px; }
+  .picker select, .picker input { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.07); color: #fff; font-family: inherit; font-size: 14px; }
+  .picker select:focus, .picker input:focus { outline: none; border-color: #5BA0FF; box-shadow: 0 0 0 3px rgba(91,168,229,.18); }
+  .picker label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: rgba(255,255,255,.6); margin-bottom: 4px; display: block; }
+  .photo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 22px; }
+  .photo-slot {
+    aspect-ratio: 4/3; background: rgba(255,255,255,.05); border: 2px dashed rgba(255,255,255,.18);
+    border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 6px;
+    cursor: pointer; transition: all .2s ease; position: relative; overflow: hidden;
+  }
+  .photo-slot:hover { border-color: #5BA0FF; background: rgba(91,168,229,.1); }
+  .photo-slot i { font-size: 24px; color: rgba(255,255,255,.5); }
+  .photo-slot .label { font-size: 11px; color: rgba(255,255,255,.6); }
+  .photo-slot img { width: 100%; height: 100%; object-fit: cover; }
+  .photo-slot input { display: none; }
+  .photo-slot.has-img { border-style: solid; border-color: #16a34a; }
+  .btn-send {
+    width: 100%; background: linear-gradient(135deg, #2E7EF4, #5BA0FF); color: #fff;
+    padding: 16px; border-radius: 14px; border: 0; font-size: 15px; font-weight: 700;
+    cursor: pointer; transition: all .25s; display: flex; align-items: center; justify-content: center; gap: 10px;
+  }
+  .btn-send:hover { transform: translateY(-2px); box-shadow: 0 16px 32px -10px rgba(46,126,244,.55); }
+  .btn-send:disabled { opacity: .5; cursor: default; transform: none; box-shadow: none; }
+  .msg { text-align: center; font-size: 13px; padding: 12px; border-radius: 10px; margin-top: 16px; }
+  .msg.ok  { background: rgba(34,197,94,.18); color: #4ade80; }
+  .msg.err { background: rgba(239,68,68,.18); color: #f87171; }
+  .meta-row { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: rgba(255,255,255,.55); margin-top: 14px; line-height: 1.5; }
+  /* PWA install hint */
+  .install-tip { background: rgba(91,168,229,.12); border: 1px solid rgba(91,168,229,.3); padding: 10px 14px; border-radius: 10px; font-size: 12px; color: #BBD7FB; margin-bottom: 18px; display: flex; align-items: center; gap: 8px; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="title"><i class="fas fa-hard-hat me-2"></i>Terrain</div>
+  <div class="gps" id="gpsBadge">GPS…</div>
+</div>
+<div class="container">
+  <div class="install-tip" id="installTip" style="display:none">
+    <i class="fas fa-mobile-screen"></i>
+    <span>Ajoutez « EchoWAI Terrain » à votre écran d'accueil pour un accès direct.</span>
+  </div>
+
+  <div class="picker">
+    <div>
+      <label>Dossier (code CEE)</label>
+      <input type="text" id="codeDossier" placeholder="CEE-XXXX-XXXX" autocapitalize="characters" autocomplete="off">
+    </div>
+    <div>
+      <label>Étape</label>
+      <select id="etape">
+        <option value="avant">Avant travaux</option>
+        <option value="pendant">Pendant travaux</option>
+        <option value="apres">Après travaux</option>
+        <option value="materiel">Matériel installé (étiquette)</option>
+        <option value="facture">Facture / AH</option>
+      </select>
+    </div>
+    <div>
+      <label>Note (optionnelle)</label>
+      <input type="text" id="note" placeholder="Ex. compteur posé OK">
+    </div>
+  </div>
+
+  <div class="photo-grid" id="photoGrid">
+    <label class="photo-slot" data-i="0">
+      <i class="fas fa-camera"></i><span class="label">Photo 1</span>
+      <input type="file" accept="image/*" capture="environment" onchange="onPhoto(event, 0)">
+    </label>
+    <label class="photo-slot" data-i="1">
+      <i class="fas fa-camera"></i><span class="label">Photo 2</span>
+      <input type="file" accept="image/*" capture="environment" onchange="onPhoto(event, 1)">
+    </label>
+    <label class="photo-slot" data-i="2">
+      <i class="fas fa-camera"></i><span class="label">Photo 3</span>
+      <input type="file" accept="image/*" capture="environment" onchange="onPhoto(event, 2)">
+    </label>
+    <label class="photo-slot" data-i="3">
+      <i class="fas fa-camera"></i><span class="label">Photo 4</span>
+      <input type="file" accept="image/*" capture="environment" onchange="onPhoto(event, 3)">
+    </label>
+  </div>
+
+  <button class="btn-send" id="btnSend" disabled><i class="fas fa-cloud-arrow-up"></i><span>Envoyer le rapport terrain</span></button>
+  <div id="msg"></div>
+  <div class="meta-row" id="metaRow"></div>
+</div>
+
+<script>
+let pos = null;
+const photos = [null, null, null, null];
+
+if ('geolocation' in navigator) {
+  navigator.geolocation.watchPosition(
+    (p) => {
+      pos = { lat: p.coords.latitude.toFixed(5), lon: p.coords.longitude.toFixed(5), acc: Math.round(p.coords.accuracy) };
+      document.getElementById('gpsBadge').textContent = '📍 ' + pos.lat + ', ' + pos.lon + ' (±' + pos.acc + 'm)';
+      document.getElementById('gpsBadge').classList.remove('off');
+    },
+    () => { document.getElementById('gpsBadge').textContent = 'GPS indisponible'; document.getElementById('gpsBadge').classList.add('off'); },
+    { enableHighAccuracy: true, maximumAge: 30000 }
+  );
+}
+
+function onPhoto(e, i) {
+  const f = e.target.files[0]; if (!f) return;
+  photos[i] = f;
+  const slot = document.querySelector('.photo-slot[data-i="' + i + '"]');
+  const url = URL.createObjectURL(f);
+  slot.innerHTML = '<img src="' + url + '"><input type="file" accept="image/*" capture="environment" onchange="onPhoto(event, ' + i + ')">';
+  slot.classList.add('has-img');
+  updateSend();
+}
+
+function updateSend() {
+  const hasCode = document.getElementById('codeDossier').value.trim().length > 5;
+  const hasPhoto = photos.some(p => p);
+  document.getElementById('btnSend').disabled = !(hasCode && hasPhoto);
+}
+document.getElementById('codeDossier').addEventListener('input', updateSend);
+
+document.getElementById('btnSend').addEventListener('click', async () => {
+  const btn = document.getElementById('btnSend');
+  const msg = document.getElementById('msg');
+  btn.disabled = true; msg.innerHTML = '';
+  const fd = new FormData();
+  fd.append('code', document.getElementById('codeDossier').value.trim().toUpperCase());
+  fd.append('etape', document.getElementById('etape').value);
+  fd.append('note', document.getElementById('note').value);
+  if (pos) { fd.append('lat', pos.lat); fd.append('lon', pos.lon); fd.append('acc', pos.acc); }
+  photos.forEach((p, i) => { if (p) fd.append('photo' + i, p, 'photo' + i + '.jpg'); });
+  try {
+    const r = await fetch('/api/installateur/terrain', { method: 'POST', body: fd });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'Erreur upload');
+    msg.innerHTML = '<div class="msg ok"><i class="fas fa-check-circle me-2"></i>Rapport envoyé · ' + (j.uploaded || 0) + ' photo(s).</div>';
+    // Reset form
+    document.getElementById('codeDossier').value = '';
+    document.getElementById('note').value = '';
+    photos.fill(null);
+    document.querySelectorAll('.photo-slot').forEach((s, i) => {
+      s.classList.remove('has-img');
+      s.innerHTML = '<i class="fas fa-camera"></i><span class="label">Photo ' + (i+1) + '</span><input type="file" accept="image/*" capture="environment" onchange="onPhoto(event, ' + i + ')">';
+    });
+    updateSend();
+  } catch (e) {
+    msg.innerHTML = '<div class="msg err"><i class="fas fa-circle-exclamation me-2"></i>' + e.message + '</div>';
+  } finally { btn.disabled = false; }
+});
+
+// Install hint
+if (!window.matchMedia('(display-mode: standalone)').matches) {
+  document.getElementById('installTip').style.display = 'flex';
+}
+</script>
+<script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});</script>
+</body>
+</html>

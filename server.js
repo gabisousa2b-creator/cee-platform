@@ -270,6 +270,8 @@ app.get('/oblige', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'oblige.html
 app.get('/delegataire', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'delegataire.html')));
 // Espace mandataire — accessible via /mandataire (alias enrichi de compte.html)
 app.get('/mandataire', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'mandataire.html')));
+// App PWA terrain installateur (mobile)
+app.get('/terrain', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'terrain.html')));
 // Espace installateur RGE
 app.get('/installateur', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'installateur.html')));
 // Espace contrôleur (organisme accrédité COFRAC)
@@ -310,6 +312,16 @@ const uploadBenef = multer({
 });
 
 const csvXlsxUpload = multer({ storage: multer.memoryStorage() });
+
+// Upload terrain : photos JPEG/PNG, max 10MB chacune, jusqu'à 4 par rapport
+const uploadTerrain = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024, files: 4 },
+  fileFilter: (req, file, cb) => {
+    const ok = ['.jpg','.jpeg','.png','.heic','.webp'];
+    ok.includes(path.extname(file.originalname || '').toLowerCase()) ? cb(null, true) : cb(new Error('Image requise'));
+  }
+});
 
 // Logo partenaire : images uniquement, stockées dans public/logos (servies en statique)
 const uploadLogo = multer({
@@ -4025,6 +4037,20 @@ db.run(`CREATE TABLE IF NOT EXISTS oblige_autovalid (
   updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
 )`);
 // Marketplace droits à apport entre délégataires (offres d'achat/vente de volumes)
+// Rapports terrain installateur (photos + GPS)
+db.run(`CREATE TABLE IF NOT EXISTS terrain_reports (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  beneficiaire_id INTEGER,
+  code            TEXT NOT NULL,
+  installateur_id INTEGER,
+  etape           TEXT DEFAULT '',
+  note            TEXT DEFAULT '',
+  lat             REAL,
+  lon             REAL,
+  accuracy        INTEGER,
+  photos_json     TEXT DEFAULT '[]',
+  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+)`);
 db.run(`CREATE TABLE IF NOT EXISTS marketplace_offres (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   delegataire_id  INTEGER NOT NULL,
@@ -4088,6 +4114,25 @@ function _runRemindersTick() {
 }
 setInterval(_runRemindersTick, 60 * 60 * 1000); // toutes les heures
 setTimeout(_runRemindersTick, 30 * 1000);       // 30s après démarrage
+
+// Veille JORF / arrêtés CEE — push hebdomadaire aux admins + mandataires
+function _runVeilleJorfTick() {
+  const today = new Date();
+  if (today.getDay() !== 1) return; // lundi seulement
+  db.get(`SELECT MAX(created_at) AS last FROM notifications WHERE titre LIKE '🔔 Veille JORF%'`, (e, r) => {
+    if (e) return;
+    const last = r && r.last ? new Date(r.last) : null;
+    if (last && (today - last) < 24 * 3600 * 1000) return; // déjà notifié aujourd'hui
+    _enqueueNotif({
+      audience_type: 'admin',
+      titre: '🔔 Veille JORF — fiches CEE',
+      message: 'Consulter les arrêtés publiés cette semaine au Journal Officiel relatifs aux fiches d\'opérations standardisées.',
+      type: 'info',
+      url: 'https://www.legifrance.gouv.fr/search/jorf?searchField=ALL&query=certificats+%C3%A9conomies+d%27%C3%A9nergie'
+    });
+  });
+}
+setInterval(_runVeilleJorfTick, 4 * 60 * 60 * 1000); // toutes les 4h, vérifie si lundi
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ── ESPACE OBLIGÉ ─────────────────────────────────────────────────────────────
@@ -4529,6 +4574,64 @@ app.post('/api/installateur/dossiers/:id/statut', requireInstallateur, (req, res
       if (e) return res.status(500).json({ error: e.message });
       if (!this.changes) return res.status(404).json({ error: 'Dossier introuvable' });
       res.json({ success: true });
+    });
+});
+
+// Upload terrain (photos GPS) — accessible avec session installateur OU
+// avec simplement le code dossier (anonyme, pour faciliter usage chantier).
+const _terrainFields = uploadTerrain.fields([
+  { name: 'photo0', maxCount: 1 }, { name: 'photo1', maxCount: 1 },
+  { name: 'photo2', maxCount: 1 }, { name: 'photo3', maxCount: 1 },
+]);
+app.post('/api/installateur/terrain', (req, res) => {
+  _terrainFields(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    const { code, etape, note, lat, lon, acc } = req.body || {};
+    if (!code) return res.status(400).json({ error: 'Code dossier requis' });
+    // Récupère beneficiaire_id depuis le code
+    db.get('SELECT id FROM beneficiaires WHERE upper(code)=upper(?)', [code], (e, b) => {
+      if (e) return res.status(500).json({ error: e.message });
+      const benefId = b ? b.id : null;
+      const photos = [];
+      ['photo0','photo1','photo2','photo3'].forEach(k => {
+        if (req.files && req.files[k] && req.files[k][0]) {
+          photos.push({
+            filename: req.files[k][0].filename,
+            originalname: req.files[k][0].originalname,
+            size: req.files[k][0].size,
+            url: '/uploads/' + req.files[k][0].filename,
+          });
+        }
+      });
+      db.run(`INSERT INTO terrain_reports
+              (beneficiaire_id, code, installateur_id, etape, note, lat, lon, accuracy, photos_json)
+              VALUES (?,?,?,?,?,?,?,?,?)`,
+        [benefId, String(code).toUpperCase().trim(),
+         req.session.installateurId || null,
+         etape || '', note || '',
+         parseFloat(lat) || null, parseFloat(lon) || null, parseInt(acc) || null,
+         JSON.stringify(photos)],
+        function (e2) {
+          if (e2) return res.status(500).json({ error: e2.message });
+          // Si dossier trouvé, notifie l'admin partenaire / installateur
+          if (benefId) {
+            _enqueueNotif({
+              audience_type: 'admin', titre: '📸 Rapport terrain reçu',
+              message: 'Dossier ' + code.toUpperCase() + ' · ' + (etape || 'rapport') + ' · ' + photos.length + ' photo(s)',
+              type: 'info', url: '/admin.html'
+            });
+          }
+          res.json({ success: true, id: this.lastID, uploaded: photos.length });
+        });
+    });
+  });
+});
+// Liste des rapports terrain (pour installateur connecté + pour admin)
+app.get('/api/installateur/terrain', requireInstallateur, (req, res) => {
+  db.all(`SELECT * FROM terrain_reports WHERE installateur_id=? ORDER BY created_at DESC LIMIT 100`,
+    [req.session.installateurId], (e, rows) => {
+      if (e) return res.status(500).json({ error: e.message });
+      res.json((rows || []).map(r => ({ ...r, photos: JSON.parse(r.photos_json || '[]') })));
     });
 });
 
