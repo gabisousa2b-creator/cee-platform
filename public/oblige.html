@@ -212,7 +212,7 @@
     <div class="right">
       <span class="ew-notif-host"></span>
       <div class="me"><strong id="meRs">—</strong> · <span id="meType" style="color:#94a3b8;font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em">—</span></div>
-      <a href="/devis.html" class="btn-sec" style="text-decoration:none"><i class="fas fa-file-invoice-dollar me-1"></i>Devis & Factures</a>
+      <button class="btn-sec" id="btnDevis" onclick="toggleDevisPanel()"><i class="fas fa-file-invoice-dollar me-1"></i>Devis & Factures</button>
       <button class="btn-sec" id="btnLogout"><i class="fas fa-right-from-bracket me-1"></i>Déconnexion</button>
     </div>
     <a href="https://echowai.com" class="back-home" style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:#94a3b8;text-decoration:none;margin-top:14px;font-family:'IBM Plex Mono',monospace;transition:color .2s">
@@ -270,7 +270,26 @@
 
     <div id="listHost"></div>
   </div>
+
+  <div id="devisPanel" class="container-app" style="display:none">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+      <button class="btn-sec" onclick="toggleDevisPanel()"><i class="fas fa-arrow-left me-1"></i>Retour au tableau de bord</button>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;color:#94a3b8;text-transform:uppercase">Devis &amp; Factures</div>
+    </div>
+    <iframe id="devisFrame" src="about:blank" style="width:100%;height:calc(100vh - 180px);border:1px solid rgba(10,31,61,.08);border-radius:14px;background:#fff"></iframe>
+  </div>
 </div>
+
+<script>
+function toggleDevisPanel(){
+  const dash=document.querySelector('.container-app:not(#devisPanel)');
+  const panel=document.getElementById('devisPanel');
+  const f=document.getElementById('devisFrame');
+  const open=panel.style.display==='none';
+  if(open){ if(f.src==='about:blank'||!f.src.includes('/devis.html')) f.src='/devis.html?embed=1'; panel.style.display='block'; if(dash) dash.style.display='none'; }
+  else    { panel.style.display='none'; if(dash) dash.style.display='block'; }
+}
+</script>
 
 <script src="/js/ew-emmy.js" defer></script>
 <script src="/js/ew-notif.js" defer></script>

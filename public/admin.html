@@ -563,14 +563,14 @@
       </div>
       <div class="nav-item-s" data-section="emails" onclick="showSection('emails')"><i class="fas fa-paper-plane fa-fw"></i> Envoi de mails</div>
       <div class="sidebar-section-label" style="margin-top:10px">Outils CEE</div>
-      <div class="nav-item-s" onclick="window.location='/simulateur-pro.html'"><i class="fas fa-calculator fa-fw"></i> Simulateur Pro</div>
+      <div class="nav-item-s" onclick="showEmbed('/simulateur-pro.html?embed=1','Simulateur Pro')"><i class="fas fa-calculator fa-fw"></i> Simulateur Pro</div>
       <div class="nav-item-s" data-section="devis" onclick="showSection('devis')"><i class="fas fa-file-invoice-dollar fa-fw"></i> Devis &amp; Factures</div>
       <div class="nav-item-s" data-section="biblio_fiches" id="navBiblio" onclick="showSection('biblio_fiches')"><i class="fas fa-book-open fa-fw"></i> Bibliothèque de fiches</div>
       <div class="nav-item-s" data-section="veille" onclick="showSection('veille')"><i class="fas fa-radar fa-fw"></i> Veille réglementaire</div>
       <div class="sidebar-section-label" style="margin-top:10px">Super-admin</div>
-      <div class="nav-item-s" onclick="window.location='/kanban'"><i class="fas fa-columns fa-fw"></i> Pipeline Kanban</div>
-      <div class="nav-item-s" onclick="window.location='/carte'"><i class="fas fa-map-location-dot fa-fw"></i> Cartographie</div>
-      <div class="nav-item-s" onclick="window.location='/elearning'"><i class="fas fa-graduation-cap fa-fw"></i> Centre d'apprentissage</div>
+      <div class="nav-item-s" onclick="showEmbed('/kanban?embed=1','Pipeline Kanban')"><i class="fas fa-columns fa-fw"></i> Pipeline Kanban</div>
+      <div class="nav-item-s" onclick="showEmbed('/carte?embed=1','Cartographie')"><i class="fas fa-map-location-dot fa-fw"></i> Cartographie</div>
+      <div class="nav-item-s" onclick="showEmbed('/elearning?embed=1','Centre d\'apprentissage')"><i class="fas fa-graduation-cap fa-fw"></i> Centre d'apprentissage</div>
       <div class="sidebar-section-label" style="margin-top:10px">Exports</div>
       <div class="nav-item-s" onclick="window.location='/api/admin/export/dossiers.csv'"><i class="fas fa-file-csv fa-fw"></i> Export CSV dossiers</div>
       <div class="nav-item-s" onclick="window.location='/api/admin/backup'"><i class="fas fa-database fa-fw"></i> Backup DB</div>
@@ -2025,7 +2025,32 @@ async function loadActivites() {
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
+function showEmbed(url, title) {
+  // Garder le sidebar — afficher iframe dans le main, masquer toutes les autres sections
+  document.querySelectorAll('[id^="section"]').forEach(el => { el.style.display = 'none'; });
+  document.querySelectorAll('[data-section]').forEach(el => el.classList.remove('active'));
+  let e = document.getElementById('sectionEmbed');
+  if (!e) {
+    e = document.createElement('div');
+    e.id = 'sectionEmbed';
+    e.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <span style="font-weight:700;color:var(--t1)" id="embedTitle"></span>
+        <a id="embedOpenNew" target="_blank" class="btn btn-sm btn-outline-secondary" style="margin-left:auto"><i class="fas fa-up-right-from-square me-1"></i>Ouvrir dans un nouvel onglet</a>
+      </div>
+      <iframe id="embedFrame" src="about:blank" style="width:100%;height:calc(100vh - 110px);border:1px solid var(--border);border-radius:12px;background:var(--bg-2)"></iframe>`;
+    document.querySelector('.main')?.appendChild(e);
+  }
+  e.style.display = 'block';
+  document.getElementById('embedTitle').textContent = title || '';
+  const f = document.getElementById('embedFrame');
+  if (f.getAttribute('data-src') !== url) { f.src = url; f.setAttribute('data-src', url); }
+  document.getElementById('embedOpenNew').href = url.split('?')[0];
+}
+
 function showSection(name) {
+  // Masquer la section embed quand on revient sur une section interne
+  const emb = document.getElementById('sectionEmbed'); if (emb) emb.style.display = 'none';
   document.querySelectorAll('[data-section]').forEach(el => el.classList.remove('active'));
   document.querySelector(`[data-section="${name}"]`)?.classList.add('active');
   const sections = ['dashboard','beneficiaires','partenaires','partenaires_unifie','operations','materiel','taches','emails','notifications','biblio_fiches','veille','devis'];
