@@ -2047,7 +2047,7 @@ app.get('/api/fiches/:code', (req, res) => {
 app.put('/api/admin/fiches/:code/statut', requireAdmin, (req, res) => {
   const code = req.params.code.toUpperCase();
   const { statut, date_abrogation, actif } = req.body || {};
-  const allowed = ['valide','en_cours','abrogee','suspendue'];
+  const allowed = ['valide','en_cours','abrogee','suspendue','en_projet'];
   if (statut && !allowed.includes(statut)) return res.status(400).json({ error: 'statut invalide' });
   const sets = [], params = [];
   if (statut) { sets.push('statut=?'); params.push(statut); }
@@ -4034,18 +4034,27 @@ function runVeille(declenchePar = 'auto') {
   });
 }
 
-// Planifier veille journalière à 6h
+// Planifier veille journalière à 6h (legacy MTE + JORF + ATEE)
+const veilleCEE = require('./lib/veille-cee');
 function scheduleDailyVeille() {
   const now = new Date();
   const next = new Date(now);
   next.setHours(6, 0, 0, 0);
   if (next <= now) next.setDate(next.getDate() + 1);
   const delay = next - now;
-  setTimeout(() => {
-    runVeille('auto').then(r => console.log('🔍 Veille CEE:', r.statut, `— ${r.changements?.length||0} changement(s)`));
-    setInterval(() => runVeille('auto'), 24 * 60 * 60 * 1000);
-  }, delay);
-  console.log(`⏰ Veille CEE planifiée dans ${Math.round(delay/3600000)}h`);
+  const runAuto = async () => {
+    try {
+      const r = await runVeille('auto');
+      console.log('🔍 Veille MTE :', r.statut, `— ${r.changements?.length||0} changement(s)`);
+    } catch(e) { console.warn('runVeille MTE error', e.message); }
+    try {
+      const r2 = await veilleCEE.runAll(db, 'auto');
+      console.log('🔍 Veille JORF:', r2.jorf.statut, `— ${r2.jorf.changements?.length||0} changement(s)`);
+      console.log('🔍 Veille ATEE:', r2.atee.statut, `— ${r2.atee.changements?.length||0} changement(s)`);
+    } catch(e) { console.warn('runVeille CEE error', e.message); }
+  };
+  setTimeout(() => { runAuto(); setInterval(runAuto, 24 * 60 * 60 * 1000); }, delay);
+  console.log(`⏰ Veille CEE planifiée dans ${Math.round(delay/3600000)}h (MTE + JORF + ATEE)`);
 }
 scheduleDailyVeille();
 
@@ -4055,11 +4064,36 @@ app.get('/api/admin/veille/logs', requireAdmin, (req, res) => {
     (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows));
 });
 
-// POST — déclencher veille manuellement
+// POST — déclencher veille manuellement (legacy MTE)
 app.post('/api/admin/veille/run', requireAdmin, async (req, res) => {
   try {
     const result = await runVeille('manuel');
     res.json(result);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST — déclencher veille JORF uniquement
+app.post('/api/admin/veille/jorf', requireAdmin, async (req, res) => {
+  try {
+    const r = await veilleCEE.runJORF(db, 'manuel');
+    res.json(r);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST — déclencher veille ATEE uniquement
+app.post('/api/admin/veille/atee', requireAdmin, async (req, res) => {
+  try {
+    const r = await veilleCEE.runATEE(db, 'manuel');
+    res.json(r);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST — déclencher toutes les veilles (MTE + JORF + ATEE)
+app.post('/api/admin/veille/all', requireAdmin, async (req, res) => {
+  try {
+    const mte = await runVeille('manuel').catch(e => ({ statut: 'erreur', erreur: e.message }));
+    const both = await veilleCEE.runAll(db, 'manuel');
+    res.json({ mte, ...both });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
