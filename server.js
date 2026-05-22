@@ -1587,6 +1587,11 @@ db.serialize(() => {
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+  // Migrations devis : ownership scoping (mandataire/oblige/delegataire + apporteur trace)
+  [`ALTER TABLE devis ADD COLUMN owner_type TEXT DEFAULT 'admin'`,
+   `ALTER TABLE devis ADD COLUMN owner_id INTEGER DEFAULT 0`,
+   `ALTER TABLE devis ADD COLUMN apporteur_id INTEGER DEFAULT 0`
+  ].forEach(sql => db.run(sql, () => {}));
 
   db.run(`CREATE TABLE IF NOT EXISTS partenaires (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1631,7 +1636,9 @@ db.serialize(() => {
   )`);
   [`ALTER TABLE comptes ADD COLUMN commission_mode TEXT DEFAULT 'pct'`,
    `ALTER TABLE comptes ADD COLUMN commission_valeur REAL DEFAULT 0`,
-   `ALTER TABLE comptes ADD COLUMN operations TEXT DEFAULT '[]'`
+   `ALTER TABLE comptes ADD COLUMN operations TEXT DEFAULT '[]'`,
+   // parent_type permet à un apporteur d'être rattaché à un mandataire / oblige / delegataire
+   `ALTER TABLE comptes ADD COLUMN parent_type TEXT DEFAULT 'mandataire'`
   ].forEach(sql => db.run(sql, () => {}));
 
   // Catalogue d'opérations par partenaire (fiches CEE proposées + commission)
@@ -2190,6 +2197,159 @@ app.put('/api/admin/devis/:id', requireAdmin, (req, res) => {
 app.delete('/api/admin/devis/:id', requireAdmin, (req, res) => {
   db.run('DELETE FROM devis WHERE id=?', [req.params.id],
     err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+});
+
+// ── Devis/factures unifiés : mandataire, obligé, délégataire, apporteur ──────
+// Permet à chaque profil d'éditer ses propres devis/factures.
+// Apporteur scoped sur son parent (mandataire/obligé/délégataire).
+function requireDevisEditor(req, res, next) {
+  if (req.session.isAdmin || req.session.compteId || req.session.obligeId || req.session.delegataireId) return next();
+  res.status(401).json({ error: 'Non autorisé' });
+}
+function resolveDevisOwner(req) {
+  return new Promise((resolve, reject) => {
+    if (req.session.compteId) {
+      db.get('SELECT id, role, partenaire_id, parent_type FROM comptes WHERE id=?', [req.session.compteId], (e, c) => {
+        if (e) return reject(e);
+        if (!c) return reject(new Error('compte introuvable'));
+        const parentType = c.parent_type || 'mandataire';
+        const parentId   = c.partenaire_id || 0;
+        const apporteurId = c.role === 'apporteur' ? c.id : 0;
+        resolve({ ownerType: parentType, ownerId: parentId, apporteurId, isAdmin: !!req.session.isAdmin });
+      });
+      return;
+    }
+    if (req.session.obligeId)      return resolve({ ownerType: 'oblige',      ownerId: req.session.obligeId,      apporteurId: 0, isAdmin: !!req.session.isAdmin });
+    if (req.session.delegataireId) return resolve({ ownerType: 'delegataire', ownerId: req.session.delegataireId, apporteurId: 0, isAdmin: !!req.session.isAdmin });
+    if (req.session.isAdmin)       return resolve({ ownerType: 'admin',       ownerId: 0,                          apporteurId: 0, isAdmin: true });
+    reject(new Error('aucun rôle en session'));
+  });
+}
+function devisOwnershipWhere(owner) {
+  // Admin → tout. Sinon scope strict sur owner_type+owner_id.
+  if (owner.isAdmin) return { sql: '1=1', params: [] };
+  return { sql: 'd.owner_type=? AND d.owner_id=?', params: [owner.ownerType, owner.ownerId] };
+}
+
+// Indique au front quel rôle est en cours (déclaré AVANT /:id pour éviter shadow)
+app.get('/api/devis/_context', requireDevisEditor, async (req, res) => {
+  try {
+    const owner = await resolveDevisOwner(req);
+    res.json({
+      owner_type: owner.ownerType, owner_id: owner.ownerId,
+      apporteur_id: owner.apporteurId, is_admin: owner.isAdmin
+    });
+  } catch(e) { res.status(401).json({ error: e.message }); }
+});
+
+app.get('/api/devis', requireDevisEditor, async (req, res) => {
+  try {
+    const owner = await resolveDevisOwner(req);
+    const { type, statut } = req.query;
+    const own = devisOwnershipWhere(owner);
+    let where = own.sql, params = [...own.params];
+    if (type)   { where += ' AND d.type=?';   params.push(type); }
+    if (statut) { where += ' AND d.statut=?'; params.push(statut); }
+    db.all(`SELECT d.*, b.nom AS benef_nom, b.prenom AS benef_prenom
+            FROM devis d LEFT JOIN beneficiaires b ON b.id=d.beneficiaire_id
+            WHERE ${where} ORDER BY d.created_at DESC`, params,
+      (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows));
+  } catch(e) { res.status(401).json({ error: e.message }); }
+});
+
+app.get('/api/devis/:id', requireDevisEditor, async (req, res) => {
+  try {
+    const owner = await resolveDevisOwner(req);
+    db.get('SELECT * FROM devis WHERE id=?', [req.params.id], (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!row) return res.status(404).json({ error: 'Document non trouvé' });
+      if (!owner.isAdmin && (row.owner_type !== owner.ownerType || row.owner_id !== owner.ownerId)) {
+        return res.status(403).json({ error: 'Accès refusé à ce document' });
+      }
+      res.json(row);
+    });
+  } catch(e) { res.status(401).json({ error: e.message }); }
+});
+
+app.post('/api/devis', requireDevisEditor, async (req, res) => {
+  try {
+    const owner = await resolveDevisOwner(req);
+    const d = req.body;
+    const type = d.type || 'devis';
+    const numero = await generateNumero(type);
+    const montant_ht = parseFloat(d.montant_ht) || 0;
+    const tva = parseFloat(d.tva_pct) || 20;
+    const montant_ttc = parseFloat((montant_ht * (1 + tva/100)).toFixed(2));
+    // Si admin et précise un owner dans le body, le respecter ; sinon owner = session
+    const ot = owner.isAdmin && d.owner_type ? d.owner_type : owner.ownerType;
+    const oi = owner.isAdmin && d.owner_id   ? parseInt(d.owner_id) : owner.ownerId;
+    db.run(`INSERT INTO devis
+      (numero,type,statut,beneficiaire_id,client_nom,client_prenom,client_email,client_tel,
+       client_societe,client_siret,client_adresse,client_cp,client_ville,
+       code_fiche,nom_operation,secteur,volume_kwh,prix_eur_mwh,montant_ht,tva_pct,montant_ttc,
+       validite_jours,conditions,mentions_legales,partenaire_json,date_devis,date_echeance,notes,
+       owner_type,owner_id,apporteur_id)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [numero,type,d.statut||'brouillon',d.beneficiaire_id||null,
+       d.client_nom||'',d.client_prenom||'',d.client_email||'',d.client_tel||'',
+       d.client_societe||'',d.client_siret||'',d.client_adresse||'',d.client_cp||'',d.client_ville||'',
+       d.code_fiche||'',d.nom_operation||'',d.secteur||'',
+       parseFloat(d.volume_kwh)||0,parseFloat(d.prix_eur_mwh)||4.0,
+       montant_ht,tva,montant_ttc,
+       parseInt(d.validite_jours)||30,d.conditions||'',d.mentions_legales||'',
+       JSON.stringify(d.partenaire||{}),d.date_devis||new Date().toISOString().slice(0,10),
+       d.date_echeance||null,d.notes||'',
+       ot, oi, owner.apporteurId],
+      function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        db.get('SELECT * FROM devis WHERE id=?', [this.lastID], (e, r) => res.json(r));
+      });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.put('/api/devis/:id', requireDevisEditor, async (req, res) => {
+  try {
+    const owner = await resolveDevisOwner(req);
+    db.get('SELECT owner_type, owner_id FROM devis WHERE id=?', [req.params.id], (e0, cur) => {
+      if (e0 || !cur) return res.status(404).json({ error: 'Document non trouvé' });
+      if (!owner.isAdmin && (cur.owner_type !== owner.ownerType || cur.owner_id !== owner.ownerId)) {
+        return res.status(403).json({ error: 'Accès refusé à ce document' });
+      }
+      const d = req.body;
+      const montant_ht = parseFloat(d.montant_ht) || 0;
+      const tva = parseFloat(d.tva_pct) || 20;
+      const montant_ttc = parseFloat((montant_ht * (1 + tva/100)).toFixed(2));
+      db.run(`UPDATE devis SET
+        statut=?,client_nom=?,client_prenom=?,client_email=?,client_tel=?,
+        client_societe=?,client_siret=?,client_adresse=?,client_cp=?,client_ville=?,
+        code_fiche=?,nom_operation=?,secteur=?,volume_kwh=?,prix_eur_mwh=?,
+        montant_ht=?,tva_pct=?,montant_ttc=?,validite_jours=?,conditions=?,
+        mentions_legales=?,partenaire_json=?,date_devis=?,date_echeance=?,notes=?,
+        updated_at=CURRENT_TIMESTAMP WHERE id=?`,
+        [d.statut||'brouillon',d.client_nom||'',d.client_prenom||'',d.client_email||'',d.client_tel||'',
+         d.client_societe||'',d.client_siret||'',d.client_adresse||'',d.client_cp||'',d.client_ville||'',
+         d.code_fiche||'',d.nom_operation||'',d.secteur||'',
+         parseFloat(d.volume_kwh)||0,parseFloat(d.prix_eur_mwh)||4.0,
+         montant_ht,tva,montant_ttc,parseInt(d.validite_jours)||30,d.conditions||'',d.mentions_legales||'',
+         JSON.stringify(d.partenaire||{}),d.date_devis||new Date().toISOString().slice(0,10),
+         d.date_echeance||null,d.notes||'',req.params.id],
+        err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+    });
+  } catch(e) { res.status(401).json({ error: e.message }); }
+});
+
+app.delete('/api/devis/:id', requireDevisEditor, async (req, res) => {
+  try {
+    const owner = await resolveDevisOwner(req);
+    db.get('SELECT owner_type, owner_id FROM devis WHERE id=?', [req.params.id], (e0, cur) => {
+      if (e0 || !cur) return res.status(404).json({ error: 'Document non trouvé' });
+      if (!owner.isAdmin && (cur.owner_type !== owner.ownerType || cur.owner_id !== owner.ownerId)) {
+        return res.status(403).json({ error: 'Accès refusé à ce document' });
+      }
+      db.run('DELETE FROM devis WHERE id=?', [req.params.id],
+        err => err ? res.status(500).json({ error: err.message }) : res.json({ success: true }));
+    });
+  } catch(e) { res.status(401).json({ error: e.message }); }
 });
 
 // ── Partenaires ────────────────────────────────────────────────────────────────

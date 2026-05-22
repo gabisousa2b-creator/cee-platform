@@ -354,6 +354,28 @@ body{min-height:100vh}
 // ══ État ══
 let allDocs=[], allFiches=[], allPartenaires=[], currentFilter='', currentDoc=null;
 let partenaireData={};
+let devisContext = { owner_type:'admin', owner_id:0, apporteur_id:0, is_admin:false };
+
+async function loadDevisContext() {
+  try {
+    const r = await fetch('/api/devis/_context', { credentials:'include' });
+    if (r.ok) devisContext = await r.json();
+  } catch(e) {}
+  // Bannière scope si non-admin
+  const ROLE_LABELS = { mandataire:'Mandataire', oblige:'Obligé', delegataire:'Délégataire', admin:'Super-admin' };
+  const label = ROLE_LABELS[devisContext.owner_type] || devisContext.owner_type;
+  const scope = devisContext.apporteur_id
+    ? `Vous éditez pour le compte de votre ${label} (apporteur d'affaires)`
+    : `Espace ${label} — vos devis et factures`;
+  const h = document.querySelector('.page-header');
+  if (h && !document.getElementById('devisScopeBadge')) {
+    const b = document.createElement('div');
+    b.id = 'devisScopeBadge';
+    b.style.cssText = 'margin-left:auto;font-size:.75rem;color:var(--t2);background:var(--accent-dim);padding:6px 12px;border-radius:8px;font-weight:600';
+    b.innerHTML = `<i class="fas fa-shield-halved me-1"></i>${scope}`;
+    h.appendChild(b);
+  }
+}
 
 // ══ Init ══
 window.addEventListener('DOMContentLoaded', async () => {
@@ -361,13 +383,14 @@ window.addEventListener('DOMContentLoaded', async () => {
   const p = new URLSearchParams(window.location.search);
   if(p.has('fiche')) { setTimeout(()=>{ openCreateModal('devis', { code_fiche:p.get('fiche'), volume_kwh:p.get('kwh'), prime:p.get('prime'), prix_eur_mwh:p.get('prix') }); }, 500); }
 
+  await loadDevisContext();
   await Promise.all([loadDocs(), loadFiches(), loadPartenaires()]);
   const d=new Date(); document.getElementById('fDateDevis').value=d.toISOString().slice(0,10);
 });
 
 async function loadDocs() {
   try {
-    const r = await fetch('/api/admin/devis', { credentials:'include' });
+    const r = await fetch('/api/devis', { credentials:'include' });
     if (!r.ok) return;
     allDocs = await r.json();
     renderTable(); updateKPIs();
@@ -559,7 +582,7 @@ async function saveDocument() {
     date_devis:    document.getElementById('fDateDevis').value
   };
   try {
-    const url = id ? `/api/admin/devis/${id}` : '/api/admin/devis';
+    const url = id ? `/api/devis/${id}` : '/api/devis';
     const method = id ? 'PUT' : 'POST';
     const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify(body) });
     if (!r.ok) { const e=await r.json(); showToast(e.error||'Erreur','danger'); return; }
@@ -571,7 +594,7 @@ async function saveDocument() {
 
 // ══ Édition ══
 async function editDoc(id) {
-  const r=await fetch(`/api/admin/devis/${id}`,{credentials:'include'});
+  const r=await fetch(`/api/devis/${id}`,{credentials:'include'});
   const d=await r.json();
   document.getElementById('editId').value=d.id;
   document.getElementById('fType').value=d.type||'devis';
@@ -718,7 +741,7 @@ function printDoc() {
 // ══ Suppression ══
 async function deleteDoc(id) {
   if(!confirm('Supprimer ce document ?')) return;
-  const r = await fetch(`/api/admin/devis/${id}`,{method:'DELETE',credentials:'include'});
+  const r = await fetch(`/api/devis/${id}`,{method:'DELETE',credentials:'include'});
   if(r.ok){showToast('Supprimé','success');await loadDocs();}
   else showToast('Erreur suppression','danger');
 }
