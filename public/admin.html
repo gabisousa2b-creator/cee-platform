@@ -1548,10 +1548,11 @@
             <div class="col-md-6"><label class="form-label">SIRET <span class="badge ms-1" style="background:var(--accent-dim);color:var(--accent);font-size:.62rem">auto-fill</span></label><input type="text" class="form-control" name="siret" id="createSiret" maxlength="14" placeholder="14 chiffres" oninput="if(this.value.replace(/\s/g,'').length===14)autoFillFromSiret(this,document.getElementById('createRaisonSociale'),document.getElementById('createCp'),document.getElementById('createVille'))"></div>
             <div class="col-12">
               <label class="form-label">Partenaire apporteur</label>
-              <select class="form-select" name="partenaire" id="createPartenaire">
+              <input type="text" class="form-control form-control-sm mb-2" id="createPartenaireSearch" placeholder="🔍 Rechercher dans tous les profils (mandataire, obligé, délégataire, installateur, contrôleur)…" oninput="renderApporteurSelect('createPartenaire', null, this.value)">
+              <select class="form-select" name="partenaire" id="createPartenaire" size="6">
                 <option value="">— Aucun partenaire —</option>
               </select>
-              <div class="form-text small">Rattache le dossier à un partenaire — il le verra dans son espace dédié.</div>
+              <div class="form-text small">Tous les profils sont listés. Tapez pour filtrer si la liste est longue.</div>
             </div>
             <div class="col-12">
               <label class="form-label">Activité</label>
@@ -1594,12 +1595,11 @@
         </div>
         <div class="mb-3">
           <label class="form-label small fw-semibold">Partenaire apporteur (appliqué à tout l'import)</label>
-          <select class="form-select" id="importPartenaire">
+          <input type="text" class="form-control form-control-sm mb-2" id="importPartenaireSearch" placeholder="🔍 Rechercher dans tous les profils…" oninput="renderApporteurSelect('importPartenaire', null, this.value)">
+          <select class="form-select" id="importPartenaire" size="6">
             <option value="">— Aucun (ou détection depuis la colonne "partenaire") —</option>
-            <option value="Relève Energie">Relève Energie</option>
-            <option value="France Eco Habitat">France Eco Habitat</option>
           </select>
-          <div class="form-text small">Si votre fichier contient déjà une colonne <code>partenaire</code>, laissez vide pour l'utiliser.</div>
+          <div class="form-text small">Tous les profils (mandataire, obligé, délégataire, installateur, contrôleur) sont listés. Si votre fichier contient déjà une colonne <code>partenaire</code>, laissez vide.</div>
         </div>
         <div id="importError" class="alert alert-danger d-none small"></div>
         <div id="importSuccess" class="alert alert-success d-none small"></div>
@@ -3892,6 +3892,41 @@ async function toggleExcludeRelance(checked) {
 let allPartenaires = [];
 let partenaireNames = [];
 
+let _allProfilesCache = [];
+const _PROFILE_TYPE_LABELS = { mandataire:'Mandataires', oblige:'Obligés', delegataire:'Délégataires', installateur:'Installateurs', controleur:'Contrôleurs' };
+async function loadAllProfiles() {
+  try {
+    const r = await fetch('/api/admin/partenaires-unifie');
+    _allProfilesCache = await r.json();
+  } catch(e) { _allProfilesCache = []; }
+}
+function renderApporteurSelect(selId, currentVal, query) {
+  const sel = document.getElementById(selId);
+  if (!sel) return;
+  const cur = (currentVal != null) ? currentVal : sel.value;
+  const q = (query||'').toLowerCase().trim();
+  const groups = { mandataire:[], oblige:[], delegataire:[], installateur:[], controleur:[] };
+  _allProfilesCache.forEach(p => {
+    if (!groups[p.type]) return;
+    if (!q || (p.raison_sociale||'').toLowerCase().includes(q)) groups[p.type].push(p);
+  });
+  const placeholder = selId === 'importPartenaire'
+    ? '<option value="">— Aucun (ou détection depuis la colonne "partenaire") —</option>'
+    : '<option value="">— Aucun partenaire —</option>';
+  let html = placeholder;
+  Object.keys(_PROFILE_TYPE_LABELS).forEach(k => {
+    if (!groups[k].length) return;
+    html += `<optgroup label="${_PROFILE_TYPE_LABELS[k]} (${groups[k].length})">`;
+    groups[k].forEach(p => {
+      const name = p.raison_sociale || '';
+      html += `<option value="${escAttr(name)}">${escHtml(name)}</option>`;
+    });
+    html += '</optgroup>';
+  });
+  sel.innerHTML = html;
+  if (cur) sel.value = cur;
+}
+
 async function loadPartenaires() {
   loadParametres();
   try {
@@ -3900,14 +3935,10 @@ async function loadPartenaires() {
   } catch(e) { allPartenaires = []; }
   partenaireNames = allPartenaires.map(p => p.nom);
 
-  // Sélecteur du formulaire de création bénéficiaire
-  const sel = document.getElementById('createPartenaire');
-  if (sel) {
-    const cur = sel.value;
-    sel.innerHTML = '<option value="">— Aucun partenaire —</option>' +
-      partenaireNames.map(n => `<option value="${escAttr(n)}">${escHtml(n)}</option>`).join('');
-    if (cur) sel.value = cur;
-  }
+  // Charge TOUS les profils (mandataire + oblige + delegataire + installateur + controleur) pour les sélecteurs
+  await loadAllProfiles();
+  renderApporteurSelect('createPartenaire');
+  renderApporteurSelect('importPartenaire');
 
   const cnt = document.getElementById('partenairesCount');
   if (cnt) cnt.textContent = `${allPartenaires.length} partenaire(s)`;
@@ -3938,9 +3969,28 @@ async function loadPartenaires() {
 }
 
 function partenaireOptionsHtml(selected) {
-  let opts = partenaireNames.map(n => `<option value="${escAttr(n)}" ${n===selected?'selected':''}>${escHtml(n)}</option>`).join('');
-  if (selected && !partenaireNames.includes(selected)) opts += `<option value="${escAttr(selected)}" selected>${escHtml(selected)}</option>`;
-  return opts;
+  // Si cache vide (chargement async), fallback sur la liste mandataires uniquement
+  if (!_allProfilesCache.length) {
+    let opts = partenaireNames.map(n => `<option value="${escAttr(n)}" ${n===selected?'selected':''}>${escHtml(n)}</option>`).join('');
+    if (selected && !partenaireNames.includes(selected)) opts += `<option value="${escAttr(selected)}" selected>${escHtml(selected)}</option>`;
+    return opts;
+  }
+  const groups = { mandataire:[], oblige:[], delegataire:[], installateur:[], controleur:[] };
+  _allProfilesCache.forEach(p => { if (groups[p.type]) groups[p.type].push(p); });
+  let html = '';
+  Object.keys(_PROFILE_TYPE_LABELS).forEach(k => {
+    if (!groups[k].length) return;
+    html += `<optgroup label="${_PROFILE_TYPE_LABELS[k]}">`;
+    groups[k].forEach(p => {
+      const name = p.raison_sociale || '';
+      html += `<option value="${escAttr(name)}" ${name===selected?'selected':''}>${escHtml(name)}</option>`;
+    });
+    html += '</optgroup>';
+  });
+  if (selected && !_allProfilesCache.some(p => p.raison_sociale === selected)) {
+    html = `<option value="${escAttr(selected)}" selected>${escHtml(selected)} (inactif)</option>` + html;
+  }
+  return html;
 }
 
 function openPartenaireModal(id) {
