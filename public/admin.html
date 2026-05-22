@@ -3727,10 +3727,11 @@ async function loadBiblioFiches() {
   if (!tbody) return;
   tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin"></i></td></tr>';
   try {
-    const r = await fetch('/api/fiches');
+    const r = await fetch('/api/fiches?all=1');
     allFiches = await r.json();
+    const nbAbr = allFiches.filter(f => (f.statut||'') === 'abrogee').length;
     const countEl = document.getElementById('biblioCount');
-    if (countEl) countEl.textContent = `${allFiches.length} fiche(s) dans la bibliothèque`;
+    if (countEl) countEl.textContent = `${allFiches.length} fiche(s) — dont ${nbAbr} abrogée(s)`;
     renderBiblio(allFiches);
   } catch(e) {
     tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-danger"><i class="fas fa-exclamation-circle me-2"></i>Erreur de chargement</td></tr>';

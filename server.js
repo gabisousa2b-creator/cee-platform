@@ -2014,10 +2014,12 @@ app.get('/api/emmy', (req, res) => {
 // ── Routes Fiches CEE ─────────────────────────────────────────────────────────
 // GET — liste avec filtres
 app.get('/api/fiches', (req, res) => {
-  const { secteur, search, actif, zni, mode } = req.query;
+  const { secteur, search, actif, zni, mode, all, include_abrogees } = req.query;
   let where = '1=1';
   const params = [];
+  // all=1 ou include_abrogees=1 → pas de filtre actif (renvoie aussi les fiches abrogées / désactivées)
   if (actif !== undefined) { where += ' AND actif=?'; params.push(parseInt(actif)); }
+  else if (all === '1' || include_abrogees === '1') { /* no filter */ }
   else { where += ' AND actif=1'; }
   if (secteur) { where += ' AND secteur=?'; params.push(secteur); }
   if (zni === '1') { where += ' AND zni_eligible=1'; }
@@ -2031,9 +2033,9 @@ app.get('/api/fiches', (req, res) => {
     (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows));
 });
 
-// GET — fiche individuelle
+// GET — fiche individuelle (renvoie aussi les abrogées pour la bibliothèque)
 app.get('/api/fiches/:code', (req, res) => {
-  db.get('SELECT * FROM cee_fiches WHERE code=? AND actif=1', [req.params.code.toUpperCase()],
+  db.get('SELECT * FROM cee_fiches WHERE code=?', [req.params.code.toUpperCase()],
     (err, row) => {
       if (err) return res.status(500).json({ error: err.message });
       if (!row) return res.status(404).json({ error: 'Fiche non trouvée' });
