@@ -2043,6 +2043,44 @@ app.get('/api/fiches/:code', (req, res) => {
     });
 });
 
+// PUT — admin : changer statut / date d'abrogation / actif d'une fiche
+app.put('/api/admin/fiches/:code/statut', requireAdmin, (req, res) => {
+  const code = req.params.code.toUpperCase();
+  const { statut, date_abrogation, actif } = req.body || {};
+  const allowed = ['valide','en_cours','abrogee','suspendue'];
+  if (statut && !allowed.includes(statut)) return res.status(400).json({ error: 'statut invalide' });
+  const sets = [], params = [];
+  if (statut) { sets.push('statut=?'); params.push(statut); }
+  if (date_abrogation !== undefined) { sets.push('date_abrogation=?'); params.push(date_abrogation || ''); }
+  if (actif !== undefined) { sets.push('actif=?'); params.push(actif ? 1 : 0); }
+  // Si on passe à abrogee sans précision sur actif → on désactive aussi
+  if (statut === 'abrogee' && actif === undefined) { sets.push('actif=?'); params.push(0); }
+  if (statut === 'valide'  && actif === undefined) { sets.push('actif=?'); params.push(1); }
+  if (!sets.length) return res.status(400).json({ error: 'rien à mettre à jour' });
+  params.push(code);
+  db.run(`UPDATE cee_fiches SET ${sets.join(', ')} WHERE code=?`, params, function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!this.changes) return res.status(404).json({ error: 'Fiche non trouvée' });
+    db.get('SELECT * FROM cee_fiches WHERE code=?', [code], (e, r) => res.json(r));
+  });
+});
+
+// POST — admin : import en lot de codes à marquer abrogees ({ codes: ["BAR-TH-106", …], date_abrogation })
+app.post('/api/admin/fiches/abrogees/bulk', requireAdmin, (req, res) => {
+  const { codes = [], date_abrogation = '' } = req.body || {};
+  if (!Array.isArray(codes) || !codes.length) return res.status(400).json({ error: 'codes requis (tableau)' });
+  const upper = codes.map(c => String(c).toUpperCase().trim()).filter(Boolean);
+  const placeholders = upper.map(()=>'?').join(',');
+  db.run(
+    `UPDATE cee_fiches SET statut='abrogee', actif=0, date_abrogation=? WHERE code IN (${placeholders})`,
+    [date_abrogation, ...upper],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ updated: this.changes, codes: upper });
+    }
+  );
+});
+
 // POST — simuler prime pour une fiche (V2 — moteur calcul)
 app.post('/api/fiches/:code/simuler', (req, res) => {
   const { inputs = {}, is_zni, is_precarite, prix_eur_mwh } = req.body;
