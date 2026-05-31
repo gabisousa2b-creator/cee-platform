@@ -65,7 +65,7 @@ const SpaceMenu = ({ compact = false }) => {
     /*#__PURE__*/React.createElement("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", "aria-hidden": true },
       /*#__PURE__*/React.createElement("path", { d: "M12 12c2.2 0 4-1.8 4-4s-1.8-4-4-4-4 1.8-4 4 1.8 4 4 4zm0 2c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4z", fill: "currentColor", opacity: 0.95 })
     ),
-    /*#__PURE__*/React.createElement("span", null, "Votre espace"),
+    /*#__PURE__*/React.createElement("span", null, "Accédez"),
     /*#__PURE__*/React.createElement("svg", {
       width: 11, height: 11, viewBox: "0 0 24 24", fill: "none", "aria-hidden": true,
       style: { transition: "transform .25s ease", transform: open ? "rotate(180deg)" : "rotate(0)" }
