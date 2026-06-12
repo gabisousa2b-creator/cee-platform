@@ -1638,7 +1638,26 @@ db.serialize(() => {
    `ALTER TABLE comptes ADD COLUMN commission_valeur REAL DEFAULT 0`,
    `ALTER TABLE comptes ADD COLUMN operations TEXT DEFAULT '[]'`,
    // parent_type permet à un apporteur d'être rattaché à un mandataire / oblige / delegataire
-   `ALTER TABLE comptes ADD COLUMN parent_type TEXT DEFAULT 'mandataire'`
+   `ALTER TABLE comptes ADD COLUMN parent_type TEXT DEFAULT 'mandataire'`,
+   // OAuth mail provider (Gmail / Microsoft) — envoi en "depuis" l'adresse du compte
+   `ALTER TABLE comptes ADD COLUMN email_provider TEXT DEFAULT ''`,
+   `ALTER TABLE comptes ADD COLUMN email_address TEXT DEFAULT ''`,
+   `ALTER TABLE comptes ADD COLUMN oauth_access_token TEXT DEFAULT ''`,
+   `ALTER TABLE comptes ADD COLUMN oauth_refresh_token TEXT DEFAULT ''`,
+   `ALTER TABLE comptes ADD COLUMN oauth_expires_at DATETIME`
+  ].forEach(sql => db.run(sql, () => {}));
+
+  // Mêmes colonnes OAuth sur obligés et délégataires (envoi mail depuis leur adresse)
+  [`ALTER TABLE obliges ADD COLUMN email_provider TEXT DEFAULT ''`,
+   `ALTER TABLE obliges ADD COLUMN email_address TEXT DEFAULT ''`,
+   `ALTER TABLE obliges ADD COLUMN oauth_access_token TEXT DEFAULT ''`,
+   `ALTER TABLE obliges ADD COLUMN oauth_refresh_token TEXT DEFAULT ''`,
+   `ALTER TABLE obliges ADD COLUMN oauth_expires_at DATETIME`,
+   `ALTER TABLE delegataires ADD COLUMN email_provider TEXT DEFAULT ''`,
+   `ALTER TABLE delegataires ADD COLUMN email_address TEXT DEFAULT ''`,
+   `ALTER TABLE delegataires ADD COLUMN oauth_access_token TEXT DEFAULT ''`,
+   `ALTER TABLE delegataires ADD COLUMN oauth_refresh_token TEXT DEFAULT ''`,
+   `ALTER TABLE delegataires ADD COLUMN oauth_expires_at DATETIME`
   ].forEach(sql => db.run(sql, () => {}));
 
   // Catalogue d'opérations par partenaire (fiches CEE proposées + commission)
@@ -3268,7 +3287,165 @@ app.post('/api/partner/messages', requirePartner, (req, res) => {
       });
   });
 });
-// Communication bénéficiaires — le partenaire envoie un email à l'un de ses bénéficiaires
+// ── OAuth Mail (Gmail / Microsoft Graph) ─────────────────────────────────────
+const oauthMail = require('./lib/oauth-mail');
+
+// Résout le compte porteur de la connexion OAuth selon la session.
+// Renvoie { table, idColumn, id, account_row } ou null.
+function resolveOAuthAccount(req, cb) {
+  if (req.session.compteId) {
+    db.get('SELECT id, email_provider, email_address, oauth_access_token, oauth_refresh_token, oauth_expires_at FROM comptes WHERE id=?',
+      [req.session.compteId], (e, r) => cb(e, r ? { table: 'comptes', id: r.id, row: r } : null));
+    return;
+  }
+  if (req.session.obligeId) {
+    db.get('SELECT id, email_provider, email_address, oauth_access_token, oauth_refresh_token, oauth_expires_at FROM obliges WHERE id=?',
+      [req.session.obligeId], (e, r) => cb(e, r ? { table: 'obliges', id: r.id, row: r } : null));
+    return;
+  }
+  if (req.session.delegataireId) {
+    db.get('SELECT id, email_provider, email_address, oauth_access_token, oauth_refresh_token, oauth_expires_at FROM delegataires WHERE id=?',
+      [req.session.delegataireId], (e, r) => cb(e, r ? { table: 'delegataires', id: r.id, row: r } : null));
+    return;
+  }
+  cb(null, null);
+}
+
+function persistOAuthTokens(table, id, { email_provider, email_address, access_token_enc, refresh_token_enc, expires_at }) {
+  return new Promise((resolve, reject) => {
+    const sets = [], params = [];
+    if (email_provider !== undefined) { sets.push('email_provider=?'); params.push(email_provider); }
+    if (email_address !== undefined)  { sets.push('email_address=?');  params.push(email_address); }
+    if (access_token_enc !== undefined)  { sets.push('oauth_access_token=?');  params.push(access_token_enc); }
+    if (refresh_token_enc !== undefined) { sets.push('oauth_refresh_token=?'); params.push(refresh_token_enc); }
+    if (expires_at !== undefined)        { sets.push('oauth_expires_at=?');    params.push(expires_at); }
+    if (!sets.length) return resolve();
+    params.push(id);
+    db.run(`UPDATE ${table} SET ${sets.join(', ')} WHERE id=?`, params, err => err ? reject(err) : resolve());
+  });
+}
+
+function requireAnyAuth(req, res, next) {
+  if (req.session.compteId || req.session.obligeId || req.session.delegataireId || req.session.isAdmin) return next();
+  res.status(401).json({ error: 'Non autorisé' });
+}
+
+// État de la connexion OAuth pour l'utilisateur courant
+app.get('/api/oauth/status', requireAnyAuth, (req, res) => {
+  resolveOAuthAccount(req, (e, acc) => {
+    if (e) return res.status(500).json({ error: e.message });
+    if (!acc) return res.json({ connected: false, providers_available: {
+      google: oauthMail.isConfigured('google'),
+      microsoft: oauthMail.isConfigured('microsoft')
+    } });
+    res.json({
+      connected: !!(acc.row.email_provider && acc.row.email_address),
+      provider: acc.row.email_provider || null,
+      email: acc.row.email_address || null,
+      providers_available: {
+        google: oauthMail.isConfigured('google'),
+        microsoft: oauthMail.isConfigured('microsoft')
+      }
+    });
+  });
+});
+
+// Démarrage du flux OAuth — génère un state lié à la session
+app.get('/api/oauth/:provider/start', requireAnyAuth, (req, res) => {
+  const provider = req.params.provider;
+  if (!['google', 'microsoft'].includes(provider)) return res.status(400).send('Provider invalide');
+  if (!oauthMail.isConfigured(provider)) return res.status(503).send(`OAuth ${provider} non configuré sur le serveur (variables d'environnement manquantes)`);
+  // State = id éphémère stocké en session ; protège du CSRF
+  const state = require('crypto').randomBytes(24).toString('hex');
+  req.session.oauthState = state;
+  req.session.oauthProvider = provider;
+  try {
+    const url = oauthMail.buildAuthUrl(provider, state);
+    res.redirect(url);
+  } catch (e) { res.status(500).send('Erreur OAuth : ' + e.message); }
+});
+
+// Callback OAuth — échange code → tokens, récupère email, persiste
+app.get('/api/oauth/:provider/callback', requireAnyAuth, async (req, res) => {
+  const provider = req.params.provider;
+  const { code, state, error } = req.query;
+  if (error) return res.status(400).send('Refusé : ' + error);
+  if (!code || !state) return res.status(400).send('Paramètres manquants');
+  if (state !== req.session.oauthState || provider !== req.session.oauthProvider) {
+    return res.status(400).send('State invalide');
+  }
+  delete req.session.oauthState; delete req.session.oauthProvider;
+  try {
+    const tok = await oauthMail.exchangeCode(provider, code);
+    if (!tok.access_token) throw new Error('access_token absent');
+    const info = await oauthMail.fetchUserInfo(provider, tok.access_token);
+    if (!info.email) throw new Error('Email du compte introuvable');
+    const expiresAt = new Date(Date.now() + (tok.expires_in || 3600) * 1000).toISOString();
+    resolveOAuthAccount(req, async (e, acc) => {
+      if (e || !acc) return res.status(500).send('Profil introuvable en session');
+      await persistOAuthTokens(acc.table, acc.id, {
+        email_provider: provider,
+        email_address: info.email,
+        access_token_enc: oauthMail.encryptToken(tok.access_token),
+        refresh_token_enc: oauthMail.encryptToken(tok.refresh_token || ''),
+        expires_at: expiresAt,
+      });
+      // Page de retour qui ferme la fenêtre OAuth et notifie le parent
+      res.send(`<!doctype html><meta charset="utf-8"><title>Mail connecté</title>
+<body style="font-family:system-ui;padding:30px;text-align:center">
+<h3 style="color:#16a34a">Compte ${provider === 'google' ? 'Gmail' : 'Microsoft'} connecté !</h3>
+<p>Adresse d'envoi : <strong>${info.email}</strong></p>
+<script>try{window.opener&&window.opener.postMessage({type:'oauth-mail-connected',provider:'${provider}',email:${JSON.stringify(info.email)}},'*');}catch(e){}setTimeout(()=>window.close(),1500);</script>
+</body>`);
+    });
+  } catch (e) {
+    res.status(500).send('Erreur OAuth : ' + e.message);
+  }
+});
+
+// Déconnecter le compte mail OAuth
+app.post('/api/oauth/disconnect', requireAnyAuth, (req, res) => {
+  resolveOAuthAccount(req, async (e, acc) => {
+    if (e || !acc) return res.status(404).json({ error: 'Profil introuvable' });
+    await persistOAuthTokens(acc.table, acc.id, {
+      email_provider: '', email_address: '',
+      access_token_enc: '', refresh_token_enc: '', expires_at: null,
+    });
+    res.json({ success: true });
+  });
+});
+
+// Helper d'envoi — utilise OAuth si connecté, sinon fallback SMTP plateforme
+async function sendAsCurrentUser(req, { fromName, to, subject, html, text }) {
+  return new Promise((resolve, reject) => {
+    resolveOAuthAccount(req, async (e, acc) => {
+      if (e) return reject(e);
+      const row = acc?.row;
+      if (row && row.email_provider && row.email_address && row.oauth_refresh_token) {
+        try {
+          const r = await oauthMail.sendOAuth(row, { fromName, to, subject, html, text },
+            (upd) => persistOAuthTokens(acc.table, acc.id, upd));
+          return resolve({ provider: row.email_provider, from: row.email_address, result: r });
+        } catch (err) {
+          return reject(new Error(`Envoi OAuth ${row.email_provider} échoué : ${err.message}`));
+        }
+      }
+      // Fallback SMTP plateforme
+      const t = getTransporter();
+      if (!t) return reject(new Error('Aucun moyen d\'envoi disponible. Connectez votre compte Gmail/Outlook dans Mon compte.'));
+      try {
+        await t.sendMail({
+          from: `"${fromName || process.env.SMTP_FROM_NAME || 'Plateforme CEE'}" <${process.env.SMTP_USER}>`,
+          to, subject, html, text,
+          replyTo: req.session.userEmail || undefined,
+        });
+        resolve({ provider: 'smtp', from: process.env.SMTP_USER });
+      } catch (err) { reject(err); }
+    });
+  });
+}
+
+// Communication bénéficiaires — utilise OAuth si dispo, sinon SMTP fallback
 app.post('/api/partner/contact-beneficiaire', requireRole('admin_partenaire','apporteur'), (req, res) => {
   partnerScope(req, res, (s) => {
     const { beneficiaire_id, sujet, message } = req.body;
@@ -3276,19 +3453,21 @@ app.post('/api/partner/contact-beneficiaire', requireRole('admin_partenaire','ap
       return res.status(400).json({ error: 'Bénéficiaire, sujet et message requis' });
     const f = dossierFilter(s);
     db.get(`SELECT b.email,b.nom,b.prenom FROM beneficiaires b WHERE ${f.where} AND b.id=?`,
-      [...f.params, beneficiaire_id], (err, b) => {
+      [...f.params, beneficiaire_id], async (err, b) => {
         if (err) return res.status(500).json({ error: err.message });
         if (!b) return res.status(404).json({ error: 'Bénéficiaire hors de votre périmètre' });
         if (!b.email) return res.status(400).json({ error: "Ce bénéficiaire n'a pas d'adresse email" });
-        const t = getTransporter();
-        if (!t) return res.status(400).json({ error: 'Service email non configuré sur le serveur' });
         const safe = String(message).replace(/[<>&]/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;' }[c]));
-        t.sendMail({
-          from: `"${s.partenaire_nom}" <${process.env.SMTP_USER}>`, to: b.email,
-          subject: String(sujet).trim(),
-          html: `<div style="font-family:Arial,sans-serif;font-size:14px;color:#222;white-space:pre-wrap">${safe}</div>`
-        }).then(() => res.json({ success: true }))
-          .catch(e => res.status(500).json({ error: 'Envoi échoué : ' + e.message }));
+        const html = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#222;white-space:pre-wrap">${safe}</div>`;
+        try {
+          const r = await sendAsCurrentUser(req, {
+            fromName: s.partenaire_nom, to: b.email,
+            subject: String(sujet).trim(), html, text: String(message),
+          });
+          res.json({ success: true, sent_from: r.from, via: r.provider });
+        } catch (e) {
+          res.status(500).json({ error: e.message });
+        }
       });
   });
 });

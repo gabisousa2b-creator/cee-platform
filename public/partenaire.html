@@ -493,6 +493,13 @@
           <button class="btn btn-sm btn-primary mt-3" type="submit"><i class="fas fa-check me-1"></i>Changer le mot de passe</button>
         </form>
 
+        <hr style="border-color:var(--border);margin:22px 0">
+
+        <div class="fw-semibold mb-2"><i class="fas fa-envelope me-2" style="color:var(--accent)"></i>Compte mail d'envoi</div>
+        <div class="text-muted small mb-3">Connectez votre boîte Gmail ou Outlook pour envoyer les emails aux bénéficiaires <strong>depuis votre adresse</strong> (et non depuis la plateforme).</div>
+        <div id="oauthStatus" class="alert py-2 small mb-3"></div>
+        <div class="d-flex gap-2 flex-wrap" id="oauthButtons"></div>
+
       </div>
     </div>
   </div>
@@ -1410,7 +1417,51 @@ function openAccountModal() {
   const isAdmin = myRole === 'admin_partenaire';
   document.getElementById('accProfileSection').classList.toggle('d-none', !isAdmin);
   if (isAdmin) loadProfile();
+  loadOAuthStatus();
   showView('accountModal');
+}
+async function loadOAuthStatus() {
+  const statusEl = document.getElementById('oauthStatus');
+  const btnsEl   = document.getElementById('oauthButtons');
+  if (!statusEl || !btnsEl) return;
+  statusEl.className = 'alert alert-secondary py-2 small mb-3';
+  statusEl.textContent = 'Chargement…';
+  try {
+    const r = await fetch('/api/oauth/status', { credentials:'include' });
+    const s = await r.json();
+    const avail = s.providers_available || {};
+    if (s.connected) {
+      statusEl.className = 'alert alert-success py-2 small mb-3';
+      statusEl.innerHTML = `<i class="fas fa-check-circle me-1"></i>Connecté : <strong>${s.email}</strong> (${s.provider === 'google' ? 'Gmail' : 'Outlook/Microsoft 365'}). Vos messages partiront depuis cette adresse.`;
+      btnsEl.innerHTML = `<button class="btn btn-sm btn-outline-danger" onclick="disconnectOAuth()"><i class="fas fa-unlink me-1"></i>Déconnecter</button>`;
+    } else {
+      statusEl.className = 'alert alert-warning py-2 small mb-3';
+      statusEl.innerHTML = `<i class="fas fa-info-circle me-1"></i>Aucun compte mail connecté. Les emails seront envoyés depuis l'adresse de la plateforme (avec votre nom).`;
+      const btns = [];
+      if (avail.google)    btns.push(`<button class="btn btn-sm btn-outline-danger" onclick="connectOAuth('google')"><i class="fab fa-google me-1"></i>Connecter Gmail</button>`);
+      if (avail.microsoft) btns.push(`<button class="btn btn-sm btn-outline-primary" onclick="connectOAuth('microsoft')"><i class="fab fa-microsoft me-1"></i>Connecter Outlook / Microsoft 365</button>`);
+      if (!btns.length)    btns.push(`<div class="small text-muted"><i class="fas fa-triangle-exclamation me-1"></i>OAuth non configuré sur le serveur (admin doit ajouter les clés Google/Microsoft).</div>`);
+      btnsEl.innerHTML = btns.join('');
+    }
+  } catch(e) {
+    statusEl.className = 'alert alert-danger py-2 small mb-3';
+    statusEl.textContent = 'Erreur chargement : ' + e.message;
+  }
+}
+function connectOAuth(provider) {
+  const w = window.open(`/api/oauth/${provider}/start`, 'oauth', 'width=520,height=680');
+  const onMsg = (ev) => {
+    if (ev.data && ev.data.type === 'oauth-mail-connected') {
+      window.removeEventListener('message', onMsg);
+      loadOAuthStatus();
+    }
+  };
+  window.addEventListener('message', onMsg);
+}
+async function disconnectOAuth() {
+  if (!confirm('Déconnecter votre compte mail ? Les emails repartiront depuis la plateforme.')) return;
+  await fetch('/api/oauth/disconnect', { method:'POST', credentials:'include' });
+  loadOAuthStatus();
 }
 async function loadProfile() {
   document.getElementById('profileError').classList.add('d-none');
